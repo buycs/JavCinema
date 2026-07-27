@@ -28,7 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
+import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.components.SwipeBackContainer
 import io.github.javcinema.ui.navigation.NavRoutes
 
@@ -42,6 +44,7 @@ fun SearchScreen(
     val movies by viewModel.movies.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     var query by remember { mutableStateOf(initialQuery) }
+    var dialogMovie by remember { mutableStateOf<Movie?>(null) }
     val gridState = rememberLazyGridState()
 
     LaunchedEffect(initialQuery) {
@@ -121,7 +124,8 @@ fun SearchScreen(
                     movie = movie,
                     onClick = {
                         navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link))
-                    }
+                    },
+                    onLongClick = { dialogMovie = movie }
                 )
             }
 
@@ -138,5 +142,12 @@ fun SearchScreen(
                 }
             }
         }
+    }
+
+    dialogMovie?.let { movie ->
+        MovieFavoriteDialog(
+            movie = movie,
+            onDismiss = { dialogMovie = null }
+        )
     }
 }

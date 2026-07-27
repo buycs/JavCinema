@@ -1,5 +1,7 @@
 package io.github.javcinema.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
@@ -19,10 +21,12 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.github.javcinema.data.model.Actress
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ActressRow(
     actresses: List<Actress>,
     onActressClick: (Actress) -> Unit,
+    onActressLongClick: ((Actress) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -32,7 +36,12 @@ fun ActressRow(
             items(actresses, key = { it.link ?: it.name ?: it.hashCode().toString() }) { actress ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.size(72.dp)
+                    modifier = Modifier
+                        .size(72.dp)
+                        .combinedClickable(
+                            onClick = { onActressClick(actress) },
+                            onLongClick = { onActressLongClick?.invoke(actress) }
+                        )
                 ) {
                     AsyncImage(
                         model = actress.imageUrl,

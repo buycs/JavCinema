@@ -33,6 +33,7 @@ class Configurations {
             }
             return field
         }
+    @kotlin.jvm.Transient
     private var configFile: File? = null
     private var showAds: Boolean = false
     var downloadCounter: Long = 0
@@ -156,7 +157,6 @@ class Configurations {
     }
 
     fun load(file: File): Configurations {
-        this.configFile = file
         var config: Configurations? = null
         try {
             config = JAViewer.parseJson(Configurations::class.java, JsonReader(FileReader(file)))
@@ -167,6 +167,7 @@ class Configurations {
             config = Configurations()
         }
 
+        config.configFile = file
         return config
     }
 }

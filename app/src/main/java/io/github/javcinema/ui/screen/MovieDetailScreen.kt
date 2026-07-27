@@ -11,18 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Face
@@ -30,35 +28,66 @@ import androidx.compose.material.icons.outlined.Label
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Genre
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.data.model.MovieDetail
 import io.github.javcinema.data.model.Screenshot
+import io.github.javcinema.data.model.toggleStar
+import io.github.javcinema.ui.components.ActressFavoriteDialog
 import io.github.javcinema.ui.components.ActressRow
 import io.github.javcinema.ui.components.GenreFlow
 import io.github.javcinema.ui.components.MovieCard
+import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.components.ScreenshotRow
 import io.github.javcinema.ui.navigation.NavRoutes
 import java.net.URLEncoder
@@ -72,8 +101,11 @@ fun MovieDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val detail by viewModel.detail.collectAsState()
-    val isStarred by viewModel.isStarred.collectAsState()
     val relatedMovies by viewModel.relatedMovies.collectAsState()
+    var dialogMovie by remember { mutableStateOf<Movie?>(null) }
+    var dialogActress by remember { mutableStateOf<Actress?>(null) }
+    var galleryUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+    var galleryIndex by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(movieCode) {
         viewModel.loadDetail(movieCode, movieLink)
     }
@@ -106,50 +138,248 @@ fun MovieDetailScreen(
                     relatedMovies = relatedMovies,
                     movieCode = movieCode,
                     navController = navController,
+                    onScreenshotClick = { urls, index ->
+                        galleryUrls = urls
+                        galleryIndex = index
+                    },
                     onPreviewClick = { /* TODO: preview video */ },
                     onPlayClick = { /* TODO: play video */ },
+                    onMovieLongClick = { dialogMovie = it },
+                    onActressLongClick = { dialogActress = it },
+                    onCoverLongClick = {
+                        dialogMovie = Movie().apply {
+                            code = d.code ?: movieCode
+                            title = d.title
+                            link = d.id ?: movieCode
+                            coverUrl = d.coverUrl
+                        }
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             }
         }
+    }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopStart)
-                .statusBarsPadding()
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-            }
-            IconButton(onClick = { viewModel.toggleStar() }) {
-                Icon(
-                    imageVector = if (isStarred) Icons.Filled.Star else Icons.Filled.StarBorder,
-                    contentDescription = if (isStarred) "取消收藏" else "收藏",
-                    tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+    dialogMovie?.let { movie ->
+        MovieFavoriteDialog(
+            movie = movie,
+            onDismiss = { dialogMovie = null }
+        )
+    }
+    dialogActress?.let { actress ->
+        ActressFavoriteDialog(
+            actress = actress,
+            onDismiss = { dialogActress = null }
+        )
+    }
 
-        FloatingActionButton(
-            onClick = {
-                navController.navigate(NavRoutes.download(movieCode))
-            },
-            containerColor = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Filled.Download, contentDescription = "下载")
-        }
+    galleryIndex?.let { index ->
+        GalleryOverlay(
+            imageUrls = galleryUrls,
+            initialIndex = index,
+            onClose = { galleryIndex = null }
+        )
     }
 }
 
 @Composable
+private fun GalleryOverlay(
+    imageUrls: List<String>,
+    initialIndex: Int,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var backgroundBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val pagerState = rememberPagerState(pageCount = { imageUrls.size }, initialPage = initialIndex)
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.Main) {
+            try {
+                val activity = context as? androidx.activity.ComponentActivity
+                val view = activity?.window?.decorView?.rootView
+                if (view != null && view.width > 0 && view.height > 0) {
+                    val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    view.draw(canvas)
+                    backgroundBitmap = bitmap
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+                onClick = onClose
+            )
+    ) {
+        if (backgroundBitmap != null) {
+            Image(
+                bitmap = backgroundBitmap!!.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(25.dp)
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.7f))
+            )
+        }
+
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            pageContent = { page ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(0.5f, 5f)
+                                offset = Offset(
+                                    x = offset.x + pan.x,
+                                    y = offset.y + pan.y
+                                )
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(onTap = { onClose() })
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(imageUrls.getOrNull(page) ?: "")
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                    )
+                }
+            }
+        )
+
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            Icon(
+                Icons.Filled.Close,
+                contentDescription = "关闭",
+                tint = Color.White
+            )
+        }
+
+        Text(
+            text = "${pagerState.currentPage + 1} / ${imageUrls.size}",
+            color = Color.White,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 24.dp)
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun InfoRowClickable(label: String, value: String, onClick: () -> Unit) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+                    Toast.makeText(context, "已复制: $value", Toast.LENGTH_SHORT).show()
+                }
+            )
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(80.dp).alignByBaseline()
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.alignByBaseline()
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun InfoRowClickableMagnet(label: String, value: String, onClick: () -> Unit) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+                    Toast.makeText(context, "已复制: $value", Toast.LENGTH_SHORT).show()
+                }
+            )
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(80.dp).alignByBaseline()
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFE91E63),
+            modifier = Modifier.alignByBaseline()
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun InfoRow(label: String, value: String) {
-    Row {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+                Toast.makeText(context, "已复制: $value", Toast.LENGTH_SHORT).show()
+            }
+        )
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
@@ -185,13 +415,18 @@ private fun SectionWithIcon(icon: ImageVector, content: @Composable () -> Unit) 
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun MovieDetailContent(
     detail: MovieDetail,
     relatedMovies: List<Movie>,
     movieCode: String,
     navController: NavController,
+    onScreenshotClick: ((List<String>, Int) -> Unit)? = null,
     onPreviewClick: () -> Unit,
     onPlayClick: () -> Unit,
+    onMovieLongClick: ((Movie) -> Unit)? = null,
+    onActressLongClick: ((Actress) -> Unit)? = null,
+    onCoverLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -205,8 +440,11 @@ private fun MovieDetailContent(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
                 .height(280.dp)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onCoverLongClick
+                )
         )
 
         Column(
@@ -216,13 +454,37 @@ private fun MovieDetailContent(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SectionWithIcon(Icons.Outlined.Description) {
-                InfoRow("影片番号", detail.code ?: movieCode)
+                val movieCodeValue = detail.code ?: movieCode
+                InfoRowClickableMagnet(
+                    label = "影片番号",
+                    value = movieCodeValue,
+                    onClick = { navController.navigate(NavRoutes.download(movieCodeValue)) }
+                )
                 InfoRow("影片名称", detail.title ?: movieCode)
+                val headerUrlPrefix = mapOf(
+                    "导演" to "director",
+                    "制作商" to "studio",
+                    "发行商" to "label",
+                    "系列" to "series"
+                )
                 detail.headers.forEach { header ->
                     val name = header.name
                     val value = header.value
                     if (name != null && value != null) {
-                        InfoRow(name, value)
+                        val prefix = headerUrlPrefix[name]
+                        if (prefix != null) {
+                            val id = header.link ?: value
+                            val filterUrl = "$prefix/$id"
+                            val encodedTitle = URLEncoder.encode(name, "UTF-8")
+                            val encodedUrl = URLEncoder.encode(filterUrl, "UTF-8")
+                            InfoRowClickable(
+                                label = name,
+                                value = value,
+                                onClick = { navController.navigate(NavRoutes.movieList(encodedTitle, encodedUrl)) }
+                            )
+                        } else {
+                            InfoRow(name, value)
+                        }
                     }
                 }
 
@@ -256,13 +518,9 @@ private fun MovieDetailContent(
                     ScreenshotRow(
                         screenshots = detail.screenshots,
                         onScreenshotClick = { screenshot ->
-                            GalleryState.imageUrls = detail.screenshots.mapNotNull { it.getImageUrl() }
-                            GalleryState.movie = Movie().apply {
-                                code = movieCode
-                                title = detail.title
-                            }
+                            val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
                             val index = detail.screenshots.indexOf(screenshot)
-                            navController.navigate(NavRoutes.gallery(index.coerceAtLeast(0)))
+                            onScreenshotClick?.invoke(urls, index.coerceAtLeast(0))
                         }
                     )
                 }
@@ -280,7 +538,8 @@ private fun MovieDetailContent(
                             val encodedTitle = URLEncoder.encode(name, "UTF-8")
                             val encodedUrl = URLEncoder.encode(rawUrl, "UTF-8")
                             navController.navigate(NavRoutes.movieList(encodedTitle, encodedUrl))
-                        }
+                        },
+                        onActressLongClick = { onActressLongClick?.invoke(it) }
                     )
                 }
             }
@@ -321,6 +580,7 @@ private fun MovieDetailContent(
                                         val encodedCode = URLEncoder.encode(movie.code ?: "", "UTF-8")
                                         navController.navigate(NavRoutes.movieDetail(encodedCode, encodedLink))
                                     },
+                                    onLongClick = { onMovieLongClick?.invoke(movie) },
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
@@ -334,7 +594,7 @@ private fun MovieDetailContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

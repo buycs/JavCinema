@@ -11,6 +11,7 @@ class MovieDetail {
     var title: String? = null
     var coverUrl: String? = null
     var code: String? = null
+    var id: String? = null
     var btsSearchUrl: String? = null
     val headers: MutableList<Header> = ArrayList()
     val genres: MutableList<Genre> = ArrayList()

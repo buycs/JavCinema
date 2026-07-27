@@ -1,8 +1,25 @@
 package io.github.javcinema.data.model
 
+import io.github.javcinema.JAViewer
+
 /**
  * Project: JAViewer
  */
+
+fun Movie.toggleStar() {
+    val config = JAViewer.CONFIGURATIONS ?: return
+    val m = Movie().apply {
+        code = this@toggleStar.code
+        title = this@toggleStar.title
+        link = this@toggleStar.link
+        coverUrl = this@toggleStar.coverUrl
+    }
+    if (config.starredMovies?.contains(m) == true) {
+        config.starredMovies?.remove(m)
+    } else {
+        config.starredMovies?.add(0, m)
+    }
+}
 class Movie : Linkable() {
 
     var id: String? = null

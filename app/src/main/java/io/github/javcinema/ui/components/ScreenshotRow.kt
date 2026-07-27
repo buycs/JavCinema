@@ -14,6 +14,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.github.javcinema.data.model.Screenshot
+import androidx.compose.foundation.clickable
 
 @Composable
 fun ScreenshotRow(
@@ -21,7 +22,10 @@ fun ScreenshotRow(
     onScreenshotClick: (Screenshot) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         screenshots.chunked(4).forEach { chunk ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -40,6 +44,7 @@ fun ScreenshotRow(
                                 .weight(1f)
                                 .aspectRatio(16f / 9f)
                                 .clip(RoundedCornerShape(4.dp))
+                                .clickable { onScreenshotClick(screenshot) }
                         )
                     } else {
                         Box(

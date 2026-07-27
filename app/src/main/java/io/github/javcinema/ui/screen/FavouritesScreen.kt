@@ -157,7 +157,9 @@ fun FavouritesScreen(
                                     MovieCard(
                                         movie = movie,
                                         onClick = {
-                                            navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link))
+                                            val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
+                                            val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
+                                            navController.navigate(NavRoutes.movieDetail(code, link))
                                         },
                                         modifier = Modifier.pointerInput(movie) {
                                             detectTapGestures(

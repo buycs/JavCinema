@@ -1,7 +1,8 @@
 package io.github.javcinema.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,16 +28,21 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import io.github.javcinema.data.model.Movie
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MovieCard(
     movie: Movie,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(
@@ -71,8 +77,9 @@ fun MovieCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f)
                     .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.Bottom
             ) {
                 Text(
                     text = movie.title ?: "",

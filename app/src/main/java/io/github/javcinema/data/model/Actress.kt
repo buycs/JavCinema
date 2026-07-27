@@ -1,5 +1,7 @@
 package io.github.javcinema.data.model
 
+import io.github.javcinema.JAViewer
+
 /**
  * Project: JAViewer
  */
@@ -26,5 +28,19 @@ open class Actress : Linkable() {
 
     override fun hashCode(): Int {
         return name?.hashCode() ?: 0
+    }
+}
+
+fun Actress.toggleStar() {
+    val config = JAViewer.CONFIGURATIONS ?: return
+    val a = Actress().apply {
+        name = this@toggleStar.name
+        imageUrl = this@toggleStar.imageUrl
+        link = this@toggleStar.link
+    }
+    if (config.starredActresses?.contains(a) == true) {
+        config.starredActresses?.remove(a)
+    } else {
+        config.starredActresses?.add(0, a)
     }
 }

@@ -1,6 +1,7 @@
 package io.github.javcinema.ui.screen
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import io.github.javcinema.data.model.Actress
+import io.github.javcinema.ui.components.ActressFavoriteDialog
 import io.github.javcinema.ui.navigation.NavRoutes
 import java.net.URLEncoder
 
@@ -44,6 +48,7 @@ fun ActressListScreen(
     val actresses by viewModel.actresses.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val listState = rememberLazyListState()
+    var dialogActress by remember { mutableStateOf<Actress?>(null) }
 
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -107,7 +112,8 @@ fun ActressListScreen(
                         )
                         val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
                         navController.navigate(NavRoutes.movieList(name, url))
-                    }
+                    },
+                    onLongClick = { dialogActress = actress }
                 )
             }
 
@@ -125,17 +131,29 @@ fun ActressListScreen(
             }
         }
     }
+
+    dialogActress?.let { actress ->
+        ActressFavoriteDialog(
+            actress = actress,
+            onDismiss = { dialogActress = null }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ActressListItem(
     actress: Actress,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     androidx.compose.foundation.layout.Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)

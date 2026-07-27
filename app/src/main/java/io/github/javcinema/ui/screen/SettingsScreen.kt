@@ -25,8 +25,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,12 +56,6 @@ fun SettingsScreen() {
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(
-            text = "设置",
-            style = MaterialTheme.typography.headlineMedium
-        )
-        Spacer(Modifier.height(16.dp))
-
         SettingsItem(
             icon = Icons.Filled.Star,
             title = "数据源选择",
@@ -76,8 +70,8 @@ fun SettingsScreen() {
         )
         SettingsItem(
             icon = Icons.Filled.Visibility,
-            title = "磁力域名配置",
-            summary = "自定义磁力搜索域名",
+            title = "磁力源配置",
+            summary = "自定义磁力源地址",
             onClick = { showMagnetUrlDialog = true }
         )
         SettingsItem(
@@ -254,29 +248,35 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
+                val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMOO 日本" }?.link
+                TextField(
                     value = avmooUrl,
                     onValueChange = { avmooUrl = it; saved = false; errorMsg = null },
                     label = { Text("骑兵") },
                     placeholder = { Text("骑兵") },
+                    supportingText = { Text(avmooDefault ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVSOX 日本无码" }?.link
+                TextField(
                     value = avsoUrl,
                     onValueChange = { avsoUrl = it; saved = false; errorMsg = null },
                     label = { Text("步兵") },
                     placeholder = { Text("步兵") },
+                    supportingText = { Text(avsoDefault ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMEMO 欧美" }?.link
+                TextField(
                     value = avxoUrl,
                     onValueChange = { avxoUrl = it; saved = false; errorMsg = null },
                     label = { Text("欧美") },
                     placeholder = { Text("欧美") },
+                    supportingText = { Text(avxoDefault ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -339,34 +339,37 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("磁力域名配置") },
+        title = { Text("磁力源配置") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
-                OutlinedTextField(
+                TextField(
                     value = btSearchUrl,
                     onValueChange = { btSearchUrl = it; saved = false; errorMsg = null },
                     label = { Text("BtSearch") },
                     placeholder = { Text("BtSearch") },
+                    supportingText = { Text(io.github.javcinema.network.BtSearch.BASE_URL, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                TextField(
                     value = ciliUrl,
                     onValueChange = { ciliUrl = it; saved = false; errorMsg = null },
                     label = { Text("Cili") },
                     placeholder = { Text("Cili") },
+                    supportingText = { Text(io.github.javcinema.network.CiliInfo.BASE_URL, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                TextField(
                     value = btsowUrl,
                     onValueChange = { btsowUrl = it; saved = false; errorMsg = null },
                     label = { Text("BTSOW") },
                     placeholder = { Text("BTSOW") },
+                    supportingText = { Text(io.github.javcinema.network.BTSO.BASE_URL, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -425,13 +428,34 @@ private fun ActiveAddressesDialog(onDismiss: () -> Unit) {
         title = { Text("当前生效地址") },
         text = {
             Column {
+                Text("数据源", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(4.dp))
                 JAViewer.DATA_SOURCES.forEach { ds ->
                     Text(
                         text = "${ds.name}: ${ds.link ?: "未设置"}",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+                Text("磁力源", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "BtSearch: ${io.github.javcinema.network.BtSearch.BASE_URL}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Cili: ${io.github.javcinema.network.CiliInfo.BASE_URL}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "BTSOW: ${io.github.javcinema.network.BTSO.BASE_URL}",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         },
         confirmButton = {
