@@ -622,7 +622,7 @@ private fun MovieDetailContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp).navigationBarsPadding())
         }
     }
 }

@@ -1,13 +1,12 @@
 package io.github.javcinema.ui.screen
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Favorite
@@ -86,8 +85,20 @@ fun MainScreen() {
                 }
             }
         }
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    ) { paddingValues ->
+        val isMovieDetail = currentRoute.startsWith("movie_detail")
+        val layoutDirection = LocalLayoutDirection.current
+        val adjustedPadding = PaddingValues(
+            top = paddingValues.calculateTopPadding(),
+            start = paddingValues.calculateLeftPadding(layoutDirection),
+            end = paddingValues.calculateRightPadding(layoutDirection),
+            bottom = if (isMovieDetail) 0.dp else paddingValues.calculateBottomPadding()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(adjustedPadding)
+        ) {
             JAViewerNavHost(navController = navController)
         }
     }

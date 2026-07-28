@@ -104,7 +104,7 @@ fun DownloadScreen(
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (isSearching) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center)
