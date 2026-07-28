@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -33,6 +35,9 @@ class ActressListViewModel : ViewModel() {
 
     init {
         loadActresses()
+        viewModelScope.launch {
+            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { loadActresses() }
+        }
     }
 
     fun loadActresses() {

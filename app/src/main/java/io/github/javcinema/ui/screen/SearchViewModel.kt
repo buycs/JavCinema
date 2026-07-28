@@ -11,6 +11,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.URLEncoder
@@ -38,8 +40,17 @@ class SearchViewModel : ViewModel() {
     private var loadJob: Job? = null
     private var lastVersion: Int = -1
 
+    init {
+        viewModelScope.launch {
+            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
+                lastVersion = version
+                if (currentQuery.isNotEmpty()) search(currentQuery)
+            }
+        }
+    }
+
     fun search(query: String) {
-        val currentVersion = JAViewer.dataSourceVersion
+        val currentVersion = JAViewer.dataSourceVersionFlow.value
         if (query == currentQuery && lastVersion == currentVersion) return
         lastVersion = currentVersion
         if (query.isBlank()) return

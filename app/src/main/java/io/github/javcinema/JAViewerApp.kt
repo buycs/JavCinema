@@ -16,6 +16,7 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
@@ -43,8 +44,7 @@ class JAViewer : Application() {
 
         var hostReplacements: MutableMap<String, String> = HashMap()
 
-        @Volatile
-        var dataSourceVersion: Int = 0
+        val dataSourceVersionFlow = MutableStateFlow(0)
 
         val HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
             .addInterceptor { chain ->
@@ -85,7 +85,7 @@ class JAViewer : Application() {
                 .build()
             SERVICE = retrofit.create(BasicService::class.java)
             AVMOO_API_SERVICE = retrofit.create(AvmooApiService::class.java)
-            dataSourceVersion++
+            dataSourceVersionFlow.value++
         }
 
         fun getStorageDir(): File {

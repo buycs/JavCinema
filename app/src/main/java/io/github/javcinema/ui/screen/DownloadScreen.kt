@@ -19,26 +19,19 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.javcinema.data.model.DownloadLink
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadScreen(
     keyword: String,
@@ -62,11 +54,9 @@ fun DownloadScreen(
     val magnetLink by viewModel.magnetLink.collectAsState()
     val isGettingMagnet by viewModel.isGettingMagnet.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-    var searchQuery by remember { mutableStateOf(keyword) }
 
     LaunchedEffect(keyword) {
         if (keyword.isNotBlank()) {
-            searchQuery = keyword
             viewModel.search(keyword, "btso")
         }
     }
@@ -95,108 +85,78 @@ fun DownloadScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("下载") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+    Column(modifier = Modifier.fillMaxSize()) {
+        val magnetSources = listOf(
+            "BtSearch" to "btsearch",
+            "Cili" to "cili",
+            "BTSOW" to "btso"
+        )
+        TabRow(selectedTabIndex = selectedTab) {
+            magnetSources.forEachIndexed { index, (label, provider) ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = {
+                        selectedTab = index
+                        viewModel.search(keyword, provider)
+                    },
+                    text = { Text(label) }
                 )
-            )
+            }
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            TextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("搜索磁力链接...") },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-            )
 
-            val magnetSources = listOf(
-                "BtSearch" to "btsearch",
-                "Cili" to "cili",
-                "BTSOW" to "btso"
-            )
-            TabRow(selectedTabIndex = selectedTab) {
-                magnetSources.forEachIndexed { index, (label, provider) ->
-                    Tab(
-                        selected = selectedTab == index,
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (isSearching) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+            val results = listOf(btSearchResults, ciliResults, btsoResults).getOrElse(selectedTab) { btsoResults }
+
+            if (results.isEmpty() && !isSearching) {
+                Text(
+                    text = "未找到结果",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+            LazyColumn(
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(
+                    items = results,
+                    key = { it.link ?: it.title ?: it.hashCode().toString() }
+                ) { link ->
+                    DownloadLinkItem(
+                        link = link,
                         onClick = {
-                            selectedTab = index
-                            viewModel.search(searchQuery, provider)
-                        },
-                        text = { Text(label) }
+                            val providerNames = listOf("btsearch", "cili", "btso")
+                            val providerName = providerNames.getOrElse(selectedTab) { "btso" }
+                            if (providerName == "btsearch") {
+                                if (!link.filesExpanded) {
+                                    link.filesExpanded = true
+                                    viewModel.loadBtSearchDetail(link)
+                                } else {
+                                    link.filesExpanded = false
+                                }
+                            } else {
+                                viewModel.getMagnetLink(link, providerName)
+                            }
+                        }
                     )
                 }
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (isSearching) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                val results = listOf(btSearchResults, ciliResults, btsoResults).getOrElse(selectedTab) { btsoResults }
-
-                if (results.isEmpty() && !isSearching) {
-                    Text(
-                        text = if (searchQuery.isBlank()) "请输入关键词搜索" else "未找到结果",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                LazyColumn(
-                    contentPadding = PaddingValues(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxSize()
+            if (isGettingMagnet) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    items(
-                        items = results,
-                        key = { it.link ?: it.title ?: it.hashCode().toString() }
-                    ) { link ->
-                        DownloadLinkItem(
-                            link = link,
-                            onClick = {
-                                val providerNames = listOf("btsearch", "cili", "btso")
-                                val providerName = providerNames.getOrElse(selectedTab) { "btso" }
-                                if (providerName == "btsearch") {
-                                    if (!link.filesExpanded) {
-                                        link.filesExpanded = true
-                                        viewModel.loadBtSearchDetail(link)
-                                    } else {
-                                        link.filesExpanded = false
-                                    }
-                                } else {
-                                    viewModel.getMagnetLink(link, providerName)
-                                }
-                            }
-                        )
-                    }
-                }
-
-                if (isGettingMagnet) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    CircularProgressIndicator()
                 }
             }
         }

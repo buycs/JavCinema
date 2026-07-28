@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -40,8 +42,17 @@ class HomeViewModel : ViewModel() {
     private var loadJob: kotlinx.coroutines.Job? = null
     private var lastVersion: Int = -1
 
+    init {
+        viewModelScope.launch {
+            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
+                lastVersion = version
+                if (section.isNotEmpty()) refresh()
+            }
+        }
+    }
+
     fun setSection(section: String) {
-        val currentVersion = JAViewer.dataSourceVersion
+        val currentVersion = JAViewer.dataSourceVersionFlow.value
         if (this.section != section || lastVersion != currentVersion) {
             this.section = section
             lastVersion = currentVersion
