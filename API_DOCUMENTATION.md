@@ -1,6 +1,6 @@
 # JAViewer API 接口文档
 
-> 基于项目源码 v2.2.0 整理
+> 基于项目源码 v2.2.1 整理
 
 ---
 
@@ -63,9 +63,10 @@
 ## 2. BasicService — 主数据源 API
 
 **文件:** `network/BasicService.java`
+**创建:** `JAViewer.recreateService()` / `JAViewer.getService()`（懒初始化，失败返回 null）
 
 所有 POST 请求的 **Content-Type**: `application/json; charset=utf-8`
-请求体均为 `List<Object>` (JSON Array)，通过 `JAViewer.SERVICE`（全局 Retrofit 实例）调用。
+请求体均为 `List<Object>` (JSON Array)，通过 `JAViewer.getService()`（全局 Retrofit 实例，懒初始化）调用。
 
 ### 2.1 获取首页影片
 
@@ -96,7 +97,7 @@ Body: [movieId, "cn"]
 | `[0]` | string | `Movie.link`（由 Movie.create 传入的 movieId） |
 | `[1]` | string | 语言，固定 `"cn"` |
 
-**调用方:** `MovieActivity.java:132`
+**调用方:** `MovieActivity.java:139`
 
 ---
 
@@ -185,7 +186,7 @@ Body: [movieId, "cn", 12]
 | `[1]` | string | 语言，固定 `"cn"` |
 | `[2]` | int | 返回数量（固定 12） |
 
-**调用方:** `MovieActivity.java:268`
+**调用方:** `MovieActivity.java:275`
 
 ---
 
@@ -513,7 +514,7 @@ byte[] bytes = md.digest(String.format("%s%sBrynhildr", vid, ts).getBytes());
 return bytesToHex(bytes);
 ```
 
-**调用方:** `MovieActivity.java:460-505` (`onPlay()` / `onClickPreview()`)
+**调用方:** `MovieActivity.java:467-512` (`onPlay()` / `onClickPreview()`)
 
 ---
 
@@ -722,7 +723,7 @@ BtSearch JSON 解析:
       └─ 启动 MainActivity
 
 MainActivity
-  ├─ recreateService() → 创建 Retrofit(BasicService)
+  ├─ recreateService() / getService() → 创建 Retrofit(BasicService)，懒初始化
   │
   ├─ 首页: HomeFragment.newCall(page) → POST getMovies ["home", 60, page]
   ├─ 热门: PopularFragment.newCall(page) → POST getFilterMovies ["popular", "", "cn", 60, page]

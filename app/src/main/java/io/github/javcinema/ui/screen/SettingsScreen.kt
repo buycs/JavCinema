@@ -159,9 +159,9 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     val iconMap = mapOf(
-        "AVMOO 日本" to Icons.Filled.Star,
-        "AVSOX 日本无码" to Icons.Filled.Visibility,
-        "AVMEMO 欧美" to Icons.Filled.Language
+        "骑兵" to Icons.Filled.Star,
+        "步兵" to Icons.Filled.Visibility,
+        "欧美" to Icons.Filled.Language
     )
 
     AlertDialog(
@@ -233,9 +233,9 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
 @Composable
 private fun DataUrlDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMOO 日本" }?.link
-    val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVSOX 日本无码" }?.link
-    val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMEMO 欧美" }?.link
+    val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "骑兵" }?.link
+    val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "步兵" }?.link
+    val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "欧美" }?.link
     var avmooUrl by remember { mutableStateOf(Configurations.customAvmooUrl ?: avmooDefault ?: "") }
     var avsoUrl by remember { mutableStateOf(Configurations.customAvsoUrl ?: avsoDefault ?: "") }
     var avxoUrl by remember { mutableStateOf(Configurations.customAvxoUrl ?: avxoDefault ?: "") }

@@ -79,9 +79,9 @@ class Configurations {
     fun applyCustomUrls() {
         for (ds in JAViewer.DATA_SOURCES) {
             val custom = when (ds.name) {
-                "AVMOO 日本" -> customAvmooUrl
-                "AVMOO 日本无码" -> customAvsoUrl
-                "AVMOO 欧美" -> customAvxoUrl
+                "骑兵" -> customAvmooUrl
+                "步兵" -> customAvsoUrl
+                "欧美" -> customAvxoUrl
                 else -> null
             }
             if (!custom.isNullOrBlank()) {
