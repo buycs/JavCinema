@@ -233,9 +233,12 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
 @Composable
 private fun DataUrlDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var avmooUrl by remember { mutableStateOf(Configurations.customAvmooUrl ?: "") }
-    var avsoUrl by remember { mutableStateOf(Configurations.customAvsoUrl ?: "") }
-    var avxoUrl by remember { mutableStateOf(Configurations.customAvxoUrl ?: "") }
+    val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMOO 日本" }?.link
+    val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVSOX 日本无码" }?.link
+    val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMEMO 欧美" }?.link
+    var avmooUrl by remember { mutableStateOf(Configurations.customAvmooUrl ?: avmooDefault ?: "") }
+    var avsoUrl by remember { mutableStateOf(Configurations.customAvsoUrl ?: avsoDefault ?: "") }
+    var avxoUrl by remember { mutableStateOf(Configurations.customAvxoUrl ?: avxoDefault ?: "") }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -253,7 +256,6 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 val labelWidth = 48.dp
-                val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMOO 日本" }?.link
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("骑兵：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
                     TextField(
@@ -271,7 +273,6 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVSOX 日本无码" }?.link
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("步兵：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
                     TextField(
@@ -289,7 +290,6 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMEMO 欧美" }?.link
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("欧美：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
                     TextField(
@@ -357,9 +357,9 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
 @Composable
 private fun MagnetUrlDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var btSearchUrl by remember { mutableStateOf(Configurations.customBtSearchUrl ?: "") }
-    var ciliUrl by remember { mutableStateOf(Configurations.customCiliUrl ?: "") }
-    var btsowUrl by remember { mutableStateOf(Configurations.customBtsowUrl ?: "") }
+    var btSearchUrl by remember { mutableStateOf(Configurations.customBtSearchUrl ?: io.github.javcinema.network.BtSearch.BASE_URL) }
+    var ciliUrl by remember { mutableStateOf(Configurations.customCiliUrl ?: io.github.javcinema.network.CiliInfo.BASE_URL) }
+    var btsowUrl by remember { mutableStateOf(Configurations.customBtsowUrl ?: io.github.javcinema.network.BTSO.BASE_URL) }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
@@ -370,6 +370,12 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
+                Text(
+                    text = "留空则使用默认地址",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
                 val labelWidth = 64.dp
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("BtSearch：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
@@ -377,7 +383,7 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
                         value = btSearchUrl,
                         onValueChange = { btSearchUrl = it; saved = false; errorMsg = null },
                         singleLine = true,
-                        placeholder = { Text(io.github.javcinema.network.BtSearch.BASE_URL, style = MaterialTheme.typography.bodySmall) },
+                        placeholder = { Text("留空则使用默认地址", style = MaterialTheme.typography.bodySmall) },
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -394,7 +400,7 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
                         value = ciliUrl,
                         onValueChange = { ciliUrl = it; saved = false; errorMsg = null },
                         singleLine = true,
-                        placeholder = { Text(io.github.javcinema.network.CiliInfo.BASE_URL, style = MaterialTheme.typography.bodySmall) },
+                        placeholder = { Text("留空则使用默认地址", style = MaterialTheme.typography.bodySmall) },
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -411,7 +417,7 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
                         value = btsowUrl,
                         onValueChange = { btsowUrl = it; saved = false; errorMsg = null },
                         singleLine = true,
-                        placeholder = { Text(io.github.javcinema.network.BTSO.BASE_URL, style = MaterialTheme.typography.bodySmall) },
+                        placeholder = { Text("留空则使用默认地址", style = MaterialTheme.typography.bodySmall) },
                         colors = TextFieldDefaults.colors(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
