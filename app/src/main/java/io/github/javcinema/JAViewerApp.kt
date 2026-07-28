@@ -43,6 +43,9 @@ class JAViewer : Application() {
 
         var hostReplacements: MutableMap<String, String> = HashMap()
 
+        @Volatile
+        var dataSourceVersion: Int = 0
+
         val HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val original = chain.request()
@@ -82,6 +85,7 @@ class JAViewer : Application() {
                 .build()
             SERVICE = retrofit.create(BasicService::class.java)
             AVMOO_API_SERVICE = retrofit.create(AvmooApiService::class.java)
+            dataSourceVersion++
         }
 
         fun getStorageDir(): File {

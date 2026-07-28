@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Movie
@@ -23,16 +24,16 @@ fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
     val isStarred = config?.starredMovies?.contains(movie) == true
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(movie.title ?: movie.code ?: "") },
+        title = {
+            Text(
+                text = movie.title ?: movie.code ?: "",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleSmall
+            )
+        },
         text = {
             Column {
-                TextButton(onClick = {
-                    movie.toggleStar()
-                    JAViewer.CONFIGURATIONS?.save()
-                    onDismiss()
-                }) {
-                    Text(if (isStarred) "取消收藏" else "收藏", style = MaterialTheme.typography.bodyLarge)
-                }
                 TextButton(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("code", movie.code ?: ""))
@@ -41,14 +42,16 @@ fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
                 }) {
                     Text("复制番号", style = MaterialTheme.typography.bodyLarge)
                 }
+                TextButton(onClick = {
+                    movie.toggleStar()
+                    JAViewer.CONFIGURATIONS?.save()
+                    onDismiss()
+                }) {
+                    Text(if (isStarred) "取消收藏" else "收藏", style = MaterialTheme.typography.bodyLarge)
+                }
             }
         },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
-            }
-        }
+        confirmButton = {}
     )
 }
 
@@ -59,7 +62,12 @@ fun ActressFavoriteDialog(actress: Actress, onDismiss: () -> Unit) {
     val isStarred = config?.starredActresses?.contains(actress) == true
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(actress.name ?: "") },
+        title = {
+            Text(
+                text = actress.name ?: "",
+                style = MaterialTheme.typography.titleSmall
+            )
+        },
         text = {
             Column {
                 TextButton(onClick = {
@@ -79,11 +87,6 @@ fun ActressFavoriteDialog(actress: Actress, onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
-            }
-        }
+        confirmButton = {}
     )
 }

@@ -21,8 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +46,12 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-    val gridState = rememberLazyGridState()
+    var savedIndex by rememberSaveable { mutableIntStateOf(0) }
+    var savedOffset by rememberSaveable { mutableIntStateOf(0) }
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = savedIndex,
+        initialFirstVisibleItemScrollOffset = savedOffset
+    )
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
 
     LaunchedEffect(section) {
@@ -64,6 +71,11 @@ fun HomeScreen(
         if (shouldLoadMore && !isLoadingMore && uiState is HomeUiState.Success) {
             viewModel.loadMore()
         }
+    }
+
+    LaunchedEffect(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset) {
+        savedIndex = gridState.firstVisibleItemIndex
+        savedOffset = gridState.firstVisibleItemScrollOffset
     }
 
     PullToRefreshBox(

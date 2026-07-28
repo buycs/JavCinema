@@ -131,12 +131,7 @@ class StartActivity : ComponentActivity() {
     }
 
     private fun checkPermissions() {
-        val oldConfig = File(this@StartActivity.getExternalFilesDir(null)!!, "configurations.json")
         val config = File(JAViewer.getStorageDir(), "configurations.json")
-        if (oldConfig.exists()) {
-            config.delete()
-            oldConfig.renameTo(config)
-        }
 
         val noMedia = File(JAViewer.getStorageDir(), ".nomedia")
         try {

@@ -33,9 +33,12 @@ class MovieListViewModel : ViewModel() {
     private var hasMore = true
     private var baseUrl: String = ""
     private var loadJob: Job? = null
+    private var lastVersion: Int = -1
 
     fun load(url: String) {
-        if (url == baseUrl) return
+        val currentVersion = JAViewer.dataSourceVersion
+        if (url == baseUrl && lastVersion == currentVersion) return
+        lastVersion = currentVersion
         baseUrl = url
         currentPage = 1
         hasMore = true

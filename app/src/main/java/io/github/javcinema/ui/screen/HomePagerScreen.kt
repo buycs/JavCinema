@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -54,7 +55,8 @@ fun HomePagerScreen(navController: NavController) {
             selectedTabIndex = pagerState.currentPage,
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            divider = {}
+            divider = {},
+            modifier = Modifier.height(38.dp)
         ) {
             tabs.forEachIndexed { index, tab ->
                 Tab(
@@ -68,9 +70,11 @@ fun HomePagerScreen(navController: NavController) {
                             Icon(
                                 tab.icon,
                                 contentDescription = null,
-                                modifier = Modifier.alpha(if (pagerState.currentPage == index) 1f else 0.7f)
+                                modifier = Modifier
+                                    .alpha(if (pagerState.currentPage == index) 1f else 0.7f)
+                                    .height(16.dp)
                             )
-                            Text(tab.label, fontSize = 15.sp)
+                            Text(tab.label, fontSize = 13.sp)
                         }
                     },
                     selectedContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -82,7 +86,7 @@ fun HomePagerScreen(navController: NavController) {
         Box(modifier = Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState,
-                beyondViewportPageCount = 0,
+                beyondViewportPageCount = 2,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 HomeScreen(

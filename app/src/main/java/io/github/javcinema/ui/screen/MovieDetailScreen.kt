@@ -192,7 +192,13 @@ private fun GalleryOverlay(
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var backgroundBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    val pagerState = rememberPagerState(pageCount = { imageUrls.size }, initialPage = initialIndex)
+    val loopedPageCount = if (imageUrls.size > 1) Int.MAX_VALUE else 1
+    val pagerState = rememberPagerState(
+        pageCount = { loopedPageCount },
+        initialPage = if (imageUrls.size > 1) Int.MAX_VALUE / 2 + initialIndex else 0
+    )
+
+    val currentPageIndex = if (imageUrls.size > 1) pagerState.currentPage % imageUrls.size else 0
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Main) {
@@ -239,6 +245,7 @@ private fun GalleryOverlay(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             pageContent = { page ->
+                val actualIndex = if (imageUrls.size > 1) page % imageUrls.size else 0
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -258,7 +265,7 @@ private fun GalleryOverlay(
                 ) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(imageUrls.getOrNull(page) ?: "")
+                            .data(imageUrls.getOrNull(actualIndex) ?: "")
                             .crossfade(true)
                             .build(),
                         contentDescription = null,
@@ -290,7 +297,7 @@ private fun GalleryOverlay(
         }
 
         Text(
-            text = "${pagerState.currentPage + 1} / ${imageUrls.size}",
+            text = "${currentPageIndex + 1} / ${imageUrls.size}",
             color = Color.White,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
@@ -437,12 +444,15 @@ private fun MovieDetailContent(
         AsyncImage(
             model = detail.coverUrl,
             contentDescription = detail.title,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillWidth,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(280.dp)
                 .combinedClickable(
-                    onClick = {},
+                    onClick = {
+                        detail.coverUrl?.let { url ->
+                            onScreenshotClick?.invoke(listOf(url), 0)
+                        }
+                    },
                     onLongClick = onCoverLongClick
                 )
         )

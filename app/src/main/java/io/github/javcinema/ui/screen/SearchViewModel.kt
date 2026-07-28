@@ -36,8 +36,12 @@ class SearchViewModel : ViewModel() {
     private var hasMore = true
     private var currentQuery = ""
     private var loadJob: Job? = null
+    private var lastVersion: Int = -1
 
     fun search(query: String) {
+        val currentVersion = JAViewer.dataSourceVersion
+        if (query == currentQuery && lastVersion == currentVersion) return
+        lastVersion = currentVersion
         if (query.isBlank()) return
         currentQuery = query
         currentPage = 1

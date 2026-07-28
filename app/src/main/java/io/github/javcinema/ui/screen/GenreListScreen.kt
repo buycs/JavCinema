@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -59,24 +60,24 @@ fun GenreListScreen(
             }
             is GenreListUiState.Success -> {
                 LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     genres.forEach { (category, genreList) ->
                         item {
                             Text(
                                 text = category,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                modifier = Modifier.padding(top = 4.dp, bottom = 1.dp)
                             )
                         }
 
                         item {
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 genreList.forEach { genre ->
@@ -93,9 +94,10 @@ fun GenreListScreen(
                                         label = {
                                             Text(
                                                 text = genre.name ?: "",
-                                                style = MaterialTheme.typography.labelMedium
+                                                style = MaterialTheme.typography.labelSmall
                                             )
-                                        }
+                                        },
+                                        modifier = Modifier.height(24.dp)
                                     )
                                 }
                             }

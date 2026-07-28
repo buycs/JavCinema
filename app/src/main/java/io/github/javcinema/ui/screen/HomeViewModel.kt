@@ -38,10 +38,13 @@ class HomeViewModel : ViewModel() {
     private var hasMore = true
     private var section: String = ""
     private var loadJob: kotlinx.coroutines.Job? = null
+    private var lastVersion: Int = -1
 
     fun setSection(section: String) {
-        if (this.section != section) {
+        val currentVersion = JAViewer.dataSourceVersion
+        if (this.section != section || lastVersion != currentVersion) {
             this.section = section
+            lastVersion = currentVersion
             refresh()
         }
     }

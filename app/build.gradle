@@ -22,8 +22,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".opt"
-            manifestPlaceholders = [fileProviderAuthority: "io.github.javcinema.opt.fileprovider"]
+            manifestPlaceholders = [fileProviderAuthority: "io.github.javcinema.fileprovider"]
         }
         release {
             minifyEnabled true

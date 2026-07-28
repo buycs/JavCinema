@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +27,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,8 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Configurations
@@ -171,7 +175,7 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { selectedSource = ds }
-                            .padding(vertical = 8.dp)
+                            .padding(vertical = 2.dp)
                     ) {
                         RadioButton(
                             selected = selectedSource == ds,
@@ -243,52 +247,74 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "留空则使用 properties.json 中的默认地址",
+                    text = "留空则使用默认地址",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
+                val labelWidth = 48.dp
                 val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMOO 日本" }?.link
-                TextField(
-                    value = avmooUrl,
-                    onValueChange = { avmooUrl = it; saved = false; errorMsg = null },
-                    label = { Text("骑兵") },
-                    placeholder = { Text("骑兵") },
-                    supportingText = { Text(avmooDefault ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("骑兵：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    TextField(
+                        value = avmooUrl,
+                        onValueChange = { avmooUrl = it; saved = false; errorMsg = null },
+                        singleLine = true,
+                        placeholder = { Text(avmooDefault ?: "", style = MaterialTheme.typography.bodySmall) },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVSOX 日本无码" }?.link
-                TextField(
-                    value = avsoUrl,
-                    onValueChange = { avsoUrl = it; saved = false; errorMsg = null },
-                    label = { Text("步兵") },
-                    placeholder = { Text("步兵") },
-                    supportingText = { Text(avsoDefault ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("步兵：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    TextField(
+                        value = avsoUrl,
+                        onValueChange = { avsoUrl = it; saved = false; errorMsg = null },
+                        singleLine = true,
+                        placeholder = { Text(avsoDefault ?: "", style = MaterialTheme.typography.bodySmall) },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "AVMEMO 欧美" }?.link
-                TextField(
-                    value = avxoUrl,
-                    onValueChange = { avxoUrl = it; saved = false; errorMsg = null },
-                    label = { Text("欧美") },
-                    placeholder = { Text("欧美") },
-                    supportingText = { Text(avxoDefault ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("欧美：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    TextField(
+                        value = avxoUrl,
+                        onValueChange = { avxoUrl = it; saved = false; errorMsg = null },
+                        singleLine = true,
+                        placeholder = { Text(avxoDefault ?: "", style = MaterialTheme.typography.bodySmall) },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
+                    )
+                }
                 if (errorMsg != null) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = errorMsg!!,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else if (saved) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = "已保存",
                         color = MaterialTheme.colorScheme.primary,
@@ -344,44 +370,66 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
-                TextField(
-                    value = btSearchUrl,
-                    onValueChange = { btSearchUrl = it; saved = false; errorMsg = null },
-                    label = { Text("BtSearch") },
-                    placeholder = { Text("BtSearch") },
-                    supportingText = { Text(io.github.javcinema.network.BtSearch.BASE_URL, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                val labelWidth = 64.dp
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("BtSearch：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    TextField(
+                        value = btSearchUrl,
+                        onValueChange = { btSearchUrl = it; saved = false; errorMsg = null },
+                        singleLine = true,
+                        placeholder = { Text(io.github.javcinema.network.BtSearch.BASE_URL, style = MaterialTheme.typography.bodySmall) },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
-                TextField(
-                    value = ciliUrl,
-                    onValueChange = { ciliUrl = it; saved = false; errorMsg = null },
-                    label = { Text("Cili") },
-                    placeholder = { Text("Cili") },
-                    supportingText = { Text(io.github.javcinema.network.CiliInfo.BASE_URL, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Cili：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    TextField(
+                        value = ciliUrl,
+                        onValueChange = { ciliUrl = it; saved = false; errorMsg = null },
+                        singleLine = true,
+                        placeholder = { Text(io.github.javcinema.network.CiliInfo.BASE_URL, style = MaterialTheme.typography.bodySmall) },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
-                TextField(
-                    value = btsowUrl,
-                    onValueChange = { btsowUrl = it; saved = false; errorMsg = null },
-                    label = { Text("BTSOW") },
-                    placeholder = { Text("BTSOW") },
-                    supportingText = { Text(io.github.javcinema.network.BTSO.BASE_URL, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("BTSOW：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    TextField(
+                        value = btsowUrl,
+                        onValueChange = { btsowUrl = it; saved = false; errorMsg = null },
+                        singleLine = true,
+                        placeholder = { Text(io.github.javcinema.network.BTSO.BASE_URL, style = MaterialTheme.typography.bodySmall) },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
+                    )
+                }
                 if (errorMsg != null) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = errorMsg!!,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else if (saved) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = "已保存",
                         color = MaterialTheme.colorScheme.primary,
