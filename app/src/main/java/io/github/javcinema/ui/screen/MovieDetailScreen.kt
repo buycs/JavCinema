@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.ScrollState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -106,6 +108,11 @@ fun MovieDetailScreen(
     var dialogActress by remember { mutableStateOf<Actress?>(null) }
     var galleryUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var galleryIndex by remember { mutableStateOf<Int?>(null) }
+    var savedScroll by remember { mutableFloatStateOf(0f) }
+    val scrollState = rememberScrollState()
+    LaunchedEffect(scrollState.value) {
+        savedScroll = scrollState.value.toFloat()
+    }
     LaunchedEffect(movieCode) {
         viewModel.loadDetail(movieCode, movieLink)
     }
@@ -138,6 +145,7 @@ fun MovieDetailScreen(
                     relatedMovies = relatedMovies,
                     movieCode = movieCode,
                     navController = navController,
+                    scrollState = scrollState,
                     onScreenshotClick = { urls, index ->
                         galleryUrls = urls
                         galleryIndex = index
@@ -195,7 +203,10 @@ private fun GalleryOverlay(
     val loopedPageCount = if (imageUrls.size > 1) Int.MAX_VALUE else 1
     val pagerState = rememberPagerState(
         pageCount = { loopedPageCount },
-        initialPage = if (imageUrls.size > 1) Int.MAX_VALUE / 2 + initialIndex else 0
+        initialPage = if (imageUrls.size > 1) {
+            val base = Int.MAX_VALUE / 2
+            base - (base % imageUrls.size) + initialIndex
+        } else 0
     )
 
     val currentPageIndex = if (imageUrls.size > 1) pagerState.currentPage % imageUrls.size else 0
@@ -428,6 +439,7 @@ private fun MovieDetailContent(
     relatedMovies: List<Movie>,
     movieCode: String,
     navController: NavController,
+    scrollState: ScrollState,
     onScreenshotClick: ((List<String>, Int) -> Unit)? = null,
     onPreviewClick: () -> Unit,
     onPlayClick: () -> Unit,
@@ -439,14 +451,20 @@ private fun MovieDetailContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
+            .navigationBarsPadding()
     ) {
         AsyncImage(
-            model = detail.coverUrl,
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(detail.coverUrl)
+                .crossfade(true)
+                .size(1080)
+                .build(),
             contentDescription = detail.title,
-            contentScale = ContentScale.FillWidth,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxWidth()
+                .height(280.dp)
                 .combinedClickable(
                     onClick = {
                         detail.coverUrl?.let { url ->
