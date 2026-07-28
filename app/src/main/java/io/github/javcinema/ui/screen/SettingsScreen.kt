@@ -233,222 +233,107 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
 @Composable
 private fun DataUrlDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val avmooDefault = JAViewer.DATA_SOURCES.find { it.name == "骑兵" }?.link
-    val avsoDefault = JAViewer.DATA_SOURCES.find { it.name == "步兵" }?.link
-    val avxoDefault = JAViewer.DATA_SOURCES.find { it.name == "欧美" }?.link
-    var avmooUrl by remember { mutableStateOf(Configurations.customAvmooUrl ?: avmooDefault ?: "") }
-    var avsoUrl by remember { mutableStateOf(Configurations.customAvsoUrl ?: avsoDefault ?: "") }
-    var avxoUrl by remember { mutableStateOf(Configurations.customAvxoUrl ?: avxoDefault ?: "") }
-    var saved by remember { mutableStateOf(false) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("数据源配置") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = "留空则使用默认地址",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                val labelWidth = 48.dp
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("骑兵：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
-                    TextField(
-                        value = avmooUrl,
-                        onValueChange = { avmooUrl = it; saved = false; errorMsg = null },
-                        singleLine = true,
-                        placeholder = { Text(avmooDefault ?: "", style = MaterialTheme.typography.bodySmall) },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("步兵：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
-                    TextField(
-                        value = avsoUrl,
-                        onValueChange = { avsoUrl = it; saved = false; errorMsg = null },
-                        singleLine = true,
-                        placeholder = { Text(avsoDefault ?: "", style = MaterialTheme.typography.bodySmall) },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("欧美：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
-                    TextField(
-                        value = avxoUrl,
-                        onValueChange = { avxoUrl = it; saved = false; errorMsg = null },
-                        singleLine = true,
-                        placeholder = { Text(avxoDefault ?: "", style = MaterialTheme.typography.bodySmall) },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
-                    )
-                }
-                if (errorMsg != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = errorMsg!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                } else if (saved) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "已保存",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                Configurations.customAvmooUrl = avmooUrl.ifBlank { null }
-                Configurations.customAvsoUrl = avsoUrl.ifBlank { null }
-                Configurations.customAvxoUrl = avxoUrl.ifBlank { null }
-                Configurations.savePrefs(context)
-
-                val config = JAViewer.CONFIGURATIONS
-                if (config != null) {
-                    config.applyCustomUrls()
-                    config.save()
-                }
-                try {
-                    JAViewer.recreateService()
-                    saved = true
-                } catch (e: Exception) {
-                    saved = false
-                    errorMsg = "保存失败: ${e.localizedMessage}"
-                }
-            }) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
-            }
+    val items = JAViewer.DATA_SOURCES.map { ds ->
+        val defaultLink = ds.link ?: ""
+        val custom = when (ds.name) {
+            "骑兵" -> Configurations.customAvmooUrl
+            "步兵" -> Configurations.customAvsoUrl
+            "欧美" -> Configurations.customAvxoUrl
+            else -> null
         }
-    )
+        SourceItem(ds.name ?: "", custom ?: defaultLink, defaultLink,
+            onSave = { v -> when (ds.name) {
+                "骑兵" -> Configurations.customAvmooUrl = v
+                "步兵" -> Configurations.customAvsoUrl = v
+                "欧美" -> Configurations.customAvxoUrl = v
+            }}
+        )
+    }
+    SourceConfigDialog("数据源配置", items, onDismiss, context)
 }
 
 @Composable
 private fun MagnetUrlDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var btSearchUrl by remember { mutableStateOf(Configurations.customBtSearchUrl ?: io.github.javcinema.network.BtSearch.BASE_URL) }
-    var ciliUrl by remember { mutableStateOf(Configurations.customCiliUrl ?: io.github.javcinema.network.CiliInfo.BASE_URL) }
-    var btsowUrl by remember { mutableStateOf(Configurations.customBtsowUrl ?: io.github.javcinema.network.BTSO.BASE_URL) }
+    val items = JAViewer.MAGNET_SOURCES.map { ds ->
+        val defaultLink = ds.link ?: ""
+        val custom = when (ds.name) {
+            "BtSearch" -> Configurations.customBtSearchUrl
+            "Cili" -> Configurations.customCiliUrl
+            "BTSOW" -> Configurations.customBtsowUrl
+            else -> null
+        }
+        SourceItem(ds.name ?: "", custom ?: defaultLink, defaultLink,
+            onSave = { v -> when (ds.name) {
+                "BtSearch" -> Configurations.customBtSearchUrl = v
+                "Cili" -> Configurations.customCiliUrl = v
+                "BTSOW" -> Configurations.customBtsowUrl = v
+            }}
+        )
+    }
+    SourceConfigDialog("磁力源配置", items, onDismiss, context)
+}
+
+private data class SourceItem(
+    val label: String,
+    val initial: String,
+    val defaultLink: String,
+    val onSave: (String?) -> Unit
+)
+
+@Composable
+private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss: () -> Unit, context: android.content.Context) {
+    val urls = remember { items.associate { it.label to mutableStateOf(it.initial) } }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("磁力源配置") },
+        title = { Text(title) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "留空则使用默认地址",
+                    text = "留空则恢复默认地址",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                val labelWidth = 64.dp
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("BtSearch：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
-                    TextField(
-                        value = btSearchUrl,
-                        onValueChange = { btSearchUrl = it; saved = false; errorMsg = null },
-                        singleLine = true,
-                        placeholder = { Text("留空则使用默认地址", style = MaterialTheme.typography.bodySmall) },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Cili：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
-                    TextField(
-                        value = ciliUrl,
-                        onValueChange = { ciliUrl = it; saved = false; errorMsg = null },
-                        singleLine = true,
-                        placeholder = { Text("留空则使用默认地址", style = MaterialTheme.typography.bodySmall) },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("BTSOW：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
-                    TextField(
-                        value = btsowUrl,
-                        onValueChange = { btsowUrl = it; saved = false; errorMsg = null },
-                        singleLine = true,
-                        placeholder = { Text("留空则使用默认地址", style = MaterialTheme.typography.bodySmall) },
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier.heightIn(max = 32.dp).weight(1f)
-                    )
+                val labelWidth = 72.dp
+                items.forEach { item ->
+                    val state = urls[item.label]!!
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("${item.label}：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                        TextField(
+                            value = state.value,
+                            onValueChange = { state.value = it; saved = false; errorMsg = null },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            placeholder = { Text("默认: ${item.defaultLink}", style = MaterialTheme.typography.bodySmall) },
+                            colors = TextFieldDefaults.colors(
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            modifier = Modifier.height(44.dp).weight(1f)
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
                 if (errorMsg != null) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = errorMsg!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text(text = errorMsg!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 } else if (saved) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "已保存",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text(text = "已保存", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
         confirmButton = {
             Button(onClick = {
-                Configurations.customBtSearchUrl = btSearchUrl.ifBlank { null }
-                Configurations.customCiliUrl = ciliUrl.ifBlank { null }
-                Configurations.customBtsowUrl = btsowUrl.ifBlank { null }
+                items.forEach { item ->
+                    item.onSave(urls[item.label]?.value?.ifBlank { null })
+                }
                 Configurations.savePrefs(context)
 
                 val config = JAViewer.CONFIGURATIONS
@@ -477,6 +362,19 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun ActiveAddressesDialog(onDismiss: () -> Unit) {
+    fun activeUrl(name: String, defaultLink: String?): String {
+        val custom = when (name) {
+            "骑兵" -> Configurations.customAvmooUrl
+            "步兵" -> Configurations.customAvsoUrl
+            "欧美" -> Configurations.customAvxoUrl
+            "BtSearch" -> Configurations.customBtSearchUrl
+            "Cili" -> Configurations.customCiliUrl
+            "BTSOW" -> Configurations.customBtsowUrl
+            else -> null
+        }
+        return custom ?: defaultLink ?: "未设置"
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("当前生效地址") },
@@ -486,7 +384,7 @@ private fun ActiveAddressesDialog(onDismiss: () -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 JAViewer.DATA_SOURCES.forEach { ds ->
                     Text(
-                        text = "${ds.name}: ${ds.link ?: "未设置"}",
+                        text = "${ds.name}: ${activeUrl(ds.name ?: "", ds.link)}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(Modifier.height(6.dp))
@@ -496,20 +394,13 @@ private fun ActiveAddressesDialog(onDismiss: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
                 Text("磁力源", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "BtSearch: ${io.github.javcinema.network.BtSearch.BASE_URL}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "Cili: ${io.github.javcinema.network.CiliInfo.BASE_URL}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "BTSOW: ${io.github.javcinema.network.BTSO.BASE_URL}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                JAViewer.MAGNET_SOURCES.forEach { ds ->
+                    Text(
+                        text = "${ds.name}: ${activeUrl(ds.name ?: "", ds.link)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
             }
         },
         confirmButton = {

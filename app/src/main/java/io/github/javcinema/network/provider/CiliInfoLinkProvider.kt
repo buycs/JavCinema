@@ -20,14 +20,14 @@ class CiliInfoLinkProvider : DownloadLinkProvider() {
         rows.mapNotNull { row ->
             try {
                 val cells = row.select("td")
-                if (cells.size < 3) return@mapNotNull null
+                if (cells.size < 2) return@mapNotNull null
 
                 val titleCell = cells[0].select("a").first()
                 val title = titleCell?.text() ?: return@mapNotNull null
                 val href = titleCell?.attr("href") ?: return@mapNotNull null
 
                 val size = cells[1].text()
-                val date = cells[2].text()
+                val date = if (cells.size >= 3) cells[2].text() else ""
 
                 DownloadLink.create(
                     title,

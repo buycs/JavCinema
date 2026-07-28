@@ -1,8 +1,9 @@
 package io.github.javcinema.data.model
 
+import java.io.Serializable
 import java.net.URLEncoder
 
-class MagnetFile {
+class MagnetFile : Serializable {
     var hash: String = ""
     var torrentName: String = ""
     var filename: String = ""

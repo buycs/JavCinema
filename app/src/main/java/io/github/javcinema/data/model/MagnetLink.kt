@@ -13,7 +13,8 @@ class MagnetLink : Serializable {
         fun create(magnetLinkStr: String?): MagnetLink {
             val magnet = MagnetLink()
             if (magnetLinkStr != null) {
-                magnet.magnetLink = magnetLinkStr.substring(0, magnetLinkStr.indexOf("&"))
+                val idx = magnetLinkStr.indexOf("&")
+                magnet.magnetLink = if (idx >= 0) magnetLinkStr.substring(0, idx) else magnetLinkStr
             }
             return magnet
         }

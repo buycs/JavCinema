@@ -310,25 +310,149 @@ GET {url}
 
 **Base URL:** `https://www.btsearch.love`
 
-使用独立 OkHttpClient (`BTSEARCH_CLIENT`)，自动注入签名头。
+使用**独立 OkHttpClient**（`BTSEARCH_CLIENT`），通过拦截器自动注入签名头。每次请求都动态计算签名。
 
-**签名算法:**
-1. 收集所有 query 参数 + `timestamp` + `nonce`
-2. 按 key=value 字典序排序
-3. 拼接为 `key1=value1&key2=value2&key=SECRET_KEY`
-4. MD5 加密后转大写
+### 5.0 鉴权机制
 
-**Secret Key:** `long2ice`
+#### 5.0.1 签名流程
 
-**请求头:**
-| Header | 说明 |
-|--------|------|
-| `x-timestamp` | Unix 时间戳（秒） |
-| `x-nonce` | 8 位随机 hex 字符串 |
-| `x-sign` | MD5 签名（大写） |
-| `Accept` | `application/json` |
-| `User-Agent` | Chrome 91 UA |
-| `Referer` | `https://www.btsearch.love/search` |
+```
+客户端请求
+    │
+    ├─ 收集所有 Query 参数（来自 Retrofit @Query 注解）
+    │   └─ 例如: keyword, limit, offset, mode, time, sort, sort_type, size
+    │
+    ├─ 生成 timestamp = currentTimeMillis() / 1000（秒级 Unix 时间戳）
+    │
+    ├─ 生成 nonce    = UUID.randomUUID() → 去连字符 → 取前 8 位
+    │   └─ 示例: "a1b2c3d4"
+    │
+    ├─ 合并参数 Map: query参数 + timestamp + nonce
+    │
+    ├─ 调用 generateSign(params) 计算签名
+    │   │
+    │   ├─ 遍历 params，构建 "key=value" 字符串列表
+    │   ├─ 按字典序（字母顺序）排序
+    │   ├─ 用 & 拼接所有 key=value
+    │   └─ 末尾追加 "&key=long2ice"
+    │       └─ 结果示例: keyword=MADB-004&limit=10&mode=&nonce=a1b2c3d4&offset=0&size=&sort=&sort_type=asc&time=&timestamp=1722000000&key=long2ice
+    │
+    ├─ MD5 加密（32 位小写 hex）→ 转大写
+    │   └─ 示例: "A1B2C3D4E5F6789012345678ABCDEF90"
+    │
+    └─ 设置请求头:
+        ├─ x-timestamp: "1722000000"
+        ├─ x-nonce:     "a1b2c3d4"
+        ├─ x-sign:      "A1B2C3D4E5F6789012345678ABCDEF90"
+        ├─ Accept:      "application/json"
+        ├─ User-Agent:  "Mozilla/5.0 ... Chrome/91 ..."
+        └─ Referer:     "https://www.btsearch.love/search"
+```
+
+#### 5.0.2 关键参数
+
+| 参数 | 生成方式 | 示例值 | 代码位置 |
+|------|----------|--------|----------|
+| `timestamp` | `System.currentTimeMillis() / 1000`（秒级） | `1722000000` | `BtSearch.java:35` |
+| `nonce` | `UUID.randomUUID().toString().replace("-","").substring(0,8)` | `a1b2c3d4` | `BtSearch.java:36` |
+| `sign` | MD5(排序后 query string + `&key=long2ice`).toUpperCase() | `A1B2C3D4...` | `BtSearch.java:45` |
+| `Secret Key` | 固定值 `long2ice` | — | `BtSearch.java:28` |
+
+#### 5.0.3 签名算法伪代码
+
+```
+function generateSign(params: Map<String, String>) -> String:
+    pairs = []
+    for (key, value) in params:
+        pairs.add(key + "=" + value)
+    pairs.sort()  // 字典序升序
+    raw = pairs.join("&") + "&key=long2ice"
+    return MD5(raw).toUpperCase()
+```
+
+#### 5.0.4 Java 实现（完整）
+
+```java
+// BtSearch.java
+static String generateSign(Map<String, String> params) {
+    List<String> sorted = new ArrayList<>();
+    for (Map.Entry<String, String> entry : params.entrySet()) {
+        sorted.add(entry.getKey() + "=" + entry.getValue());
+    }
+    Collections.sort(sorted);                            // 字典序排序
+
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < sorted.size(); i++) {
+        if (i > 0) sb.append("&");
+        sb.append(sorted.get(i));
+    }
+    sb.append("&key=").append("long2ice");               // 追加 Secret Key
+
+    return md5(sb.toString()).toUpperCase();             // MD5 → 大写
+}
+
+static String md5(String input) {
+    MessageDigest md = MessageDigest.getInstance("MD5");
+    byte[] digest = md.digest(input.getBytes("UTF-8"));
+    StringBuilder sb = new StringBuilder();
+    for (byte b : digest) {
+        sb.append(String.format("%02x", b & 0xff));      // 小写 hex
+    }
+    return sb.toString();
+}
+```
+
+#### 5.0.5 拦截器注入
+
+签名和头部注入在 Retrofit 底层的 OkHttp 拦截器中完成，对上层 `Call` 调用透明：
+
+```java
+// BTSEARCH_CLIENT 拦截器（BtSearch.java:30-61）
+OkHttpClient BTSEARCH_CLIENT = new OkHttpClient.Builder()
+    .addInterceptor(chain -> {
+        Request original = chain.request();
+        HttpUrl url = original.url();
+
+        // 1. 生成时间戳和随机数
+        String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+        String nonce = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+
+        // 2. 收集 Query 参数并合并
+        Map<String, String> params = new HashMap<>();
+        for (int i = 0; i < url.querySize(); i++) {
+            params.put(url.queryParameterName(i), url.queryParameterValue(i));
+        }
+        params.put("timestamp", timestamp);
+        params.put("nonce", nonce);
+
+        // 3. 计算签名
+        String sign = generateSign(params);
+
+        // 4. 注入请求头
+        Request finalRequest = original.newBuilder()
+            .header("x-timestamp", timestamp)
+            .header("x-nonce", nonce)
+            .header("x-sign", sign)
+            .header("Accept", "application/json")
+            .header("User-Agent", JAViewer.USER_AGENT)   // Chrome 91 Windows UA
+            .header("Referer", BASE_URL + "/search")
+            .build();
+
+        return chain.proceed(finalRequest);
+    })
+    .build();
+```
+
+#### 5.0.6 请求头汇总
+
+| Header | 值 | 说明 |
+|--------|-----|------|
+| `x-timestamp` | Unix 秒级时间戳 | 防重放，服务端校验时间窗口 |
+| `x-nonce` | 8 位随机 hex 字符串 | 防重放，与 timestamp 组合唯一 |
+| `x-sign` | MD5 签名（大写 32 位） | 请求完整性校验 |
+| `Accept` | `application/json` | 强制 JSON 响应 |
+| `User-Agent` | Chrome 91 on Windows 10 | 反爬虫绕过 |
+| `Referer` | `https://www.btsearch.love/search` | 模拟浏览器来源 |
 
 ### 5.1 搜索
 
@@ -396,12 +520,22 @@ GET /api/torrent/{id}?keyword={keyword}
 
 ### 5.3 搜索调用参数示例
 
+```
+GET /api/search?keyword=MADB-004&limit=10&offset=0&mode=&time=&sort=&sort_type=asc&size=
+x-timestamp: 1722000000
+x-nonce: a1b2c3d4
+x-sign: A1B2C3D4E5F6789012345678ABCDEF90
+Accept: application/json
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ...
+Referer: https://www.btsearch.love/search
+```
+
 ```java
 // BtSearchLinkProvider.searchApi()
 BtSearch.INSTANCE.search(keyword, 10, (page-1)*10, "", "", "", "asc", "");
 ```
 
-**调用方:** `BtSearchFragment.java`
+**调用方:** `BtSearchFragment.java` — 签名由 `BTSEARCH_CLIENT` 拦截器自动注入，`search()` 调用方无感知。
 
 ---
 
@@ -523,6 +657,28 @@ return bytesToHex(bytes);
 **文件:** `fragment/MagnetSearchFragment.java`（非 Retrofit，直接使用 OkHttp）
 
 **Base URL:** `https://btsow.pics`
+
+### 8.0 鉴权机制
+
+btsow API **无显式鉴权**（无 API Key、无签名算法）。请求通过共享 `JAViewer.HTTP_CLIENT`（`OkHttpClient`）发出，自动应用以下拦截器链：
+
+| 拦截器 | 行为 | 代码位置 |
+|--------|------|----------|
+| 域名替换 | 将请求 URL 中匹配 `hostReplacements` 的 host 替换为当前活跃域名 | `JAViewer.replaceUrl()` |
+| User-Agent | 覆盖 `User-Agent` 头为 Chrome 91 Windows UA | `JAViewer.java:107` |
+| X-Requested-With | 添加 `X-Requested-With: XMLHttpRequest`（对所有非 torrentkitty/btsearch 的 host） | `JAViewer.java:110-111` |
+| Cookie 持久化 | 自动保存/发送 `Cookie` 头（内存级 `CookieJar`） | `JAViewer.COOKIE_JAR` |
+
+**btsow 请求实际发出的请求头示例:**
+```http
+POST /bts/data/api/search HTTP/1.1
+Host: btsow.pics
+content-type: application/json
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36
+X-Requested-With: XMLHttpRequest
+```
+
+> 注意：如果服务器校验 `User-Agent` 或 `X-Requested-With`，则替换 header 可能被服务端视为异常。当前实现使用 Chrome 91 标准 UA。
 
 ### 8.1 搜索
 

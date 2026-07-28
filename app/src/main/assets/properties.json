@@ -43,5 +43,19 @@
     
       ]
     }
+  ],
+  "magnet_sources": [
+    {
+      "name": "BtSearch",
+      "link": "https://www.btsearch.love"
+    },
+    {
+      "name": "Cili",
+      "link": "https://cili.info"
+    },
+    {
+      "name": "BTSOW",
+      "link": "https://btsow.pics"
+    }
   ]
 }

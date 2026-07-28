@@ -93,6 +93,8 @@ class StartActivity : ComponentActivity() {
     private fun handleProperties(properties: Properties) {
         JAViewer.DATA_SOURCES.clear()
         properties.dataSources?.let { JAViewer.DATA_SOURCES.addAll(it) }
+        JAViewer.MAGNET_SOURCES.clear()
+        properties.magnetSources?.let { JAViewer.MAGNET_SOURCES.addAll(it) }
 
         JAViewer.CONFIGURATIONS?.applyCustomUrls()
 

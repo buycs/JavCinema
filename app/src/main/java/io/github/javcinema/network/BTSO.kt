@@ -1,17 +1,16 @@
 package io.github.javcinema.network
 
 import io.github.javcinema.JAViewer
-import okhttp3.ResponseBody
+import okhttp3.RequestBody
 import retrofit2.Retrofit
-import retrofit2.http.GET
-import retrofit2.http.Headers
-import retrofit2.http.Query
-import retrofit2.http.Url
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.POST
 
 interface BTSO {
 
     companion object {
-        const val BASE_URL = "https://api.rekonquer.com"
+        const val BASE_URL = "https://btsow.pics"
 
         private var _instance: BTSO? = null
 
@@ -30,16 +29,41 @@ interface BTSO {
             return Retrofit.Builder()
                 .baseUrl(baseUrl)
                 .client(JAViewer.HTTP_CLIENT)
+                .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(BTSO::class.java)
         }
     }
 
-    @GET("/btso.php")
-    @Headers("Accept-Language: zh-CN,zh;q=0.8,en;q=0.6")
-    suspend fun search(@Query("kw") keyword: String, @Query("page") page: Int): ResponseBody
+    @POST("/bts/data/api/search")
+    suspend fun search(@Body body: RequestBody): BTSOSearchResponse
 
-    @GET
-    @Headers("Accept-Language: zh-CN,zh;q=0.8,en;q=0.6")
-    suspend fun get(@Url url: String): ResponseBody
+    @POST("/bts/data/api/magnet")
+    suspend fun getMagnet(@Body body: RequestBody): BTSOMagnetResponse
 }
+
+data class BTSOSearchResponse(
+    val code: Int = 0,
+    val data: List<BTSOSearchItem> = emptyList()
+)
+
+data class BTSOSearchItem(
+    val hash: String = "",
+    val name: String = "",
+    val size: Long = 0,
+    val lastUpdateTime: Long = 0
+)
+
+data class BTSOMagnetResponse(
+    val code: Int = 0,
+    val data: BTSOMagnetData? = null
+)
+
+data class BTSOMagnetData(
+    val files: List<BTSOFile> = emptyList()
+)
+
+data class BTSOFile(
+    val filename: String = "",
+    val size: Long = 0
+)

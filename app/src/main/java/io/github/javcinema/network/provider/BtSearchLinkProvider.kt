@@ -22,7 +22,7 @@ class BtSearchLinkProvider : DownloadLinkProvider() {
         result.data.map { item ->
             DownloadLink().apply {
                 link = item.id.toString()
-                title = item.name
+                    title = item.name.replace(Regex("<[^>]+>"), "")
                 size = formatSize(item.size)
                 date = item.created_at
                 magnetLink = MagnetLink.create("magnet:?xt=urn:btih:${item.hash}")

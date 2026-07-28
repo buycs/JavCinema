@@ -3,43 +3,48 @@ package io.github.javcinema.network
 import io.github.javcinema.JAViewer
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.security.MessageDigest
+import java.util.UUID
 
 interface BtSearch {
 
     companion object {
         const val BASE_URL = "https://www.btsearch.love"
         private const val SECRET_KEY = "long2ice"
-        private var nonceCounter = 0L
 
         private val signingInterceptor = Interceptor { chain ->
             val original = chain.request()
+            val url = original.url
             val timestamp = System.currentTimeMillis() / 1000
-            val nonce = nextNonce()
-            val sign = generateSign(timestamp.toInt(), nonce)
+            val nonce = UUID.randomUUID().toString().replace("-", "").substring(0, 8)
+
+            val params = mutableMapOf<String, String>()
+            url.queryParameterNames.forEach { name ->
+                url.queryParameter(name)?.let { params[name] = it }
+            }
+            params["timestamp"] = timestamp.toString()
+            params["nonce"] = nonce
+
+            val sorted = params.entries.sortedBy { it.key }
+            val raw = sorted.joinToString("&") { "${it.key}=${it.value}" } + "&key=$SECRET_KEY"
+            val sign = md5(raw).uppercase()
+
+            android.util.Log.d("BtSearch", "url=$url params=$params raw=$raw sign=$sign")
 
             val request = original.newBuilder()
                 .header("x-timestamp", timestamp.toString())
-                .header("x-nonce", nonce.toString())
+                .header("x-nonce", nonce)
                 .header("x-sign", sign)
+                .header("Accept", "application/json")
+                .header("User-Agent", JAViewer.USER_AGENT)
+                .header("Referer", "https://www.btsearch.love/search")
                 .build()
             chain.proceed(request)
-        }
-
-        private fun nextNonce(): Long {
-            nonceCounter++
-            return (System.currentTimeMillis() / 1000) + nonceCounter
-        }
-
-        private fun generateSign(timestamp: Int, nonce: Long): String {
-            val input = "nonce=${nonce}timestamp=${timestamp}key=${SECRET_KEY}"
-            return md5(input)
         }
 
         private fun md5(input: String): String {
@@ -78,11 +83,11 @@ interface BtSearch {
         @Query("keyword") keyword: String,
         @Query("limit") limit: Int = 10,
         @Query("offset") offset: Int = 0,
-        @Query("mode") mode: String = "and",
+        @Query("mode") mode: String = "",
         @Query("time") time: String = "",
-        @Query("sort") sort: String = "created_at",
-        @Query("sort_type") sortType: String = "desc",
-        @Query("size") size: String = "all"
+        @Query("sort") sort: String = "",
+        @Query("sort_type") sortType: String = "asc",
+        @Query("size") size: String = ""
     ): BtSearchResponse
 
     @GET("/api/torrent/{id}")

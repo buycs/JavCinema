@@ -18,4 +18,7 @@ class Properties {
 
     @SerializedName("data_sources")
     var dataSources: List<DataSource>? = null
+
+    @SerializedName("magnet_sources")
+    var magnetSources: List<DataSource>? = null
 }

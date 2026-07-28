@@ -102,8 +102,8 @@ class Configurations {
             } catch (_: Exception) {
             }
         }
-        fun recreateMagnet(name: String) {
-            val urlStr = when (name) {
+        for (ds in JAViewer.MAGNET_SOURCES) {
+            val urlStr = when (ds.name) {
                 "BtSearch" -> customBtSearchUrl
                 "Cili" -> customCiliUrl
                 "BTSOW" -> customBtsowUrl
@@ -111,28 +111,12 @@ class Configurations {
             }
             if (!urlStr.isNullOrBlank()) {
                 val url = if (urlStr.endsWith("/")) urlStr else "$urlStr/"
-                when (name) {
+                when (ds.name) {
                     "BtSearch" -> io.github.javcinema.network.BtSearch.recreate(url)
                     "Cili" -> io.github.javcinema.network.CiliInfo.recreate(url)
                     "BTSOW" -> io.github.javcinema.network.BTSO.recreate(url)
                 }
             }
-        }
-
-        val btUrl = customBtSearchUrl
-        if (!btUrl.isNullOrBlank()) {
-            val url = if (btUrl.endsWith("/")) btUrl else "$btUrl/"
-            io.github.javcinema.network.BtSearch.recreate(url)
-        }
-        val ciliUrl = customCiliUrl
-        if (!ciliUrl.isNullOrBlank()) {
-            val url = if (ciliUrl.endsWith("/")) ciliUrl else "$ciliUrl/"
-            io.github.javcinema.network.CiliInfo.recreate(url)
-        }
-        val btsowUrl = customBtsowUrl
-        if (!btsowUrl.isNullOrBlank()) {
-            val url = if (btsowUrl.endsWith("/")) btsowUrl else "$btsowUrl/"
-            io.github.javcinema.network.BTSO.recreate(url)
         }
     }
 

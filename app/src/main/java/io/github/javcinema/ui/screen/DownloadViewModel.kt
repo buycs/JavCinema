@@ -42,18 +42,30 @@ class DownloadViewModel : ViewModel() {
         viewModelScope.launch {
             _isSearching.value = true
             try {
-                if (providerName.lowercase() == "btsearch") {
-                    val results = withContext(Dispatchers.IO) { btSearchProvider.searchApi(keyword, 1) }
-                    _btSearchResults.value = results
-                } else {
-                    val provider = getProvider(providerName)
-                    val response = withContext(Dispatchers.IO) { provider.search(keyword, 1) }
-                    val html = withContext(Dispatchers.IO) { response?.string() ?: "" }
-                    val results = withContext(Dispatchers.IO) { provider.parseDownloadLinks(html) }
-
-                    when (providerName.lowercase()) {
-                        "btso" -> _btsoResults.value = results
-                        "ciliinfo", "cili" -> _ciliResults.value = results
+                when (providerName.lowercase()) {
+                    "btsearch" -> {
+                        val results = withContext(Dispatchers.IO) { btSearchProvider.searchApi(keyword, 1) }
+                        _btSearchResults.value = results
+                    }
+                    "btso" -> {
+                        val results = withContext(Dispatchers.IO) { btsoProvider.searchApi(keyword, 1) }
+                        withContext(Dispatchers.IO) {
+                            results.forEach { link ->
+                                val hash = link.link ?: return@forEach
+                                val files = btsoProvider.getMagnetDetail(hash)
+                                if (files.isNotEmpty()) {
+                                    link.files = files
+                                }
+                            }
+                        }
+                        _btsoResults.value = results
+                    }
+                    "ciliinfo", "cili" -> {
+                        val provider = getProvider(providerName)
+                        val response = withContext(Dispatchers.IO) { provider.search(keyword, 1) }
+                        val html = withContext(Dispatchers.IO) { response?.string() ?: "" }
+                        val results = withContext(Dispatchers.IO) { provider.parseDownloadLinks(html) }
+                        _ciliResults.value = results
                     }
                 }
             } catch (_: Exception) {
@@ -95,6 +107,19 @@ class DownloadViewModel : ViewModel() {
                 val torrentFiles = detail?.data?.torrentfile
                 if (torrentFiles != null) {
                     val files = btSearchProvider.parseFilesFromTorrentFiles(torrentFiles)
+                    link.files = files
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun loadBTSODetail(link: DownloadLink) {
+        viewModelScope.launch {
+            val hash = link.link ?: return@launch
+            try {
+                val files = withContext(Dispatchers.IO) { btsoProvider.getMagnetDetail(hash) }
+                if (files.isNotEmpty()) {
                     link.files = files
                 }
             } catch (_: Exception) {
