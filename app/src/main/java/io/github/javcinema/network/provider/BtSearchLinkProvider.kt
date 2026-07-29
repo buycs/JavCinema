@@ -23,8 +23,8 @@ class BtSearchLinkProvider : DownloadLinkProvider() {
             DownloadLink().apply {
                 link = item.id.toString()
                     title = item.name.replace(Regex("<[^>]+>"), "")
-                size = formatSize(item.size)
-                date = item.created_at
+                size = formatSize(item.size.toLongOrNull() ?: 0L)
+                date = item.created_at.take(10)
                 magnetLink = MagnetLink.create("magnet:?xt=urn:btih:${item.hash}")
             }
         }
@@ -41,8 +41,8 @@ class BtSearchLinkProvider : DownloadLinkProvider() {
     fun parseFilesFromTorrentFiles(files: List<BtSearchTorrentFile>): List<MagnetFile> {
         return files.map { file ->
             MagnetFile().apply {
-                filename = file.path
-                size = file.size
+                filename = file.name
+                size = file.size.toLongOrNull() ?: 0L
             }
         }
     }

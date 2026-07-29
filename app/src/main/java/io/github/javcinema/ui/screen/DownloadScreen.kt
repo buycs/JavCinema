@@ -33,8 +33,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -59,11 +61,14 @@ fun DownloadScreen(
     val pagerState = rememberPagerState(pageCount = { 3 })
 
     LaunchedEffect(keyword) {
-        if (keyword.isNotBlank()) {
-            viewModel.search(keyword, "btsearch")
-            viewModel.search(keyword, "cili")
-            viewModel.search(keyword, "btso")
+        if (keyword.isBlank()) {
+            viewModel.resetSearch()
+            return@LaunchedEffect
         }
+        viewModel.startSearch()
+        viewModel.search(keyword, "btsearch")
+        viewModel.search(keyword, "cili")
+        viewModel.search(keyword, "btso")
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -76,8 +81,13 @@ fun DownloadScreen(
             confirmButton = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     TextButton(onClick = {
-                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("magnet-link", magnetLink))
+                        try {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("magnet-link", magnetLink))
+                            android.widget.Toast.makeText(context, "复制成功", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (_: Exception) {
+                            android.widget.Toast.makeText(context, "复制失败", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                         viewModel.dismissMagnet()
                     }, modifier = Modifier.weight(1f)) {
                         Text("复制链接")
@@ -146,19 +156,10 @@ fun DownloadScreen(
                     ) { link ->
                         DownloadLinkItem(
                             link = link,
-                            onClick = {
+                            onMagnetClick = {
                                 val providerNames = listOf("btsearch", "cili", "btso")
                                 val providerName = providerNames.getOrElse(page) { "btso" }
-                                if (providerName == "btsearch") {
-                                    if (!link.filesExpanded) {
-                                        link.filesExpanded = true
-                                        viewModel.loadBtSearchDetail(link)
-                                    } else {
-                                        link.filesExpanded = false
-                                    }
-                                } else {
-                                    viewModel.getMagnetLink(link, providerName)
-                                }
+                                viewModel.getMagnetLink(link, providerName)
                             }
                         )
                     }
@@ -177,70 +178,101 @@ fun DownloadScreen(
     }
 }
 
+private fun formatFileSize(bytes: Long): String {
+    return when {
+        bytes >= 1L.shl(40) -> "%.2f TB".format(bytes.toDouble() / (1L.shl(40)).toDouble())
+        bytes >= 1L.shl(30) -> "%.2f GB".format(bytes.toDouble() / (1L.shl(30)).toDouble())
+        bytes >= 1L.shl(20) -> "%.2f MB".format(bytes.toDouble() / (1L.shl(20)).toDouble())
+        bytes >= 1L.shl(10) -> "%.2f KB".format(bytes.toDouble() / (1L.shl(10)).toDouble())
+        else -> "$bytes B"
+    }
+}
+
 @Composable
 private fun DownloadLinkItem(
     link: DownloadLink,
-    onClick: () -> Unit
+    onMagnetClick: () -> Unit,
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(onClick = onMagnetClick)
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = link.title ?: "",
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f)
-            )
-            if (link.files != null) {
-                IconButton(onClick = onClick) {
-                    Icon(
-                        imageVector = if (link.filesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (link.filesExpanded) "收起" else "展开"
-                    )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = link.title ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    val size = link.size
+                    val date = link.date
+                    if (date?.isNotEmpty() == true) {
+                        Text(
+                            text = date,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (size?.isNotEmpty() == true) {
+                        Text(
+                            text = size,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-        }
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(top = 4.dp)
-        ) {
-            val size = link.size
-            val date = link.date
-            if (size?.isNotEmpty() == true) {
-                Text(
-                    text = size,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (date?.isNotEmpty() == true) {
-                Text(
-                    text = date,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            IconButton(onClick = { expanded = !expanded }) {
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "收起" else "展开"
                 )
             }
         }
 
-        AnimatedVisibility(visible = link.filesExpanded && link.files != null) {
+        AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp)) {
-                link.files?.forEach { file ->
+                if (link.files != null) {
+                    link.files?.forEach { file ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = file.filename,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (file.size > 0) {
+                                Text(
+                                    text = formatFileSize(file.size),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
                     Text(
-                        text = file.filename,
+                        text = "加载中...",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

@@ -160,6 +160,7 @@ fun MovieDetailScreen(
                             title = d.title
                             link = d.id ?: movieCode
                             coverUrl = d.coverUrl
+                            date = d.headers.find { it.name == "发行日期" }?.value
                         }
                     },
                     modifier = Modifier.fillMaxSize()
@@ -621,7 +622,7 @@ private fun MovieDetailContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(80.dp).navigationBarsPadding())
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }

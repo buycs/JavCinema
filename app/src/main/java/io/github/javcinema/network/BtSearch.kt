@@ -101,9 +101,9 @@ data class BtSearchResponse(
 )
 
 data class BtSearchItem(
-    val id: Int = 0,
+    val id: Long = 0,
     val name: String = "",
-    val size: Long = 0,
+    val size: String = "0",
     val created_at: String = "",
     val hash: String = "",
     val count: Int = 0,
@@ -111,14 +111,10 @@ data class BtSearchItem(
 )
 
 data class BtSearchDetailResponse(
-    val data: BtSearchTorrentDetail? = null
-)
-
-data class BtSearchTorrentDetail(
     val torrentfile: List<BtSearchTorrentFile>? = null
 )
 
 data class BtSearchTorrentFile(
-    val path: String = "",
-    val size: Long = 0
+    val name: String = "",
+    val size: String = "0"
 )
