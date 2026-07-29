@@ -37,7 +37,8 @@ fun MovieListScreen(
     navController: NavController,
     title: String,
     url: String,
-    viewModel: MovieListViewModel = viewModel()
+    viewModel: MovieListViewModel = viewModel(),
+    scrollToTopTrigger: Long = 0L
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
@@ -49,6 +50,12 @@ fun MovieListScreen(
         initialFirstVisibleItemScrollOffset = savedOffset
     )
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            gridState.animateScrollToItem(0)
+        }
+    }
 
     LaunchedEffect(url) {
         viewModel.load(url)

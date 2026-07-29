@@ -13,6 +13,7 @@ fun Movie.toggleStar() {
         title = this@toggleStar.title
         link = this@toggleStar.link
         coverUrl = this@toggleStar.coverUrl
+        date = this@toggleStar.date
     }
     if (config.starredMovies?.contains(m) == true) {
         config.starredMovies?.remove(m)

@@ -458,7 +458,6 @@ private fun MovieDetailContent(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(detail.coverUrl)
                 .crossfade(true)
-                .size(1080)
                 .build(),
             contentDescription = detail.title,
             contentScale = ContentScale.Crop,
@@ -622,7 +621,7 @@ private fun MovieDetailContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp).navigationBarsPadding())
+            Spacer(modifier = Modifier.height(80.dp).navigationBarsPadding())
         }
     }
 }

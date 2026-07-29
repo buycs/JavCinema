@@ -45,9 +45,11 @@ fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
                 TextButton(onClick = {
                     movie.toggleStar()
                     JAViewer.CONFIGURATIONS?.save()
+                    val msg = if (isStarred) "已取消收藏" else "已收藏影片"
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }) {
-                    Text(if (isStarred) "取消收藏" else "收藏", style = MaterialTheme.typography.bodyLarge)
+                    Text(if (isStarred) "取消收藏" else "收藏影片", style = MaterialTheme.typography.bodyLarge)
                 }
             }
         },
@@ -71,19 +73,21 @@ fun ActressFavoriteDialog(actress: Actress, onDismiss: () -> Unit) {
         text = {
             Column {
                 TextButton(onClick = {
-                    actress.toggleStar()
-                    JAViewer.CONFIGURATIONS?.save()
-                    onDismiss()
-                }) {
-                    Text(if (isStarred) "取消收藏" else "收藏", style = MaterialTheme.typography.bodyLarge)
-                }
-                TextButton(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("name", actress.name ?: ""))
-                    Toast.makeText(context, "已复制演员", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "已复制女优", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }) {
-                    Text("复制演员", style = MaterialTheme.typography.bodyLarge)
+                    Text("复制女优", style = MaterialTheme.typography.bodyLarge)
+                }
+                TextButton(onClick = {
+                    actress.toggleStar()
+                    JAViewer.CONFIGURATIONS?.save()
+                    val msg = if (isStarred) "已取消收藏" else "已收藏女优"
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }) {
+                    Text(if (isStarred) "取消收藏" else "收藏女优", style = MaterialTheme.typography.bodyLarge)
                 }
             }
         },

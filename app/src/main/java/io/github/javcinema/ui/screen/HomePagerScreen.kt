@@ -34,7 +34,7 @@ import io.github.javcinema.ui.navigation.NavRoutes
 import kotlinx.coroutines.launch
 
 @Composable
-fun HomePagerScreen(navController: NavController) {
+fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L) {
     data class TabInfo(val label: String, val icon: ImageVector, val section: String)
     val tabs = listOf(
         TabInfo("热门", Icons.Default.LocalFireDepartment, "popular"),
@@ -74,7 +74,7 @@ fun HomePagerScreen(navController: NavController) {
                                     .alpha(if (pagerState.currentPage == index) 1f else 0.7f)
                                     .height(16.dp)
                             )
-                            Text(tab.label, fontSize = 13.sp)
+                            Text(tab.label, fontSize = 15.sp)
                         }
                     },
                     selectedContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -92,7 +92,8 @@ fun HomePagerScreen(navController: NavController) {
                 HomeScreen(
                     navController = navController,
                     section = sections[page],
-                    viewModel = viewModels[page]
+                    viewModel = viewModels[page],
+                    scrollToTopTrigger = scrollToTopTrigger
                 )
             }
 

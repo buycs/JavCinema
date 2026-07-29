@@ -42,13 +42,20 @@ import java.net.URLEncoder
 @Composable
 fun ActressListScreen(
     navController: NavController,
-    viewModel: ActressListViewModel = viewModel()
+    viewModel: ActressListViewModel = viewModel(),
+    scrollToTopTrigger: Long = 0L
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val actresses by viewModel.actresses.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val listState = rememberLazyListState()
     var dialogActress by remember { mutableStateOf<Actress?>(null) }
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            listState.animateScrollToItem(0)
+        }
+    }
 
     val shouldLoadMore by remember {
         derivedStateOf {

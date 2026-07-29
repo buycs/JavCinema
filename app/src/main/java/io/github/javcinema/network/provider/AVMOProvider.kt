@@ -145,7 +145,7 @@ object AVMOProvider {
                 id = api.movieId
                 code = api.movieFanHao
                 title = api.title ?: api.title_ja ?: api.title_cn ?: api.movieFanHao
-                coverUrl = api.posterSmall ?: api.posterLarge
+                coverUrl = api.posterLarge ?: api.posterSmall
                 date = api.releaseDate
                 link = api.movieId
             }
@@ -155,7 +155,7 @@ object AVMOProvider {
     fun fromApiDetail(api: AvmooMovieDetail): MovieDetail {
         val detail = MovieDetail()
         detail.title = api.title ?: api.title_ja ?: api.title_cn ?: api.movieFanHao
-        detail.coverUrl = api.posterSmall ?: api.posterLarge
+        detail.coverUrl = api.posterLarge ?: api.posterSmall
         detail.code = api.movieFanHao
         detail.id = api.movieId
         detail.btsSearchUrl = api.btsSearchUrl

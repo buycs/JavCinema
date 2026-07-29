@@ -40,7 +40,8 @@ import io.github.javcinema.ui.navigation.NavRoutes
 fun SearchScreen(
     navController: NavController,
     initialQuery: String = "",
-    viewModel: SearchViewModel = viewModel()
+    viewModel: SearchViewModel = viewModel(),
+    scrollToTopTrigger: Long = 0L
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
@@ -53,6 +54,12 @@ fun SearchScreen(
         initialFirstVisibleItemIndex = savedIndex,
         initialFirstVisibleItemScrollOffset = savedOffset
     )
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            gridState.animateScrollToItem(0)
+        }
+    }
 
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {

@@ -41,7 +41,8 @@ import io.github.javcinema.ui.navigation.NavRoutes
 fun HomeScreen(
     navController: NavController,
     section: String,
-    viewModel: HomeViewModel = viewModel()
+    viewModel: HomeViewModel = viewModel(),
+    scrollToTopTrigger: Long = 0L
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
@@ -53,6 +54,12 @@ fun HomeScreen(
         initialFirstVisibleItemScrollOffset = savedOffset
     )
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            gridState.animateScrollToItem(0)
+        }
+    }
 
     LaunchedEffect(section) {
         viewModel.setSection(section)

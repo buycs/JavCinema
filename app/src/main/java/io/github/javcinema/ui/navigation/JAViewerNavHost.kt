@@ -27,6 +27,7 @@ import java.net.URLDecoder
 @Composable
 fun JAViewerNavHost(
     navController: NavHostController,
+    scrollToTopTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -35,11 +36,11 @@ fun JAViewerNavHost(
         modifier = modifier
     ) {
         composable(route = NavRoutes.HOME) {
-            HomePagerScreen(navController = navController)
+            HomePagerScreen(navController = navController, scrollToTopTrigger = scrollToTopTrigger)
         }
 
         composable(route = NavRoutes.ACTRESSES) {
-            ActressListScreen(navController = navController)
+            ActressListScreen(navController = navController, scrollToTopTrigger = scrollToTopTrigger)
         }
 
         composable(route = NavRoutes.GENRE) {
@@ -47,7 +48,7 @@ fun JAViewerNavHost(
         }
 
         composable(route = NavRoutes.FAVOURITE) {
-            FavouritesScreen(navController = navController)
+            FavouritesScreen(navController = navController, scrollToTopTrigger = scrollToTopTrigger)
         }
 
         composable(route = NavRoutes.SETTINGS) {
@@ -75,7 +76,7 @@ fun JAViewerNavHost(
         ) { backStackEntry ->
             val title = URLDecoder.decode(backStackEntry.arguments?.getString("title") ?: "", "UTF-8")
             val url = URLDecoder.decode(backStackEntry.arguments?.getString("url") ?: "", "UTF-8")
-            MovieListScreen(navController = navController, title = title, url = url)
+            MovieListScreen(navController = navController, title = title, url = url, scrollToTopTrigger = scrollToTopTrigger)
         }
 
         composable(
@@ -83,7 +84,7 @@ fun JAViewerNavHost(
             arguments = listOf(navArgument("query") { defaultValue = "" })
         ) { backStackEntry ->
             val query = backStackEntry.arguments?.getString("query") ?: ""
-            SearchScreen(navController = navController, initialQuery = query)
+            SearchScreen(navController = navController, initialQuery = query, scrollToTopTrigger = scrollToTopTrigger)
         }
 
         composable(

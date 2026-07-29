@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Configurations
 
@@ -52,8 +53,6 @@ fun SettingsScreen() {
     var showDataSourceDialog by remember { mutableStateOf(false) }
     var showDataUrlDialog by remember { mutableStateOf(false) }
     var showMagnetUrlDialog by remember { mutableStateOf(false) }
-    var showActiveAddressesDialog by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -78,12 +77,6 @@ fun SettingsScreen() {
             summary = "自定义磁力源地址",
             onClick = { showMagnetUrlDialog = true }
         )
-        SettingsItem(
-            icon = Icons.Filled.Star,
-            title = "当前生效地址",
-            summary = "查看当前使用的地址",
-            onClick = { showActiveAddressesDialog = true }
-        )
     }
 
     if (showDataSourceDialog) {
@@ -94,9 +87,6 @@ fun SettingsScreen() {
     }
     if (showMagnetUrlDialog) {
         MagnetUrlDialog(onDismiss = { showMagnetUrlDialog = false })
-    }
-    if (showActiveAddressesDialog) {
-        ActiveAddressesDialog(onDismiss = { showActiveAddressesDialog = false })
     }
 }
 
@@ -152,6 +142,7 @@ private fun SettingsItem(
 
 @Composable
 private fun DataSourceDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
     val dataSources = JAViewer.DATA_SOURCES
     val currentSource = JAViewer.getDataSource()
     var selectedSource by remember { mutableStateOf(currentSource) }
@@ -214,9 +205,11 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
                 try {
                     JAViewer.recreateService()
                     saved = true
+                    Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 } catch (e: Exception) {
                     errorMsg = "保存失败: ${e.localizedMessage}"
+                    Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                 }
             }) {
                 Text("保存")
@@ -317,7 +310,7 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
-                            modifier = Modifier.height(44.dp).weight(1f)
+                            modifier = Modifier.height(56.dp).weight(1f)
                         )
                     }
                     Spacer(Modifier.height(8.dp))
@@ -344,9 +337,11 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                 try {
                     JAViewer.recreateService()
                     saved = true
+                    Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     saved = false
                     errorMsg = "保存失败: ${e.localizedMessage}"
+                    Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
                 }
             }) {
                 Text("保存")
@@ -360,53 +355,4 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
     )
 }
 
-@Composable
-private fun ActiveAddressesDialog(onDismiss: () -> Unit) {
-    fun activeUrl(name: String, defaultLink: String?): String {
-        val custom = when (name) {
-            "骑兵" -> Configurations.customAvmooUrl
-            "步兵" -> Configurations.customAvsoUrl
-            "欧美" -> Configurations.customAvxoUrl
-            "BtSearch" -> Configurations.customBtSearchUrl
-            "Cili" -> Configurations.customCiliUrl
-            "BTSOW" -> Configurations.customBtsowUrl
-            else -> null
-        }
-        return custom ?: defaultLink ?: "未设置"
-    }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("当前生效地址") },
-        text = {
-            Column {
-                Text("数据源", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(4.dp))
-                JAViewer.DATA_SOURCES.forEach { ds ->
-                    Text(
-                        text = "${ds.name}: ${activeUrl(ds.name ?: "", ds.link)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(6.dp))
-                }
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                Text("磁力源", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(4.dp))
-                JAViewer.MAGNET_SOURCES.forEach { ds ->
-                    Text(
-                        text = "${ds.name}: ${activeUrl(ds.name ?: "", ds.link)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(6.dp))
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) {
-                Text("关闭")
-            }
-        }
-    )
-}

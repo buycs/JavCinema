@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
@@ -40,7 +42,7 @@ data class BottomNavItem(
 
 private val bottomItems = listOf(
     BottomNavItem("影片", Icons.Default.VideoLibrary, NavRoutes.HOME),
-    BottomNavItem("演员", Icons.Default.Person, NavRoutes.ACTRESSES),
+    BottomNavItem("女优", Icons.Default.Person, NavRoutes.ACTRESSES),
     BottomNavItem("类别", Icons.Default.Category, NavRoutes.GENRE),
     BottomNavItem("收藏", Icons.Default.Favorite, NavRoutes.FAVOURITE),
     BottomNavItem("设置", Icons.Default.Settings, NavRoutes.SETTINGS)
@@ -58,6 +60,8 @@ fun MainScreen() {
         currentDestination?.hierarchy?.any { it.route?.startsWith(item.route) == true } == true
     } ?: bottomItems[0]
 
+    val scrollToTopTrigger = remember { mutableLongStateOf(0L) }
+
     Scaffold(
         bottomBar = {
             NavigationBar(
@@ -68,7 +72,9 @@ fun MainScreen() {
                         selected = currentRoute == item.route ||
                             currentDestination?.hierarchy?.any { it.route?.startsWith(item.route) == true } == true,
                         onClick = {
-                            if (currentRoute != item.route) {
+                            if (currentRoute == item.route) {
+                                scrollToTopTrigger.longValue = System.nanoTime()
+                            } else {
                                 navController.navigate(item.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
@@ -78,8 +84,8 @@ fun MainScreen() {
                                 }
                             }
                         },
-                        icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(18.dp)) },
-                        label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+                        icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(22.dp)) },
+                        label = { Text(item.label, style = MaterialTheme.typography.bodySmall) },
                         colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                     )
                 }
@@ -99,7 +105,7 @@ fun MainScreen() {
                 .fillMaxSize()
                 .padding(adjustedPadding)
         ) {
-            JAViewerNavHost(navController = navController)
+            JAViewerNavHost(navController = navController, scrollToTopTrigger = scrollToTopTrigger.longValue)
         }
     }
 }
