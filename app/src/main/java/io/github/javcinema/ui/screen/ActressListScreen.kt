@@ -108,7 +108,7 @@ fun ActressListScreen(
         ) {
             items(
                 items = actresses,
-                key = { it.link ?: it.name ?: it.hashCode().toString() }
+                key = { "${it.link ?: ""}_${it.name ?: ""}_${it.hashCode()}" }
             ) { actress ->
                 ActressListItem(
                     actress = actress,
@@ -181,6 +181,13 @@ private fun ActressListItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            actress.movieCount?.let { count ->
+                Text(
+                    text = "${count} 部作品",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

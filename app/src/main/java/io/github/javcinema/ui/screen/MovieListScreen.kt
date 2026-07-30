@@ -96,7 +96,7 @@ fun MovieListScreen(
         ) {
             items(
                 items = movies,
-                key = { it.code ?: it.link ?: it.hashCode().toString() }
+                key = { it.code?.let { c -> it.link?.let { l -> "$c-$l" } ?: c } ?: it.hashCode().toString() }
             ) { movie ->
                 MovieCard(
                     movie = movie,

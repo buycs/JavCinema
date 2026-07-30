@@ -5,7 +5,7 @@
   "data_sources": [
     {
       "name": "骑兵",
-      "link": "https://avmoo.shop",
+      "link": "https://avmoo.shop",      "apiPath": "/jav/data/api/",
       "legacies":[
         "javzoo.com",
         "avmoo.xyz",
@@ -25,7 +25,7 @@
     },
     {
       "name": "步兵",
-      "link": "https://avsox.click",
+      "link": "https://avsox.click",      "apiPath": "/javu/data/api/",
       "legacies":[
         "avme.pw",
         "avsox.net",
@@ -38,7 +38,7 @@
     },
     {
       "name": "欧美",
-      "link": "https://avheat.shop",
+      "link": "https://avheat.shop",      "apiPath": "/wav/data/api/",
       "legacies":[
     
       ]

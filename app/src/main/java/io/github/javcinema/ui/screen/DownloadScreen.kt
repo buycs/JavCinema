@@ -152,7 +152,7 @@ fun DownloadScreen(
                 ) {
                     items(
                         items = results,
-                        key = { it.link ?: it.title ?: it.hashCode().toString() }
+                        key = { "${it.link ?: ""}_${it.title ?: ""}_${it.hashCode()}" }
                     ) { link ->
                         DownloadLinkItem(
                             link = link,

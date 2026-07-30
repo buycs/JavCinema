@@ -77,7 +77,7 @@ fun MovieCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 68.dp)
+                    .heightIn(min = 86.dp)
                     .padding(horizontal = 6.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.Bottom
             ) {

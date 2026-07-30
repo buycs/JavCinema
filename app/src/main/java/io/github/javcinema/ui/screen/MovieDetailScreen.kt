@@ -1,6 +1,7 @@
 package io.github.javcinema.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -461,10 +462,10 @@ private fun MovieDetailContent(
                 .crossfade(true)
                 .build(),
             contentDescription = detail.title,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillWidth,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(280.dp)
+                .aspectRatio(0.7f)
                 .combinedClickable(
                     onClick = {
                         detail.coverUrl?.let { url ->
@@ -550,6 +551,26 @@ private fun MovieDetailContent(
                             val index = detail.screenshots.indexOf(screenshot)
                             onScreenshotClick?.invoke(urls, index.coerceAtLeast(0))
                         }
+                    )
+                }
+            } else if (detail.coverUrl != null) {
+                HorizontalDivider()
+                SectionWithIcon(Icons.Outlined.Collections) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(detail.coverUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "预览",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(0.7f)
+                            .clickable {
+                                detail.coverUrl?.let { url ->
+                                    onScreenshotClick?.invoke(listOf(url), 0)
+                                }
+                            }
                     )
                 }
             }

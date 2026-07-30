@@ -93,14 +93,14 @@ class Configurations {
         if (savedDs != null && JAViewer.DATA_SOURCES.isNotEmpty()) {
             dataSource = JAViewer.DATA_SOURCES.find { it.name == savedDs.name } ?: savedDs
         }
-        for (ds in JAViewer.DATA_SOURCES) {
-            try {
-                val host = URI(ds.link!!).host
-                ds.legacies?.forEach { h ->
-                    JAViewer.hostReplacements[h] = host
-                }
-            } catch (_: Exception) {
+        JAViewer.hostReplacements.clear()
+        val ds = JAViewer.getDataSource()
+        try {
+            val host = URI(ds.link!!).host
+            ds.legacies?.forEach { h ->
+                JAViewer.hostReplacements[h] = host
             }
+        } catch (_: Exception) {
         }
         for (ds in JAViewer.MAGNET_SOURCES) {
             val urlStr = when (ds.name) {

@@ -24,7 +24,7 @@ data class AvmooStarResponse(
 
 data class AvmooGenreListResponse(
     val code: Int,
-    val data: Map<String, List<AvmooGenre>>?
+    val data: JsonElement?
 )
 
 data class AvmooMovie(
@@ -77,6 +77,7 @@ data class AvmooMovieDetail(
 data class AvmooStar(
     val starId: String?,
     val starDmmId: Int?,
+    val starName: String?,
     val starName_ja: String?,
     val starName_en: String?,
     val starName_cn: String?,

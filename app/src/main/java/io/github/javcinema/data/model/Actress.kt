@@ -9,6 +9,7 @@ open class Actress : Linkable() {
 
     var name: String? = null
     var imageUrl: String? = null
+    var movieCount: Int? = null
 
     companion object {
         fun create(name: String, imageUrl: String, detailUrl: String): Actress {

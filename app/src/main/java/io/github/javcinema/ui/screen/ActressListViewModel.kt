@@ -85,12 +85,19 @@ class ActressListViewModel : ViewModel() {
         }
 
         val apiStars = response.data ?: emptyList()
+        if (apiStars.isNotEmpty()) {
+            val s = apiStars[0]
+            android.util.Log.d("ActressListVM", "first star: ja=${s.starName_ja} en=${s.starName_en} cn=${s.starName_cn} tw=${s.starName_tw} id=${s.starId}")
+        }
         val parsed = apiStars.map { star ->
-            Actress.create(
-                star.starName_ja ?: star.starName_en ?: star.starName_cn ?: "",
+            val name = star.starName ?: star.starName_ja ?: star.starName_en ?: star.starName_cn ?: star.starName_tw ?: ""
+            val actress = Actress.create(
+                name,
                 star.avatarUrl ?: star.avatar ?: "",
                 star.starId ?: ""
             )
+            actress.movieCount = star.movieCount
+            actress
         }
 
         if (parsed.isEmpty()) {

@@ -145,7 +145,7 @@ object AVMOProvider {
                 id = api.movieId
                 code = api.movieFanHao
                 title = api.title ?: api.title_ja ?: api.title_cn ?: api.movieFanHao
-                coverUrl = api.posterLarge ?: api.posterSmall
+coverUrl = api.posterSmall
                 date = api.releaseDate
                 link = api.movieId
             }

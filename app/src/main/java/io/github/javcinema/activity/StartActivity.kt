@@ -99,14 +99,11 @@ class StartActivity : ComponentActivity() {
         JAViewer.CONFIGURATIONS?.applyCustomUrls()
 
         JAViewer.hostReplacements.clear()
-        for (source in JAViewer.DATA_SOURCES) {
-            try {
-                val host = URI(source.link).host
-                source.legacies?.forEach { h ->
-                    JAViewer.hostReplacements[h] = host
-                }
-            } catch (e: URISyntaxException) {
-                e.printStackTrace()
+        val currentDs = JAViewer.getDataSource()
+        val currentHost = try { URI(currentDs.link).host } catch (_: Exception) { null }
+        if (currentHost != null) {
+            currentDs.legacies?.forEach { h ->
+                JAViewer.hostReplacements[h] = currentHost
             }
         }
 

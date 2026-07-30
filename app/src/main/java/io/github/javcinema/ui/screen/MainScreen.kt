@@ -65,7 +65,7 @@ fun MainScreen() {
     Scaffold(
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.height(72.dp)
+                modifier = Modifier.height(56.dp)
             ) {
                 bottomItems.forEach { item ->
                     NavigationBarItem(

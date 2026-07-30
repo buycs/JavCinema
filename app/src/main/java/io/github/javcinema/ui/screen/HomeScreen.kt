@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
@@ -61,7 +62,7 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(section) {
+    LaunchedEffect(section, JAViewer.dataSourceVersionFlow.value) {
         viewModel.setSection(section)
     }
 
@@ -139,7 +140,7 @@ fun HomeScreen(
         ) {
             items(
                 items = movies,
-                key = { it.code ?: it.link ?: it.hashCode().toString() }
+                key = { it.code?.let { c -> it.link?.let { l -> "$c-$l" } ?: c } ?: it.hashCode().toString() }
             ) { movie ->
                 MovieCard(
                     movie = movie,

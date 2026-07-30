@@ -223,7 +223,7 @@ fun FavouritesScreen(
                         ) {
                             items(
                                 items = starredMovies.value,
-                                key = { it.code ?: it.link ?: it.hashCode().toString() }
+                                key = { "${it.code ?: ""}_${it.link ?: ""}_${it.hashCode()}" }
                             ) { movie ->
                                 MovieCard(
                                     movie = movie,
@@ -259,7 +259,7 @@ fun FavouritesScreen(
                         ) {
                             items(
                                 items = starredActresses.value,
-                                key = { it.link ?: it.name ?: it.hashCode().toString() }
+                                key = { "${it.link ?: ""}_${it.name ?: ""}_${it.hashCode()}" }
                             ) { actress ->
                                 val clickModifier = if (actress.link != null) {
                                     Modifier.pointerInput(actress) {

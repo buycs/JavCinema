@@ -79,8 +79,16 @@ class JAViewer : Application() {
 
         fun recreateService() {
             val ds = getDataSource()
+            hostReplacements.clear()
+            val host = try { java.net.URI(ds.link!!).host } catch (_: Exception) { null }
+            if (host != null) {
+                ds.legacies?.forEach { h -> hostReplacements[h] = host }
+            }
+            val domain = ds.link?.trimEnd('/') ?: ""
+            val apiPath = ds.apiPath?.trim('/')?.let { "/$it/" } ?: "/jav/data/api/"
+            val baseUrl = "$domain$apiPath"
             val retrofit = Retrofit.Builder()
-                .baseUrl(ds.link!!)
+                .baseUrl(baseUrl)
                 .client(HTTP_CLIENT)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()

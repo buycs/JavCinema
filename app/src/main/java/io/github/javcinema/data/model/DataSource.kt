@@ -6,6 +6,8 @@ package io.github.javcinema.data.model
 class DataSource() : Linkable() {
 
     var name: String? = null
+    var domain: String? = null
+    var apiPath: String? = null
     var legacies: List<String>? = null
 
     constructor(name: String, baseUrl: String) : this() {

@@ -10,24 +10,24 @@ import retrofit2.http.POST
 
 interface AvmooApiService {
 
-    @POST("jav/data/api/getMovies")
+    @POST("getMovies")
     suspend fun getMovies(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooMovieListResponse
 
-    @POST("jav/data/api/getMovie")
+    @POST("getMovie")
     suspend fun getMovie(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooMovieDetailResponse
 
-    @POST("jav/data/api/getRelatedMovies")
+    @POST("getRelatedMovies")
     suspend fun getRelatedMovies(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooMovieListResponse
 
-    @POST("jav/data/api/getFilterMovies")
+    @POST("getFilterMovies")
     suspend fun getFilterMovies(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooMovieListResponse
 
-    @POST("jav/data/api/getStars")
+    @POST("getStars")
     suspend fun getStars(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooStarListResponse
 
-    @POST("jav/data/api/getStar")
+    @POST("getStar")
     suspend fun getStar(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooStarResponse
 
-    @POST("jav/data/api/getGenres")
+    @POST("getGenres")
     suspend fun getGenres(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooGenreListResponse
 }
