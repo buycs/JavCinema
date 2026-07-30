@@ -14,6 +14,7 @@ fun Movie.toggleStar() {
         link = this@toggleStar.link
         coverUrl = this@toggleStar.coverUrl
         date = this@toggleStar.date
+        dataSourceName = JAViewer.getDataSource()?.name
     }
     if (config.starredMovies?.contains(m) == true) {
         config.starredMovies?.remove(m)
@@ -29,6 +30,7 @@ class Movie : Linkable() {
     var coverUrl: String? = null
     var date: String? = null
     var hot: Boolean = false
+    var dataSourceName: String? = null
 
     companion object {
         fun create(title: String, code: String, date: String, coverUrl: String, detailUrl: String, hot: Boolean): Movie {
@@ -39,6 +41,7 @@ class Movie : Linkable() {
                 this.coverUrl = coverUrl
                 this.hot = hot
                 this.link = detailUrl
+                dataSourceName = JAViewer.getDataSource()?.name
             }
         }
     }

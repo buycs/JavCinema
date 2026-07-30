@@ -10,6 +10,7 @@ open class Actress : Linkable() {
     var name: String? = null
     var imageUrl: String? = null
     var movieCount: Int? = null
+    var dataSourceName: String? = null
 
     companion object {
         fun create(name: String, imageUrl: String, detailUrl: String): Actress {
@@ -17,6 +18,7 @@ open class Actress : Linkable() {
                 this.name = name
                 this.imageUrl = imageUrl
                 this.link = detailUrl
+                dataSourceName = JAViewer.getDataSource()?.name
             }
         }
     }
@@ -38,6 +40,7 @@ fun Actress.toggleStar() {
         name = this@toggleStar.name
         imageUrl = this@toggleStar.imageUrl
         link = this@toggleStar.link
+        dataSourceName = JAViewer.getDataSource()?.name
     }
     if (config.starredActresses?.contains(a) == true) {
         config.starredActresses?.remove(a)

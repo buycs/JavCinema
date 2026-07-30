@@ -62,8 +62,16 @@ fun HomeScreen(
         }
     }
 
+    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+
     LaunchedEffect(section, JAViewer.dataSourceVersionFlow.value) {
         viewModel.setSection(section)
+    }
+
+    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
+        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+            gridState.animateScrollToItem(0)
+        }
     }
 
     val shouldLoadMore by remember {

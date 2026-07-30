@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
@@ -61,10 +62,18 @@ fun SearchScreen(
         }
     }
 
+    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {
             query = initialQuery
             viewModel.search(initialQuery)
+        }
+    }
+
+    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
+        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+            gridState.animateScrollToItem(0)
         }
     }
 

@@ -52,7 +52,7 @@ fun JAViewerNavHost(
         }
 
         composable(route = NavRoutes.SETTINGS) {
-            SettingsScreen()
+            SettingsScreen(navController = navController)
         }
 
         composable(

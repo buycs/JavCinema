@@ -50,7 +50,9 @@ import androidx.navigation.NavController
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import coil.compose.AsyncImage
+import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Actress
+import io.github.javcinema.data.model.DataSource
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.navigation.NavRoutes
@@ -70,6 +72,9 @@ fun FavouritesScreen(
     var showItemDialog by remember { mutableStateOf(false) }
     var dialogMovieItem by remember { mutableStateOf<Movie?>(null) }
     var dialogActressItem by remember { mutableStateOf<Actress?>(null) }
+    var showDataSourceSwitchDialog by remember { mutableStateOf(false) }
+    var pendingSwitchSourceName by remember { mutableStateOf<String?>(null) }
+    var pendingSwitchNavigate by remember { mutableStateOf<(() -> Unit)?>(null) }
     val moviesGridState = rememberLazyGridState()
     val actressesListState = rememberLazyListState()
 
@@ -84,6 +89,15 @@ fun FavouritesScreen(
                 0 -> moviesGridState.animateScrollToItem(0)
                 1 -> actressesListState.animateScrollToItem(0)
             }
+        }
+    }
+
+    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+
+    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
+        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+            moviesGridState.animateScrollToItem(0)
+            actressesListState.animateScrollToItem(0)
         }
     }
 
@@ -179,6 +193,49 @@ fun FavouritesScreen(
         }
     }
 
+    if (showDataSourceSwitchDialog) {
+        val targetName = pendingSwitchSourceName ?: ""
+        AlertDialog(
+            onDismissRequest = {
+                showDataSourceSwitchDialog = false
+                pendingSwitchSourceName = null
+                pendingSwitchNavigate = null
+            },
+            title = { Text("数据源不匹配") },
+            text = {
+                Text("该收藏属于「$targetName」数据源，是否切换到该数据源查看？")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val target = JAViewer.DATA_SOURCES.find { it.name == targetName }
+                    if (target != null) {
+                        val config = JAViewer.CONFIGURATIONS
+                        if (config != null) {
+                            config.dataSource = target
+                            config.save()
+                            JAViewer.recreateService()
+                        }
+                        pendingSwitchNavigate?.invoke()
+                    }
+                    showDataSourceSwitchDialog = false
+                    pendingSwitchSourceName = null
+                    pendingSwitchNavigate = null
+                }) {
+                    Text("切换")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDataSourceSwitchDialog = false
+                    pendingSwitchSourceName = null
+                    pendingSwitchNavigate = null
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -228,9 +285,23 @@ fun FavouritesScreen(
                                 MovieCard(
                                     movie = movie,
                                     onClick = {
-                                        val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
-                                        val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
-                                        navController.navigate(NavRoutes.movieDetail(code, link))
+                                        val currentSource = JAViewer.getDataSource()?.name
+                                        if (movie.dataSourceName != null && currentSource != null && movie.dataSourceName != currentSource) {
+                                            pendingSwitchSourceName = movie.dataSourceName
+                                            pendingSwitchNavigate = {
+                                                val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
+                                                val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
+                                                navController.navigate(NavRoutes.movieDetail(code, link)) {
+                                                    popUpTo(0) { inclusive = true }
+                                                    launchSingleTop = true
+                                                }
+                                            }
+                                            showDataSourceSwitchDialog = true
+                                        } else {
+                                            val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
+                                            val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
+                                            navController.navigate(NavRoutes.movieDetail(code, link))
+                                        }
                                     },
                                     onLongClick = {
                                         dialogMovieItem = movie
@@ -265,12 +336,29 @@ fun FavouritesScreen(
                                     Modifier.pointerInput(actress) {
                                         detectTapGestures(
                                             onTap = {
-                                                val rawUrl = actress.link ?: ""
-                                                val url = URLEncoder.encode(
-                                                    if (rawUrl.contains("/")) rawUrl else "star/$rawUrl", "UTF-8"
-                                                )
-                                                val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
-                                                navController.navigate(NavRoutes.movieList(name, url))
+                                                val currentSource = JAViewer.getDataSource()?.name
+                                                if (actress.dataSourceName != null && currentSource != null && actress.dataSourceName != currentSource) {
+                                                    pendingSwitchSourceName = actress.dataSourceName
+                                                    pendingSwitchNavigate = {
+                                                        val rawUrl = actress.link ?: ""
+                                                        val url = URLEncoder.encode(
+                                                            if (rawUrl.contains("/")) rawUrl else "star/$rawUrl", "UTF-8"
+                                                        )
+                                                        val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
+                                                        navController.navigate(NavRoutes.movieList(name, url)) {
+                                                            popUpTo(0) { inclusive = true }
+                                                            launchSingleTop = true
+                                                        }
+                                                    }
+                                                    showDataSourceSwitchDialog = true
+                                                } else {
+                                                    val rawUrl = actress.link ?: ""
+                                                    val url = URLEncoder.encode(
+                                                        if (rawUrl.contains("/")) rawUrl else "star/$rawUrl", "UTF-8"
+                                                    )
+                                                    val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
+                                                    navController.navigate(NavRoutes.movieList(name, url))
+                                                }
                                             },
                                             onLongPress = {
                                                 dialogActressItem = actress

@@ -21,6 +21,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import io.github.javcinema.JAViewer
 import io.github.javcinema.ui.navigation.NavRoutes
 import kotlinx.coroutines.launch
 
@@ -44,6 +47,14 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
     val sections = tabs.map { it.section }
     val pagerState = rememberPagerState(pageCount = { 3 }, initialPage = 1)
     val scope = rememberCoroutineScope()
+
+    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+
+    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
+        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+            pagerState.animateScrollToPage(1)
+        }
+    }
 
     val popularViewModel: HomeViewModel = viewModel(key = "popular")
     val homeViewModel: HomeViewModel = viewModel(key = "home")

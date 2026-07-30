@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +81,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Genre
 import io.github.javcinema.data.model.Movie
@@ -162,6 +164,7 @@ fun MovieDetailScreen(
                             link = d.id ?: movieCode
                             coverUrl = d.coverUrl
                             date = d.headers.find { it.name == "发行日期" }?.value
+                            dataSourceName = JAViewer.getDataSource()?.name
                         }
                     },
                     modifier = Modifier.fillMaxSize()
@@ -465,7 +468,6 @@ private fun MovieDetailContent(
             contentScale = ContentScale.FillWidth,
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(0.7f)
                 .combinedClickable(
                     onClick = {
                         detail.coverUrl?.let { url ->
@@ -556,22 +558,36 @@ private fun MovieDetailContent(
             } else if (detail.coverUrl != null) {
                 HorizontalDivider()
                 SectionWithIcon(Icons.Outlined.Collections) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(detail.coverUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "预览",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(0.7f)
-                            .clickable {
-                                detail.coverUrl?.let { url ->
-                                    onScreenshotClick?.invoke(listOf(url), 0)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            repeat(4) { index ->
+                                if (index == 0) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(detail.coverUrl)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "预览",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(16f / 9f)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .clickable {
+                                                detail.coverUrl?.let { url ->
+                                                    onScreenshotClick?.invoke(listOf(url), 0)
+                                                }
+                                            }
+                                    )
+                                } else {
+                                    Box(modifier = Modifier.weight(1f).aspectRatio(16f / 9f))
                                 }
                             }
-                    )
+                        }
+                    }
                 }
             }
 

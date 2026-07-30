@@ -44,12 +44,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import androidx.navigation.NavController
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Configurations
+import io.github.javcinema.ui.navigation.NavRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(navController: NavController? = null) {
     var showDataSourceDialog by remember { mutableStateOf(false) }
     var showDataUrlDialog by remember { mutableStateOf(false) }
     var showMagnetUrlDialog by remember { mutableStateOf(false) }
@@ -80,13 +82,22 @@ fun SettingsScreen() {
     }
 
     if (showDataSourceDialog) {
-        DataSourceDialog(onDismiss = { showDataSourceDialog = false })
+        DataSourceDialog(
+            onDismiss = { showDataSourceDialog = false },
+            navController = navController
+        )
     }
     if (showDataUrlDialog) {
-        DataUrlDialog(onDismiss = { showDataUrlDialog = false })
+        DataUrlDialog(
+            onDismiss = { showDataUrlDialog = false },
+            navController = navController
+        )
     }
     if (showMagnetUrlDialog) {
-        MagnetUrlDialog(onDismiss = { showMagnetUrlDialog = false })
+        MagnetUrlDialog(
+            onDismiss = { showMagnetUrlDialog = false },
+            navController = navController
+        )
     }
 }
 
@@ -141,7 +152,7 @@ private fun SettingsItem(
 }
 
 @Composable
-private fun DataSourceDialog(onDismiss: () -> Unit) {
+private fun DataSourceDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
     val dataSources = JAViewer.DATA_SOURCES
     val currentSource = JAViewer.getDataSource()
@@ -207,6 +218,10 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
                     saved = true
                     Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
                     onDismiss()
+                    navController?.navigate(NavRoutes.HOME) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 } catch (e: Exception) {
                     errorMsg = "保存失败: ${e.localizedMessage}"
                     Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -224,7 +239,7 @@ private fun DataSourceDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun DataUrlDialog(onDismiss: () -> Unit) {
+private fun DataUrlDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
     val items = JAViewer.DATA_SOURCES.map { ds ->
         val defaultLink = ds.link ?: ""
@@ -242,11 +257,11 @@ private fun DataUrlDialog(onDismiss: () -> Unit) {
             }}
         )
     }
-    SourceConfigDialog("数据源配置", items, onDismiss, context)
+    SourceConfigDialog("数据源配置", items, onDismiss, context, navController)
 }
 
 @Composable
-private fun MagnetUrlDialog(onDismiss: () -> Unit) {
+private fun MagnetUrlDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
     val items = JAViewer.MAGNET_SOURCES.map { ds ->
         val defaultLink = ds.link ?: ""
@@ -264,7 +279,7 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit) {
             }}
         )
     }
-    SourceConfigDialog("磁力源配置", items, onDismiss, context)
+    SourceConfigDialog("磁力源配置", items, onDismiss, context, navController)
 }
 
 private data class SourceItem(
@@ -275,7 +290,7 @@ private data class SourceItem(
 )
 
 @Composable
-private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss: () -> Unit, context: android.content.Context) {
+private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss: () -> Unit, context: android.content.Context, navController: NavController? = null) {
     val urls = remember { items.associate { it.label to mutableStateOf(it.initial) } }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -338,6 +353,11 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                     JAViewer.recreateService()
                     saved = true
                     Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                    navController?.navigate(NavRoutes.HOME) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 } catch (e: Exception) {
                     saved = false
                     errorMsg = "保存失败: ${e.localizedMessage}"

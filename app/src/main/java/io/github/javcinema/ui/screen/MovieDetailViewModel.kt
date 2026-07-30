@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -33,8 +35,24 @@ class MovieDetailViewModel : ViewModel() {
     val relatedMovies: StateFlow<List<Movie>> = _relatedMovies.asStateFlow()
 
     private var movie: Movie? = null
+    private var currentMovieCode: String = ""
+    private var currentMovieLink: String? = null
+    private var lastVersion: Int = -1
+
+    init {
+        viewModelScope.launch {
+            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
+                lastVersion = version
+                if (currentMovieCode.isNotEmpty()) {
+                    loadDetail(currentMovieCode, currentMovieLink)
+                }
+            }
+        }
+    }
 
     fun loadDetail(movieCode: String, movieLink: String? = null) {
+        currentMovieCode = movieCode
+        currentMovieLink = movieLink
         viewModelScope.launch {
             _uiState.value = MovieDetailUiState.Loading
             try {
