@@ -151,7 +151,7 @@ fun SearchScreen(
                 MovieCard(
                     movie = movie,
                     onClick = {
-                        navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link))
+                        navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl))
                     },
                     onLongClick = { dialogMovie = movie }
                 )

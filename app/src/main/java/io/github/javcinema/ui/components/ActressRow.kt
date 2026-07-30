@@ -18,8 +18,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.imageLoader
 import io.github.javcinema.data.model.Actress
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -27,7 +30,8 @@ fun ActressRow(
     actresses: List<Actress>,
     onActressClick: (Actress) -> Unit,
     onActressLongClick: ((Actress) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    imageLoader: ImageLoader = LocalContext.current.imageLoader
 ) {
     Column(modifier = modifier) {
         LazyRow(
@@ -45,6 +49,7 @@ fun ActressRow(
                 ) {
                     AsyncImage(
                         model = actress.imageUrl,
+                        imageLoader = imageLoader,
                         contentDescription = actress.name,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

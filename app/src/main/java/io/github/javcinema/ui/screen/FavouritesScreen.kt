@@ -50,6 +50,8 @@ import androidx.navigation.NavController
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.DataSource
@@ -79,8 +81,24 @@ fun FavouritesScreen(
     val actressesListState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
-        starredMovies.value = io.github.javcinema.JAViewer.CONFIGURATIONS?.starredMovies?.toList() ?: emptyList()
-        starredActresses.value = io.github.javcinema.JAViewer.CONFIGURATIONS?.starredActresses?.toList() ?: emptyList()
+        val movies = io.github.javcinema.JAViewer.CONFIGURATIONS?.starredMovies?.toList() ?: emptyList()
+        val actresses = io.github.javcinema.JAViewer.CONFIGURATIONS?.starredActresses?.toList() ?: emptyList()
+        starredMovies.value = movies
+        starredActresses.value = actresses
+        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull()
+        if (loader != null) {
+            val urls = movies.mapNotNull { it.coverUrl } + actresses.mapNotNull { it.imageUrl }
+            urls.forEach { url ->
+                try {
+                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                        .data(url)
+                        .memoryCacheKey(url)
+                        .build())
+                } catch (e: Exception) {
+                    android.util.Log.w("Favourites", "preload failed: $url - ${e.message}")
+                }
+            }
+        }
     }
 
     LaunchedEffect(scrollToTopTrigger) {
@@ -291,7 +309,7 @@ fun FavouritesScreen(
                                             pendingSwitchNavigate = {
                                                 val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
                                                 val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
-                                                navController.navigate(NavRoutes.movieDetail(code, link)) {
+                                                navController.navigate(NavRoutes.movieDetail(code, link, movie.coverUrl)) {
                                                     popUpTo(0) { inclusive = true }
                                                     launchSingleTop = true
                                                 }
@@ -300,7 +318,7 @@ fun FavouritesScreen(
                                         } else {
                                             val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
                                             val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
-                                            navController.navigate(NavRoutes.movieDetail(code, link))
+                                            navController.navigate(NavRoutes.movieDetail(code, link, movie.coverUrl))
                                         }
                                     },
                                     onLongClick = {

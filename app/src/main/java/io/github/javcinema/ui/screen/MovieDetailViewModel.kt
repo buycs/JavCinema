@@ -1,5 +1,6 @@
 package io.github.javcinema.ui.screen
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.javcinema.JAViewer
@@ -39,6 +40,9 @@ class MovieDetailViewModel : ViewModel() {
     private var currentMovieLink: String? = null
     private var lastVersion: Int = -1
 
+    private val _defaultCover = MutableStateFlow<String?>(null)
+    val defaultCover: StateFlow<String?> = _defaultCover.asStateFlow()
+
     init {
         viewModelScope.launch {
             JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
@@ -50,9 +54,11 @@ class MovieDetailViewModel : ViewModel() {
         }
     }
 
-    fun loadDetail(movieCode: String, movieLink: String? = null) {
+    fun loadDetail(movieCode: String, movieLink: String? = null, thumbnailUrl: String? = null) {
         currentMovieCode = movieCode
         currentMovieLink = movieLink
+        _defaultCover.value = thumbnailUrl
+        Log.i("MovieDetailVM", "loadDetail: code=$movieCode link=$movieLink thumb=$thumbnailUrl")
         viewModelScope.launch {
             _uiState.value = MovieDetailUiState.Loading
             try {
@@ -89,6 +95,8 @@ class MovieDetailViewModel : ViewModel() {
 
         val parsed = withContext(Dispatchers.IO) { AVMOProvider.fromApiDetail(apiDetail) }
 
+        Log.i("MovieDetailVM", "API cover: small=${apiDetail.posterSmall} large=${apiDetail.posterLarge} final=${parsed.coverUrl}")
+
         movie = Movie().apply {
             id = apiDetail.movieId
             code = apiDetail.movieFanHao
@@ -97,6 +105,10 @@ class MovieDetailViewModel : ViewModel() {
         }
 
         _detail.value = parsed
+        if (parsed.coverUrl != null) {
+            Log.i("MovieDetailVM", "upgrading cover to: ${parsed.coverUrl}")
+            _defaultCover.value = parsed.coverUrl
+        }
         checkStarred()
         _uiState.value = MovieDetailUiState.Success(parsed)
 
@@ -125,6 +137,8 @@ class MovieDetailViewModel : ViewModel() {
         val html = withContext(Dispatchers.IO) { response.string() }
         val parsed = withContext(Dispatchers.IO) { AVMOProvider.parseMoviesDetail(html) }
 
+        Log.i("MovieDetailVM", "HTML cover: ${parsed.coverUrl}")
+
         movie = Movie().apply {
             code = movieCode
             title = parsed.title
@@ -132,6 +146,10 @@ class MovieDetailViewModel : ViewModel() {
         }
 
         _detail.value = parsed
+        if (parsed.coverUrl != null) {
+            Log.i("MovieDetailVM", "upgrading cover to: ${parsed.coverUrl}")
+            _defaultCover.value = parsed.coverUrl
+        }
         checkStarred()
         _uiState.value = MovieDetailUiState.Success(parsed)
     }

@@ -1,11 +1,16 @@
 package io.github.javcinema.ui.navigation
 
+import coil.imageLoader
+import coil.request.ImageRequest
+import io.github.javcinema.JAViewer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -59,12 +64,26 @@ fun JAViewerNavHost(
             route = NavRoutes.MOVIE_DETAIL,
             arguments = listOf(
                 navArgument("movieCode") { type = NavType.StringType },
-                navArgument("link") { type = NavType.StringType; nullable = true; defaultValue = null }
+                navArgument("link") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("coverUrl") { type = NavType.StringType; nullable = true; defaultValue = null }
             )
         ) { backStackEntry ->
             val movieCode = backStackEntry.arguments?.getString("movieCode") ?: ""
             val movieLink = backStackEntry.arguments?.getString("link")
-            MovieDetailScreen(navController = navController, movieCode = movieCode, movieLink = movieLink)
+            val thumbnailUrl = backStackEntry.arguments?.getString("coverUrl")
+            remember {
+                if (!thumbnailUrl.isNullOrBlank()) {
+                    runCatching {
+                        JAViewer.instance.imageLoader.enqueue(
+                            ImageRequest.Builder(JAViewer.instance)
+                                .data(thumbnailUrl)
+                                .memoryCacheKey(thumbnailUrl)
+                                .build()
+                        )
+                    }
+                }
+            }
+            MovieDetailScreen(navController = navController, movieCode = movieCode, movieLink = movieLink, thumbnailUrl = thumbnailUrl)
         }
 
         composable(

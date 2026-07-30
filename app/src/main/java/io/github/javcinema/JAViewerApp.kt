@@ -4,6 +4,10 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.google.gson.GsonBuilder
 import com.google.gson.stream.JsonReader
 import io.github.javcinema.data.model.Configurations
@@ -11,10 +15,12 @@ import io.github.javcinema.data.model.DataSource
 import io.github.javcinema.network.AvmooApiService
 import io.github.javcinema.network.BasicService
 import retrofit2.converter.gson.GsonConverterFactory
+import android.util.Log
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
@@ -28,6 +34,22 @@ class JAViewer : Application() {
         super.onCreate()
         instance = this
         Configurations.loadPrefs(this)
+        Coil.setImageLoader(
+            ImageLoader.Builder(this)
+                .okHttpClient(HTTP_CLIENT)
+                .memoryCache {
+                    MemoryCache.Builder(this)
+                        .maxSizePercent(0.25)
+                        .build()
+                }
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(512L * 1024 * 1024)
+                        .build()
+                }
+                .build()
+        )
     }
 
     companion object {
@@ -48,6 +70,9 @@ class JAViewer : Application() {
         val dataSourceVersionFlow = MutableStateFlow(0)
 
         val HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
+            .addInterceptor(HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }.apply {
+                level = HttpLoggingInterceptor.Level.HEADERS
+            })
             .addInterceptor { chain ->
                 val original = chain.request()
                 val request = original.newBuilder()
@@ -68,6 +93,27 @@ class JAViewer : Application() {
                 }
             })
             .build()
+
+        val SCREENSHOT_HTTP_CLIENT: OkHttpClient = HTTP_CLIENT.newBuilder()
+            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 2 })
+            .build()
+
+        val screenshotImageLoader: ImageLoader by lazy {
+            ImageLoader.Builder(instance)
+                .okHttpClient(SCREENSHOT_HTTP_CLIENT)
+                .memoryCache {
+                    MemoryCache.Builder(instance)
+                        .maxSizePercent(0.25)
+                        .build()
+                }
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(instance.cacheDir.resolve("image_cache"))
+                        .maxSizeBytes(512L * 1024 * 1024)
+                        .build()
+                }
+                .build()
+        }
 
         fun getDataSource(): DataSource {
             val saved = CONFIGURATIONS?.dataSource

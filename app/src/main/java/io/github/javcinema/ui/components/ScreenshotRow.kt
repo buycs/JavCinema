@@ -13,14 +13,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.ImageLoader
+import coil.imageLoader
 import io.github.javcinema.data.model.Screenshot
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun ScreenshotRow(
     screenshots: List<Screenshot>,
     onScreenshotClick: (Screenshot) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    imageLoader: ImageLoader = LocalContext.current.imageLoader
 ) {
     Column(
         modifier = modifier,
@@ -38,6 +42,7 @@ fun ScreenshotRow(
                     if (screenshot != null) {
                         AsyncImage(
                             model = screenshot.thumbnailUrl,
+                            imageLoader = imageLoader,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier

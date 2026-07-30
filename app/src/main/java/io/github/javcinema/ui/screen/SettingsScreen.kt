@@ -279,7 +279,7 @@ private fun MagnetUrlDialog(onDismiss: () -> Unit, navController: NavController?
             }}
         )
     }
-    SourceConfigDialog("磁力源配置", items, onDismiss, context, navController)
+    SourceConfigDialog("磁力源配置", items, onDismiss, context, navController, reloadOnSave = false)
 }
 
 private data class SourceItem(
@@ -290,7 +290,7 @@ private data class SourceItem(
 )
 
 @Composable
-private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss: () -> Unit, context: android.content.Context, navController: NavController? = null) {
+private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss: () -> Unit, context: android.content.Context, navController: NavController? = null, reloadOnSave: Boolean = true) {
     val urls = remember { items.associate { it.label to mutableStateOf(it.initial) } }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -350,14 +350,18 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                     config.save()
                 }
                 try {
-                    JAViewer.recreateService()
+                    if (reloadOnSave) {
+                        JAViewer.recreateService()
+                        onDismiss()
+                        navController?.navigate(NavRoutes.HOME) {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        onDismiss()
+                    }
                     saved = true
                     Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                    navController?.navigate(NavRoutes.HOME) {
-                        popUpTo(0) { inclusive = true }
-                        launchSingleTop = true
-                    }
                 } catch (e: Exception) {
                     saved = false
                     errorMsg = "保存失败: ${e.localizedMessage}"

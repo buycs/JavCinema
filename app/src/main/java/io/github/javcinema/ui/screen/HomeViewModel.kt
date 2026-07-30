@@ -3,6 +3,8 @@ package io.github.javcinema.ui.screen
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil.imageLoader
+import coil.request.ImageRequest
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.AvmooMovieListResponse
 import io.github.javcinema.data.model.Movie
@@ -41,6 +43,24 @@ class HomeViewModel : ViewModel() {
     private var section: String = ""
     private var loadJob: kotlinx.coroutines.Job? = null
     private var lastVersion: Int = -1
+
+    private fun preloadCovers(movies: List<Movie>) {
+        val urls = movies.mapNotNull { it.coverUrl }
+        if (urls.isEmpty()) return
+        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull() ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            urls.forEach { url ->
+                try {
+                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                        .data(url)
+                        .memoryCacheKey(url)
+                        .build())
+                } catch (e: Exception) {
+                    Log.w("HomeViewModel", "preload failed: $url - ${e.message}")
+                }
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -121,6 +141,7 @@ class HomeViewModel : ViewModel() {
         if (apiMovies.isEmpty()) {
             hasMore = false
         }
+        preloadCovers(parsed)
 
         if (isRefreshing || page == 1) {
             _movies.value = parsed
@@ -158,6 +179,7 @@ class HomeViewModel : ViewModel() {
         if (parsed.isEmpty()) {
             hasMore = false
         }
+        preloadCovers(parsed)
 
         if (isRefreshing || page == 1) {
             _movies.value = parsed

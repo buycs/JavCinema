@@ -2,6 +2,8 @@ package io.github.javcinema.ui.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil.imageLoader
+import coil.request.ImageRequest
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.network.BasicService
@@ -39,6 +41,24 @@ class SearchViewModel : ViewModel() {
     private var currentQuery = ""
     private var loadJob: Job? = null
     private var lastVersion: Int = -1
+
+    private fun preloadCovers(movies: List<Movie>) {
+        val urls = movies.mapNotNull { it.coverUrl }
+        if (urls.isEmpty()) return
+        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull() ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            urls.forEach { url ->
+                try {
+                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                        .data(url)
+                        .memoryCacheKey(url)
+                        .build())
+                } catch (e: Exception) {
+                    android.util.Log.w("SearchVM", "preload failed: $url - ${e.message}")
+                }
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -93,11 +113,13 @@ class SearchViewModel : ViewModel() {
             if (parsed.isEmpty()) {
                 hasMore = false
             }
+            preloadCovers(parsed)
 
             _movies.value = if (page == 1) parsed else _movies.value + parsed
             currentPage = page
             _uiState.value = SearchUiState.Success(hasMore = hasMore)
         } catch (e: Exception) {
+            android.util.Log.e("SearchVM", "loadPage error: ${e.message}", e)
             _uiState.value = SearchUiState.Error(e.message ?: "搜索失败")
         }
     }

@@ -2,6 +2,8 @@ package io.github.javcinema.ui.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil.imageLoader
+import coil.request.ImageRequest
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.network.provider.AVMOProvider
@@ -36,6 +38,24 @@ class MovieListViewModel : ViewModel() {
     private var baseUrl: String = ""
     private var loadJob: Job? = null
     private var lastVersion: Int = -1
+
+    private fun preloadCovers(movies: List<Movie>) {
+        val urls = movies.mapNotNull { it.coverUrl }
+        if (urls.isEmpty()) return
+        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull() ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            urls.forEach { url ->
+                try {
+                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                        .data(url)
+                        .memoryCacheKey(url)
+                        .build())
+                } catch (e: Exception) {
+                    android.util.Log.w("MovieListVM", "preload failed: $url - ${e.message}")
+                }
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -92,6 +112,7 @@ class MovieListViewModel : ViewModel() {
                 loadPageFromHtml(page)
             }
         } catch (e: Exception) {
+            android.util.Log.e("MovieListVM", "loadPage error: ${e.message}", e)
             _uiState.value = MovieListUiState.Error(e.message ?: "加载失败")
         }
     }
@@ -125,6 +146,7 @@ class MovieListViewModel : ViewModel() {
             if (apiMovies.isEmpty()) {
                 hasMore = false
             }
+            preloadCovers(parsed)
 
             _movies.value = if (page == 1) parsed else _movies.value + parsed
             currentPage = page
@@ -149,6 +171,7 @@ class MovieListViewModel : ViewModel() {
         if (parsed.isEmpty()) {
             hasMore = false
         }
+        preloadCovers(parsed)
 
         _movies.value = if (page == 1) parsed else _movies.value + parsed
         currentPage = page

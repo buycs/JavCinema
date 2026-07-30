@@ -23,6 +23,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.Description
@@ -58,7 +59,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import coil.imageLoader
 import coil.request.ImageRequest
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -80,6 +87,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Actress
@@ -97,16 +105,19 @@ import io.github.javcinema.ui.components.ScreenshotRow
 import io.github.javcinema.ui.navigation.NavRoutes
 import java.net.URLEncoder
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MovieDetailScreen(
     navController: NavController,
     movieCode: String,
     movieLink: String? = null,
+    thumbnailUrl: String? = null,
     viewModel: MovieDetailViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val detail by viewModel.detail.collectAsState()
     val relatedMovies by viewModel.relatedMovies.collectAsState()
+    val defaultCover by viewModel.defaultCover.collectAsState()
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
     var dialogActress by remember { mutableStateOf<Actress?>(null) }
     var galleryUrls by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -117,17 +128,34 @@ fun MovieDetailScreen(
         savedScroll = scrollState.value.toFloat()
     }
     LaunchedEffect(movieCode) {
-        viewModel.loadDetail(movieCode, movieLink)
+        viewModel.loadDetail(movieCode, movieLink, thumbnailUrl)
     }
+
+    val blurRadius by animateFloatAsState(
+        targetValue = if (uiState is MovieDetailUiState.Loading) 20f else 0f,
+        animationSpec = tween(durationMillis = 600)
+    )
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is MovieDetailUiState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize().blur(blurRadius.dp)) {
+                        if (thumbnailUrl != null) {
+                            Image(
+                                painter = rememberAsyncImagePainter(model = thumbnailUrl),
+                                contentDescription = null,
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
             }
             is MovieDetailUiState.Error -> {
@@ -143,8 +171,21 @@ fun MovieDetailScreen(
             }
             is MovieDetailUiState.Success -> {
                 val d = detail ?: return@Box
+                val ctx = LocalContext.current
+                val loadUrl = defaultCover ?: d.coverUrl
+                LaunchedEffect(loadUrl) {
+                    if (loadUrl != null) {
+                        ctx.imageLoader.enqueue(
+                            ImageRequest.Builder(ctx)
+                                .data(loadUrl)
+                                .memoryCacheKey(loadUrl)
+                                .build()
+                        )
+                    }
+                }
                 MovieDetailContent(
                     detail = d,
+                    coverUrl = defaultCover ?: d.coverUrl,
                     relatedMovies = relatedMovies,
                     movieCode = movieCode,
                     navController = navController,
@@ -162,7 +203,7 @@ fun MovieDetailScreen(
                             code = d.code ?: movieCode
                             title = d.title
                             link = d.id ?: movieCode
-                            coverUrl = d.coverUrl
+                            coverUrl = defaultCover ?: d.coverUrl
                             date = d.headers.find { it.name == "发行日期" }?.value
                             dataSourceName = JAViewer.getDataSource()?.name
                         }
@@ -441,6 +482,7 @@ private fun SectionWithIcon(icon: ImageVector, content: @Composable () -> Unit) 
 @OptIn(ExperimentalFoundationApi::class)
 private fun MovieDetailContent(
     detail: MovieDetail,
+    coverUrl: String?,
     relatedMovies: List<Movie>,
     movieCode: String,
     navController: NavController,
@@ -459,25 +501,24 @@ private fun MovieDetailContent(
             .verticalScroll(scrollState)
             .navigationBarsPadding()
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(detail.coverUrl)
-                .crossfade(true)
-                .build(),
-            contentDescription = detail.title,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier
-                .fillMaxWidth()
-                .combinedClickable(
-                    onClick = {
-                        detail.coverUrl?.let { url ->
-                            onScreenshotClick?.invoke(listOf(url), 0)
-                        }
-                    },
-                    onLongClick = onCoverLongClick
-                )
-        )
-
+        if (coverUrl != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(coverUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = detail.title,
+                contentScale = ContentScale.FillWidth,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        onClick = {
+                            onScreenshotClick?.invoke(listOf(coverUrl), 0)
+                        },
+                        onLongClick = onCoverLongClick
+                    )
+            )
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -548,6 +589,7 @@ private fun MovieDetailContent(
                 SectionWithIcon(Icons.Outlined.Collections) {
                     ScreenshotRow(
                         screenshots = detail.screenshots,
+                        imageLoader = JAViewer.screenshotImageLoader,
                         onScreenshotClick = { screenshot ->
                             val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
                             val index = detail.screenshots.indexOf(screenshot)
@@ -556,7 +598,6 @@ private fun MovieDetailContent(
                     )
                 }
             } else if (detail.coverUrl != null) {
-                HorizontalDivider()
                 SectionWithIcon(Icons.Outlined.Collections) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
@@ -577,9 +618,7 @@ private fun MovieDetailContent(
                                             .aspectRatio(16f / 9f)
                                             .clip(RoundedCornerShape(4.dp))
                                             .clickable {
-                                                detail.coverUrl?.let { url ->
-                                                    onScreenshotClick?.invoke(listOf(url), 0)
-                                                }
+                                                onScreenshotClick?.invoke(listOfNotNull(detail.coverUrl), 0)
                                             }
                                     )
                                 } else {
@@ -596,6 +635,7 @@ private fun MovieDetailContent(
                 SectionWithIcon(Icons.Outlined.Face) {
                     ActressRow(
                         actresses = detail.actresses,
+                        imageLoader = JAViewer.screenshotImageLoader,
                         onActressClick = { actress ->
                             val name = actress.name ?: return@ActressRow
                             val link = actress.link ?: return@ActressRow
@@ -611,7 +651,7 @@ private fun MovieDetailContent(
 
             if (detail.genres.isNotEmpty()) {
                 HorizontalDivider()
-                SectionWithIcon(Icons.Outlined.Label) {
+                SectionWithIcon(Icons.AutoMirrored.Outlined.Label) {
                     GenreFlow(
                         genres = detail.genres,
                         onGenreClick = { genre ->
@@ -643,7 +683,7 @@ private fun MovieDetailContent(
                                         val link = movie.link ?: movie.code ?: return@MovieCard
                                         val encodedLink = URLEncoder.encode(link, "UTF-8")
                                         val encodedCode = URLEncoder.encode(movie.code ?: "", "UTF-8")
-                                        navController.navigate(NavRoutes.movieDetail(encodedCode, encodedLink))
+                                        navController.navigate(NavRoutes.movieDetail(encodedCode, encodedLink, movie.coverUrl))
                                     },
                                     onLongClick = { onMovieLongClick?.invoke(movie) },
                                     modifier = Modifier
