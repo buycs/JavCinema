@@ -59,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.imageLoader
 import coil.request.ImageRequest
@@ -131,31 +130,37 @@ fun MovieDetailScreen(
         viewModel.loadDetail(movieCode, movieLink, thumbnailUrl)
     }
 
+    var coverReady by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    val coverLoading = uiState is MovieDetailUiState.Loading ||
+            (uiState is MovieDetailUiState.Success && !coverReady)
+
     val blurRadius by animateFloatAsState(
-        targetValue = if (uiState is MovieDetailUiState.Loading) 20f else 0f,
+        targetValue = if (coverLoading) 20f else 0f,
         animationSpec = tween(durationMillis = 600)
     )
+
+    // Keep thumbnail painter alive across state transitions to avoid flicker
+    val thumbnailPainter = rememberAsyncImagePainter(model = thumbnailUrl)
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is MovieDetailUiState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.fillMaxSize().blur(blurRadius.dp)) {
-                        if (thumbnailUrl != null) {
-                            Image(
-                                painter = rememberAsyncImagePainter(model = thumbnailUrl),
-                                contentDescription = null,
-                                contentScale = ContentScale.FillWidth,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+                Box(modifier = Modifier.fillMaxSize().blur(blurRadius.dp)) {
+                    if (thumbnailUrl != null) {
+                        Image(
+                            painter = thumbnailPainter,
+                            contentDescription = null,
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                }
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
                 }
             }
             is MovieDetailUiState.Error -> {
@@ -171,45 +176,68 @@ fun MovieDetailScreen(
             }
             is MovieDetailUiState.Success -> {
                 val d = detail ?: return@Box
-                val ctx = LocalContext.current
-                val loadUrl = defaultCover ?: d.coverUrl
-                LaunchedEffect(loadUrl) {
-                    if (loadUrl != null) {
-                        ctx.imageLoader.enqueue(
+                val cover = defaultCover ?: d.coverUrl
+                LaunchedEffect(cover) {
+                    coverReady = false
+                    if (cover != null) {
+                        ctx.imageLoader.execute(
                             ImageRequest.Builder(ctx)
-                                .data(loadUrl)
-                                .memoryCacheKey(loadUrl)
+                                .data(cover)
+                                .crossfade(true)
                                 .build()
                         )
                     }
+                    coverReady = true
                 }
-                MovieDetailContent(
-                    detail = d,
-                    coverUrl = defaultCover ?: d.coverUrl,
-                    relatedMovies = relatedMovies,
-                    movieCode = movieCode,
-                    navController = navController,
-                    scrollState = scrollState,
-                    onScreenshotClick = { urls, index ->
-                        galleryUrls = urls
-                        galleryIndex = index
-                    },
-                    onPreviewClick = { /* TODO: preview video */ },
-                    onPlayClick = { /* TODO: play video */ },
-                    onMovieLongClick = { dialogMovie = it },
-                    onActressLongClick = { dialogActress = it },
-                    onCoverLongClick = {
-                        dialogMovie = Movie().apply {
-                            code = d.code ?: movieCode
-                            title = d.title
-                            link = d.id ?: movieCode
-                            coverUrl = defaultCover ?: d.coverUrl
-                            date = d.headers.find { it.name == "发行日期" }?.value
-                            dataSourceName = JAViewer.getDataSource()?.name
+                // Blur overlay while cover loads + during animation; no content underneath
+                if (!coverReady || blurRadius > 8f) {
+                    Box(modifier = Modifier.fillMaxSize().blur(blurRadius.dp)) {
+                        if (thumbnailUrl != null) {
+                            Image(
+                                painter = thumbnailPainter,
+                                contentDescription = null,
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
+                    }
+                    if (!coverReady) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                } else {
+                    MovieDetailContent(
+                        detail = d,
+                        coverUrl = cover,
+                        relatedMovies = relatedMovies,
+                        movieCode = movieCode,
+                        navController = navController,
+                        scrollState = scrollState,
+                        onScreenshotClick = { urls, index ->
+                            galleryUrls = urls
+                            galleryIndex = index
+                        },
+                        onPreviewClick = { /* TODO: preview video */ },
+                        onPlayClick = { /* TODO: play video */ },
+                        onMovieLongClick = { dialogMovie = it },
+                        onActressLongClick = { dialogActress = it },
+                        onCoverLongClick = {
+                            dialogMovie = Movie().apply {
+                                code = d.code ?: movieCode
+                                title = d.title
+                                link = d.id ?: movieCode
+                                coverUrl = defaultCover ?: d.coverUrl
+                                date = d.headers.find { it.name == "发行日期" }?.value
+                                dataSourceName = JAViewer.getDataSource()?.name
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }

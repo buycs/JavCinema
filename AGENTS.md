@@ -95,6 +95,20 @@ io.github.javcinema/
 - **Media3 1.5** — video playback (ExoPlayer successor)
 - **Material 1.12** — XML themes for Activity manifest entries
 
+## Image Loading
+
+Coil is configured in `JAViewerApp.kt`:
+- Main `ImageLoader` (singleton via `Coil.setImageLoader`) — shared OkHttp client with connection pool.
+- `screenshotImageLoader` — separate `ImageLoader` with `OkHttpClient.newBuilder().dispatcher(maxRequestsPerHost=2)` to avoid screenshot requests blocking the main pool.
+- Components (`ScreenshotRow`, `ActressRow`) accept an optional `imageLoader` parameter for fine-grained control.
+
+### Detail Page Loading Flow
+
+1. **Pre-navigation**: thumbnail URL passed via nav args; `remember` block enqueues the thumbnail into Coil's cache before the screen even mounts.
+2. **Loading state**: blurred thumbnail (`rememberAsyncImagePainter`) with `animateFloatAsState(20→0, tween(600))` + `CircularProgressIndicator` overlay.
+3. **API returns** → `Success` state: `LaunchedEffect` immediately enqueues the large cover URL into the main `ImageLoader` (preloads before `MovieDetailContent`'s `AsyncImage` starts).
+4. **MovieDetailContent**: renders full content with `AsyncImage` for the large cover (reads from cache when available).
+
 ## Conventions
 
 - Language: Kotlin only. No new Java.
