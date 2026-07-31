@@ -55,6 +55,10 @@ class MovieDetailViewModel : ViewModel() {
     }
 
     fun loadDetail(movieCode: String, movieLink: String? = null, thumbnailUrl: String? = null) {
+        if (currentMovieCode == movieCode && _uiState.value !is MovieDetailUiState.Error) {
+            Log.i("MovieDetailVM", "loadDetail: skipped (already loading/success) code=$movieCode")
+            return
+        }
         currentMovieCode = movieCode
         currentMovieLink = movieLink
         _defaultCover.value = thumbnailUrl
