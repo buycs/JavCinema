@@ -1,6 +1,6 @@
 package io.github.javcinema.network
 
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.http.GET
@@ -15,7 +15,7 @@ interface TorrentKitty {
 
         val INSTANCE: TorrentKitty = Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(JAViewer.HTTP_CLIENT)
+            .client(JavCinema.HTTP_CLIENT)
             .build()
             .create(TorrentKitty::class.java)
     }

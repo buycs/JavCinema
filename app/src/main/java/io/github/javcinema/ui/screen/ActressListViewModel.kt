@@ -2,7 +2,7 @@ package io.github.javcinema.ui.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.network.provider.AVMOProvider
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +36,7 @@ class ActressListViewModel : ViewModel() {
     init {
         loadActresses()
         viewModelScope.launch {
-            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { loadActresses() }
+            JavCinema.dataSourceVersionFlow.drop(1).collectLatest { loadActresses() }
         }
     }
 
@@ -60,7 +60,7 @@ class ActressListViewModel : ViewModel() {
 
     private suspend fun loadPage(page: Int) {
         try {
-            val ds = JAViewer.getDataSource()
+            val ds = JavCinema.getDataSource()
             val isAvmoo = ds.name?.contains("AVMOO", ignoreCase = true) == true ||
                 ds.name == "骑兵" || ds.name == "步兵" || ds.name == "欧美"
 
@@ -75,7 +75,7 @@ class ActressListViewModel : ViewModel() {
     }
 
     private suspend fun loadPageFromApi(page: Int) {
-        val api = JAViewer.AVMOO_API_SERVICE ?: run {
+        val api = JavCinema.AVMOO_API_SERVICE ?: run {
             _uiState.value = ActressListUiState.Error("API service not initialized")
             return
         }
@@ -110,7 +110,7 @@ class ActressListViewModel : ViewModel() {
     }
 
     private suspend fun loadPageFromHtml(page: Int) {
-        val service = JAViewer.SERVICE ?: run {
+        val service = JavCinema.SERVICE ?: run {
             _uiState.value = ActressListUiState.Error("Service not initialized")
             return
         }

@@ -1,6 +1,6 @@
 # 磁力搜索功能汇总
 
-> Kotlin/Compose 版本 (JAViewerApp)
+> Kotlin/Compose 版本 (JavCinemaApp)
 
 ## 一、入口
 
@@ -100,7 +100,7 @@
 ```
 
 - **Provider**: `BTSOLinkProvider` (`network/provider/BTSOLinkProvider.kt`)
-- **网络接口**: `BTSO.kt`（Retrofit + `JAViewer.HTTP_CLIENT`）
+- **网络接口**: `BTSO.kt`（Retrofit + `JavCinema.HTTP_CLIENT`）
 - **Base URL**: `https://api.rekonquer.com`（通过 `BTSO.kt` 配置）
 - **搜索结果**: 标题 + 大小 + 日期 + 详情链接
 - **文件列表**: 需点击三角请求详情页获取 `.magnet-link`
@@ -167,7 +167,7 @@
 | 文件 | 职责 |
 |------|------|
 | `ui/navigation/NavRoutes.kt` | 路由常量 + `download(keyword)` 辅助函数 |
-| `ui/navigation/JAViewerNavHost.kt` | NavHost 注册 `download/{keyword}` 路由 |
+| `ui/navigation/JavCinemaNavHost.kt` | NavHost 注册 `download/{keyword}` 路由 |
 
 ---
 

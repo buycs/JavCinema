@@ -2,7 +2,7 @@ package io.github.javcinema.ui.navigation
 
 import coil.imageLoader
 import coil.request.ImageRequest
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -30,7 +30,7 @@ import io.github.javcinema.ui.screen.WebViewScreen
 import java.net.URLDecoder
 
 @Composable
-fun JAViewerNavHost(
+fun JavCinemaNavHost(
     navController: NavHostController,
     scrollToTopTrigger: Long = 0L,
     modifier: Modifier = Modifier
@@ -74,8 +74,8 @@ fun JAViewerNavHost(
             remember {
                 if (!thumbnailUrl.isNullOrBlank()) {
                     runCatching {
-                        JAViewer.instance.imageLoader.enqueue(
-                            ImageRequest.Builder(JAViewer.instance)
+                        JavCinema.instance.imageLoader.enqueue(
+                            ImageRequest.Builder(JavCinema.instance)
                                 .data(thumbnailUrl)
                                 .memoryCacheKey(thumbnailUrl)
                                 .build()

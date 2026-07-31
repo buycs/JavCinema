@@ -6,7 +6,7 @@ import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,7 +30,7 @@ suspend fun saveImageToGallery(context: Context, url: String, subDir: String): F
         }
         val safeSubDir = subDir.replace(Regex("[:\\\\/*?\"<>|]"), "-")
         val request = okhttp3.Request.Builder().url(url).build()
-        val bytes = JAViewer.HTTP_CLIENT.newCall(request).execute().use { response ->
+        val bytes = JavCinema.HTTP_CLIENT.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "HTTP ${response.code}" }
             response.body?.bytes() ?: error("empty body")
         }
@@ -40,7 +40,7 @@ suspend fun saveImageToGallery(context: Context, url: String, subDir: String): F
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/JAViewer/$safeSubDir")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/JavCinema/$safeSubDir")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
             val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
@@ -57,7 +57,7 @@ suspend fun saveImageToGallery(context: Context, url: String, subDir: String): F
         } else {
             val dir = File(
                 Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                "JAViewer/$safeSubDir"
+                "JavCinema/$safeSubDir"
             )
             dir.mkdirs()
             val file = File(dir, fileName)

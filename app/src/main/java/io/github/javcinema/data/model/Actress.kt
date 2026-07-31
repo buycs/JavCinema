@@ -1,9 +1,9 @@
 package io.github.javcinema.data.model
 
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 
 /**
- * Project: JAViewer
+ * Project: JavCinema
  */
 open class Actress : Linkable() {
 
@@ -18,7 +18,7 @@ open class Actress : Linkable() {
                 this.name = name
                 this.imageUrl = imageUrl
                 this.link = detailUrl
-                dataSourceName = JAViewer.getDataSource()?.name
+                dataSourceName = JavCinema.getDataSource()?.name
             }
         }
     }
@@ -35,12 +35,12 @@ open class Actress : Linkable() {
 }
 
 fun Actress.toggleStar() {
-    val config = JAViewer.CONFIGURATIONS ?: return
+    val config = JavCinema.CONFIGURATIONS ?: return
     val a = Actress().apply {
         name = this@toggleStar.name
         imageUrl = this@toggleStar.imageUrl
         link = this@toggleStar.link
-        dataSourceName = JAViewer.getDataSource()?.name
+        dataSourceName = JavCinema.getDataSource()?.name
     }
     if (config.starredActresses?.contains(a) == true) {
         config.starredActresses?.remove(a)

@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.ui.navigation.NavRoutes
 import kotlinx.coroutines.launch
 
@@ -48,10 +48,10 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
     val pagerState = rememberPagerState(pageCount = { 3 }, initialPage = 1)
     val scope = rememberCoroutineScope()
 
-    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+    val dsVersionAtCreation = remember { JavCinema.dataSourceVersionFlow.value }
 
-    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
-        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+    LaunchedEffect(JavCinema.dataSourceVersionFlow.value) {
+        if (JavCinema.dataSourceVersionFlow.value != dsVersionAtCreation) {
             pagerState.animateScrollToPage(1)
         }
     }

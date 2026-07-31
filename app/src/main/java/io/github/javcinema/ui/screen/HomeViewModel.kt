@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.imageLoader
 import coil.request.ImageRequest
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.AvmooMovieListResponse
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.network.provider.AVMOProvider
@@ -47,11 +47,11 @@ class HomeViewModel : ViewModel() {
     private fun preloadCovers(movies: List<Movie>) {
         val urls = movies.mapNotNull { it.coverUrl }
         if (urls.isEmpty()) return
-        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull() ?: return
+        val loader = runCatching { JavCinema.instance.imageLoader }.getOrNull() ?: return
         viewModelScope.launch(Dispatchers.IO) {
             urls.forEach { url ->
                 try {
-                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                    loader.enqueue(ImageRequest.Builder(JavCinema.instance)
                         .data(url)
                         .memoryCacheKey(url)
                         .build())
@@ -64,7 +64,7 @@ class HomeViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
+            JavCinema.dataSourceVersionFlow.drop(1).collectLatest { version ->
                 lastVersion = version
                 if (section.isNotEmpty()) refresh()
             }
@@ -72,7 +72,7 @@ class HomeViewModel : ViewModel() {
     }
 
     fun setSection(section: String) {
-        val currentVersion = JAViewer.dataSourceVersionFlow.value
+        val currentVersion = JavCinema.dataSourceVersionFlow.value
         if (this.section != section || lastVersion != currentVersion) {
             this.section = section
             lastVersion = currentVersion
@@ -103,7 +103,7 @@ class HomeViewModel : ViewModel() {
 
     private suspend fun loadPage(page: Int) {
         try {
-            val ds = JAViewer.getDataSource()
+            val ds = JavCinema.getDataSource()
             val isAvmoo = ds.name?.contains("AVMOO", ignoreCase = true) == true ||
                 ds.name == "骑兵" || ds.name == "步兵" || ds.name == "欧美"
 
@@ -120,7 +120,7 @@ class HomeViewModel : ViewModel() {
     }
 
     private suspend fun loadPageFromApi(page: Int) {
-        val api = JAViewer.AVMOO_API_SERVICE ?: run {
+        val api = JavCinema.AVMOO_API_SERVICE ?: run {
             _uiState.value = HomeUiState.Error("API service not initialized")
             return
         }
@@ -158,7 +158,7 @@ class HomeViewModel : ViewModel() {
     }
 
     private suspend fun loadPageFromHtml(page: Int) {
-        val service = JAViewer.SERVICE ?: run {
+        val service = JavCinema.SERVICE ?: run {
             _uiState.value = HomeUiState.Error("Service not initialized")
             return
         }

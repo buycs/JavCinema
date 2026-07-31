@@ -1,6 +1,6 @@
 package io.github.javcinema.network
 
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -41,7 +41,7 @@ interface BtSearch {
                 .header("x-nonce", nonce)
                 .header("x-sign", sign)
                 .header("Accept", "application/json")
-                .header("User-Agent", JAViewer.USER_AGENT)
+                .header("User-Agent", JavCinema.USER_AGENT)
                 .header("Referer", "https://www.btsearch.love/search")
                 .build()
             chain.proceed(request)
@@ -50,7 +50,7 @@ interface BtSearch {
         private fun md5(input: String): String {
             val md = MessageDigest.getInstance("MD5")
             val digest = md.digest(input.toByteArray())
-            return JAViewer.bytesToHex(digest)
+            return JavCinema.bytesToHex(digest)
         }
 
         private var _instance: BtSearch? = null

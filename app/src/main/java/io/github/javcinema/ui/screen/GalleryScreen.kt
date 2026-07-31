@@ -31,7 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.ui.components.ZoomableImage
 import io.github.javcinema.util.saveImageToGallery
 import kotlinx.coroutines.Dispatchers

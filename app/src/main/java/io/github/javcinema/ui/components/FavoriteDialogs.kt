@@ -12,7 +12,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.data.model.toggleStar
@@ -20,7 +20,7 @@ import io.github.javcinema.data.model.toggleStar
 @Composable
 fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val config = JAViewer.CONFIGURATIONS
+    val config = JavCinema.CONFIGURATIONS
     val isStarred = config?.starredMovies?.contains(movie) == true
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -44,7 +44,7 @@ fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
                 }
                 TextButton(onClick = {
                     movie.toggleStar()
-                    JAViewer.CONFIGURATIONS?.save()
+                    JavCinema.CONFIGURATIONS?.save()
                     val msg = if (isStarred) "已取消收藏" else "已收藏影片"
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     onDismiss()
@@ -60,7 +60,7 @@ fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
 @Composable
 fun ActressFavoriteDialog(actress: Actress, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val config = JAViewer.CONFIGURATIONS
+    val config = JavCinema.CONFIGURATIONS
     val isStarred = config?.starredActresses?.contains(actress) == true
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -82,7 +82,7 @@ fun ActressFavoriteDialog(actress: Actress, onDismiss: () -> Unit) {
                 }
                 TextButton(onClick = {
                     actress.toggleStar()
-                    JAViewer.CONFIGURATIONS?.save()
+                    JavCinema.CONFIGURATIONS?.save()
                     val msg = if (isStarred) "已取消收藏" else "已收藏女优"
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                     onDismiss()

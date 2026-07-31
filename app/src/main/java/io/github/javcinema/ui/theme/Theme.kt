@@ -45,7 +45,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun JAViewerTheme(
+fun JavCinemaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
@@ -61,7 +61,7 @@ fun JAViewerTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = JAViewerTypography,
+        typography = JavCinemaTypography,
         content = content
     )
 }

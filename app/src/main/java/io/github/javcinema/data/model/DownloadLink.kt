@@ -1,7 +1,7 @@
 package io.github.javcinema.data.model
 
 /**
- * Project: JAViewer
+ * Project: JavCinema
  */
 class DownloadLink : Linkable() {
 

@@ -1,4 +1,4 @@
-# JAViewer
+# JavCinema
 
 Android app for browsing JAV movies. Kotlin + Jetpack Compose + Material 3.
 
@@ -31,12 +31,12 @@ Single-module Gradle project (`app/`). Single-Activity with Compose Navigation.
 
 - `activity/StartActivity.kt` — first screen; loads config, fetches remote properties, then launches MainActivity
 - `activity/MainActivity.kt` — sets up Compose content with `MainScreen`
-- `ui/screen/MainScreen.kt` — drawer navigation + top bar, hosts `JAViewerNavHost`
-- `ui/navigation/` — `NavRoutes.kt` (route constants) + `JAViewerNavHost.kt` (composable definitions)
+- `ui/screen/MainScreen.kt` — drawer navigation + top bar, hosts `JavCinemaNavHost`
+- `ui/navigation/` — `NavRoutes.kt` (route constants) + `JavCinemaNavHost.kt` (composable definitions)
 
 ### Data Flow
 
-`JAViewerApp.kt` (`JAViewer` Application class) holds singletons:
+`JavCinemaApp.kt` (`JavCinema` Application class) holds singletons:
 - `CONFIGURATIONS` — loaded from `configurations.json` on external storage
 - `SERVICE` / `AVMOO_API_SERVICE` — Retrofit services, recreated when data source changes
 - `HTTP_CLIENT` — shared OkHttp with UA spoofing + cookie jar + host replacement
@@ -46,7 +46,7 @@ Single-module Gradle project (`app/`). Single-Activity with Compose Navigation.
 
 ```
 io.github.javcinema/
-├── JAViewerApp.kt          # Application + global singletons
+├── JavCinemaApp.kt          # Application + global singletons
 ├── activity/                # StartActivity + MainActivity (Compose)
 ├── data/model/              # Data classes (Movie, Actress, Genre, etc.)
 ├── network/                 # Retrofit interfaces + Jsoup parsers
@@ -97,7 +97,7 @@ io.github.javcinema/
 
 ## Image Loading
 
-Coil is configured in `JAViewerApp.kt`:
+Coil is configured in `JavCinemaApp.kt`:
 - Main `ImageLoader` (singleton via `Coil.setImageLoader`) — shared OkHttp client with connection pool.
 - `screenshotImageLoader` — separate `ImageLoader` with `OkHttpClient.newBuilder().dispatcher(maxRequestsPerHost=2)` to avoid screenshot requests blocking the main pool.
 - Components (`ScreenshotRow`, `ActressRow`) accept an optional `imageLoader` parameter for fine-grained control.

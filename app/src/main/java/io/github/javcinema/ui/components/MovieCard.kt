@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -54,10 +54,10 @@ fun MovieCard(
             Column {
                 LaunchedEffect(movie.coverUrl) {
                     val thumb = movie.coverUrl
-                    if (thumb != null && thumb.endsWith("ps.jpg") && !JAViewer.prefetchedLargeCovers.contains(thumb)) {
+                    if (thumb != null && thumb.endsWith("ps.jpg") && !JavCinema.prefetchedLargeCovers.contains(thumb)) {
                         val large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
-                        JAViewer.enqueueCoverWithRetry(large, JAViewer.instance) {
-                            JAViewer.prefetchedLargeCovers.add(thumb)
+                        JavCinema.enqueueCoverWithRetry(large, JavCinema.instance) {
+                            JavCinema.prefetchedLargeCovers.add(thumb)
                         }
                     }
                 }

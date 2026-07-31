@@ -83,7 +83,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Genre
 import io.github.javcinema.data.model.Movie
@@ -132,10 +132,10 @@ fun MovieDetailScreen(
         val thumb = thumbnailUrl
         if (thumb != null && thumb.endsWith("ps.jpg")) {
             val large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
-            if (JAViewer.prefetchedLargeCovers.contains(thumb)) {
+            if (JavCinema.prefetchedLargeCovers.contains(thumb)) {
                 coverPrefetched = true
             } else {
-                JAViewer.enqueueCoverWithRetry(
+                JavCinema.enqueueCoverWithRetry(
                     large,
                     localContext,
                     onSuccess = { coverPrefetched = true },
@@ -221,7 +221,7 @@ fun MovieDetailScreen(
                             link = d.id ?: movieCode
                             coverUrl = defaultCover ?: d.coverUrl
                             date = d.headers.find { it.name == "发行日期" }?.value
-                            dataSourceName = JAViewer.getDataSource()?.name
+                            dataSourceName = JavCinema.getDataSource()?.name
                         }
                     },
                     modifier = Modifier.fillMaxSize()
@@ -638,7 +638,7 @@ private fun MovieDetailContent(
                     if (showScreenshots) {
                         ScreenshotRow(
                             screenshots = detail.screenshots,
-                            imageLoader = JAViewer.screenshotImageLoader,
+                            imageLoader = JavCinema.screenshotImageLoader,
                             onScreenshotClick = { screenshot ->
                                 val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
                                 val index = detail.screenshots.indexOf(screenshot)
@@ -698,7 +698,7 @@ private fun MovieDetailContent(
                 SectionWithIcon(Icons.Outlined.Face) {
                     ActressRow(
                         actresses = detail.actresses,
-                        imageLoader = JAViewer.screenshotImageLoader,
+                        imageLoader = JavCinema.screenshotImageLoader,
                         onActressClick = { actress ->
                             val name = actress.name ?: return@ActressRow
                             val link = actress.link ?: return@ActressRow

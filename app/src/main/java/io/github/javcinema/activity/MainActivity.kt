@@ -5,9 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.ui.screen.MainScreen
-import io.github.javcinema.ui.theme.JAViewerTheme
+import io.github.javcinema.ui.theme.JavCinemaTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -15,17 +15,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        if (JAViewer.CONFIGURATIONS == null) {
+        if (JavCinema.CONFIGURATIONS == null) {
             startActivity(Intent(this, StartActivity::class.java))
             finish()
             return
         }
 
-        JAViewer.CONFIGURATIONS?.applyCustomUrls()
-        JAViewer.recreateService()
+        JavCinema.CONFIGURATIONS?.applyCustomUrls()
+        JavCinema.recreateService()
 
         setContent {
-            JAViewerTheme {
+            JavCinemaTheme {
                 MainScreen()
             }
         }

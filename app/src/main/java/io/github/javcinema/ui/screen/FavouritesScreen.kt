@@ -52,7 +52,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.DataSource
 import io.github.javcinema.data.model.Movie
@@ -81,16 +81,16 @@ fun FavouritesScreen(
     val actressesListState = rememberLazyListState()
 
     LaunchedEffect(Unit) {
-        val movies = io.github.javcinema.JAViewer.CONFIGURATIONS?.starredMovies?.toList() ?: emptyList()
-        val actresses = io.github.javcinema.JAViewer.CONFIGURATIONS?.starredActresses?.toList() ?: emptyList()
+        val movies = io.github.javcinema.JavCinema.CONFIGURATIONS?.starredMovies?.toList() ?: emptyList()
+        val actresses = io.github.javcinema.JavCinema.CONFIGURATIONS?.starredActresses?.toList() ?: emptyList()
         starredMovies.value = movies
         starredActresses.value = actresses
-        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull()
+        val loader = runCatching { JavCinema.instance.imageLoader }.getOrNull()
         if (loader != null) {
             val urls = movies.mapNotNull { it.coverUrl } + actresses.mapNotNull { it.imageUrl }
             urls.forEach { url ->
                 try {
-                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                    loader.enqueue(ImageRequest.Builder(JavCinema.instance)
                         .data(url)
                         .memoryCacheKey(url)
                         .build())
@@ -110,17 +110,17 @@ fun FavouritesScreen(
         }
     }
 
-    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+    val dsVersionAtCreation = remember { JavCinema.dataSourceVersionFlow.value }
 
-    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
-        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+    LaunchedEffect(JavCinema.dataSourceVersionFlow.value) {
+        if (JavCinema.dataSourceVersionFlow.value != dsVersionAtCreation) {
             moviesGridState.animateScrollToItem(0)
             actressesListState.animateScrollToItem(0)
         }
     }
 
     fun removeItem(item: Any) {
-        val config = io.github.javcinema.JAViewer.CONFIGURATIONS ?: return
+        val config = io.github.javcinema.JavCinema.CONFIGURATIONS ?: return
         when (item) {
             is Movie -> {
                 config.starredMovies?.remove(item)
@@ -225,13 +225,13 @@ fun FavouritesScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val target = JAViewer.DATA_SOURCES.find { it.name == targetName }
+                    val target = JavCinema.DATA_SOURCES.find { it.name == targetName }
                     if (target != null) {
-                        val config = JAViewer.CONFIGURATIONS
+                        val config = JavCinema.CONFIGURATIONS
                         if (config != null) {
                             config.dataSource = target
                             config.save()
-                            JAViewer.recreateService()
+                            JavCinema.recreateService()
                         }
                         pendingSwitchNavigate?.invoke()
                     }
@@ -303,7 +303,7 @@ fun FavouritesScreen(
                                 MovieCard(
                                     movie = movie,
                                     onClick = {
-                                        val currentSource = JAViewer.getDataSource()?.name
+                                        val currentSource = JavCinema.getDataSource()?.name
                                         if (movie.dataSourceName != null && currentSource != null && movie.dataSourceName != currentSource) {
                                             pendingSwitchSourceName = movie.dataSourceName
                                             pendingSwitchNavigate = {
@@ -354,7 +354,7 @@ fun FavouritesScreen(
                                     Modifier.pointerInput(actress) {
                                         detectTapGestures(
                                             onTap = {
-                                                val currentSource = JAViewer.getDataSource()?.name
+                                                val currentSource = JavCinema.getDataSource()?.name
                                                 if (actress.dataSourceName != null && currentSource != null && actress.dataSourceName != currentSource) {
                                                     pendingSwitchSourceName = actress.dataSourceName
                                                     pendingSwitchNavigate = {

@@ -18,7 +18,7 @@ class ExoPlayerImpl(context: Context) {
     }
 
     fun prepare(context: Context, url: String) {
-        val userAgent = "JAViewer/${android.os.Build.VERSION.SDK_INT}"
+        val userAgent = "JavCinema/${android.os.Build.VERSION.SDK_INT}"
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)

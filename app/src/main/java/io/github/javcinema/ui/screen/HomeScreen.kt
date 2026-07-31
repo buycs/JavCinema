@@ -31,7 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
@@ -62,14 +62,14 @@ fun HomeScreen(
         }
     }
 
-    val dsVersionAtCreation = remember { JAViewer.dataSourceVersionFlow.value }
+    val dsVersionAtCreation = remember { JavCinema.dataSourceVersionFlow.value }
 
-    LaunchedEffect(section, JAViewer.dataSourceVersionFlow.value) {
+    LaunchedEffect(section, JavCinema.dataSourceVersionFlow.value) {
         viewModel.setSection(section)
     }
 
-    LaunchedEffect(JAViewer.dataSourceVersionFlow.value) {
-        if (JAViewer.dataSourceVersionFlow.value != dsVersionAtCreation) {
+    LaunchedEffect(JavCinema.dataSourceVersionFlow.value) {
+        if (JavCinema.dataSourceVersionFlow.value != dsVersionAtCreation) {
             gridState.animateScrollToItem(0)
         }
     }

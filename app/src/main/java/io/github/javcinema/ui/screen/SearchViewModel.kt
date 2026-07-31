@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.imageLoader
 import coil.request.ImageRequest
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.network.BasicService
 import io.github.javcinema.network.provider.AVMOProvider
@@ -45,11 +45,11 @@ class SearchViewModel : ViewModel() {
     private fun preloadCovers(movies: List<Movie>) {
         val urls = movies.mapNotNull { it.coverUrl }
         if (urls.isEmpty()) return
-        val loader = runCatching { JAViewer.instance.imageLoader }.getOrNull() ?: return
+        val loader = runCatching { JavCinema.instance.imageLoader }.getOrNull() ?: return
         viewModelScope.launch(Dispatchers.IO) {
             urls.forEach { url ->
                 try {
-                    loader.enqueue(ImageRequest.Builder(JAViewer.instance)
+                    loader.enqueue(ImageRequest.Builder(JavCinema.instance)
                         .data(url)
                         .memoryCacheKey(url)
                         .build())
@@ -62,7 +62,7 @@ class SearchViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
+            JavCinema.dataSourceVersionFlow.drop(1).collectLatest { version ->
                 lastVersion = version
                 if (currentQuery.isNotEmpty()) search(currentQuery)
             }
@@ -70,7 +70,7 @@ class SearchViewModel : ViewModel() {
     }
 
     fun search(query: String) {
-        val currentVersion = JAViewer.dataSourceVersionFlow.value
+        val currentVersion = JavCinema.dataSourceVersionFlow.value
         if (query == currentQuery && lastVersion == currentVersion) return
         lastVersion = currentVersion
         if (query.isBlank()) return
@@ -96,7 +96,7 @@ class SearchViewModel : ViewModel() {
 
     private suspend fun loadPage(page: Int) {
         try {
-            val service = JAViewer.SERVICE ?: run {
+            val service = JavCinema.SERVICE ?: run {
                 _uiState.value = SearchUiState.Error("Service not initialized")
                 return
             }

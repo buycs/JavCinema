@@ -1,6 +1,6 @@
 package io.github.javcinema.network
 
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.AvgleSearchResult
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -14,7 +14,7 @@ interface PSVS {
 
         val INSTANCE: PSVS = Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(JAViewer.HTTP_CLIENT)
+            .client(JavCinema.HTTP_CLIENT)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(PSVS::class.java)

@@ -1,4 +1,4 @@
-# JAViewer API 接口文档
+# JavCinema API 接口文档
 
 > 基于项目源码 v2.2.1 整理
 
@@ -56,17 +56,17 @@
 
 **Base URL 构建规则:** `domain + apiPath`，例: `https://avmoo.shop/jav/data/api/`
 
-**域名替换:** `JAViewer.hostReplacements` Map 可将旧域名（legacies）映射为当前活跃域名，所有 OkHttp 请求通过 `replaceUrl()` 拦截器自动替换。
+**域名替换:** `JavCinema.hostReplacements` Map 可将旧域名（legacies）映射为当前活跃域名，所有 OkHttp 请求通过 `replaceUrl()` 拦截器自动替换。
 
 ---
 
 ## 2. BasicService — 主数据源 API
 
 **文件:** `network/BasicService.java`
-**创建:** `JAViewer.recreateService()` / `JAViewer.getService()`（懒初始化，失败返回 null）
+**创建:** `JavCinema.recreateService()` / `JavCinema.getService()`（懒初始化，失败返回 null）
 
 所有 POST 请求的 **Content-Type**: `application/json; charset=utf-8`
-请求体均为 `List<Object>` (JSON Array)，通过 `JAViewer.getService()`（全局 Retrofit 实例，懒初始化）调用。
+请求体均为 `List<Object>` (JSON Array)，通过 `JavCinema.getService()`（全局 Retrofit 实例，懒初始化）调用。
 
 ### 2.1 获取首页影片
 
@@ -199,7 +199,7 @@ Body: [movieId, "cn", 12]
 ```java
 Avgle INSTANCE = new Retrofit.Builder()
     .baseUrl("https://api.avgle.com")
-    .client(JAViewer.HTTP_CLIENT)
+    .client(JavCinema.HTTP_CLIENT)
     .addConverterFactory(GsonConverterFactory.create())
     .build()
     .create(Avgle.class);
@@ -274,7 +274,7 @@ GET /{path}
 ```java
 BTSO INSTANCE = new Retrofit.Builder()
     .baseUrl("https://api.rekonquer.com")
-    .client(JAViewer.HTTP_CLIENT)
+    .client(JavCinema.HTTP_CLIENT)
     .build()
     .create(BTSO.class);
 ```
@@ -434,7 +434,7 @@ OkHttpClient BTSEARCH_CLIENT = new OkHttpClient.Builder()
             .header("x-nonce", nonce)
             .header("x-sign", sign)
             .header("Accept", "application/json")
-            .header("User-Agent", JAViewer.USER_AGENT)   // Chrome 91 Windows UA
+            .header("User-Agent", JavCinema.USER_AGENT)   // Chrome 91 Windows UA
             .header("Referer", BASE_URL + "/search")
             .build();
 
@@ -548,7 +548,7 @@ BtSearch.INSTANCE.search(keyword, 10, (page-1)*10, "", "", "", "asc", "");
 ```java
 CiliInfo INSTANCE = new Retrofit.Builder()
     .baseUrl("https://cili.info")
-    .client(JAViewer.HTTP_CLIENT)
+    .client(JavCinema.HTTP_CLIENT)
     .build()
     .create(CiliInfo.class);
 ```
@@ -612,7 +612,7 @@ GET {url}  (e.g., /!lBfm 或 https://cili.info/!lBfm)
 ```java
 PSVS INSTANCE = new Retrofit.Builder()
     .baseUrl("http://api.rekonquer.com")
-    .client(JAViewer.HTTP_CLIENT)
+    .client(JavCinema.HTTP_CLIENT)
     .addConverterFactory(GsonConverterFactory.create())
     .build()
     .create(PSVS.class);
@@ -642,7 +642,7 @@ http://api.rekonquer.com/psvs/mp4.php?vid={vid}&ts={timestamp}&sign={sign}
 - `sign` = MD5(`vid` + `timestamp` + "Brynhildr") 的 hex 字符串
 
 ```java
-// JAViewer.b(vid, ts) 实现:
+// JavCinema.b(vid, ts) 实现:
 MessageDigest md = MessageDigest.getInstance("MD5");
 byte[] bytes = md.digest(String.format("%s%sBrynhildr", vid, ts).getBytes());
 return bytesToHex(bytes);
@@ -660,14 +660,14 @@ return bytesToHex(bytes);
 
 ### 8.0 鉴权机制
 
-btsow API **无显式鉴权**（无 API Key、无签名算法）。请求通过共享 `JAViewer.HTTP_CLIENT`（`OkHttpClient`）发出，自动应用以下拦截器链：
+btsow API **无显式鉴权**（无 API Key、无签名算法）。请求通过共享 `JavCinema.HTTP_CLIENT`（`OkHttpClient`）发出，自动应用以下拦截器链：
 
 | 拦截器 | 行为 | 代码位置 |
 |--------|------|----------|
-| 域名替换 | 将请求 URL 中匹配 `hostReplacements` 的 host 替换为当前活跃域名 | `JAViewer.replaceUrl()` |
-| User-Agent | 覆盖 `User-Agent` 头为 Chrome 91 Windows UA | `JAViewer.java:107` |
-| X-Requested-With | 添加 `X-Requested-With: XMLHttpRequest`（对所有非 torrentkitty/btsearch 的 host） | `JAViewer.java:110-111` |
-| Cookie 持久化 | 自动保存/发送 `Cookie` 头（内存级 `CookieJar`） | `JAViewer.COOKIE_JAR` |
+| 域名替换 | 将请求 URL 中匹配 `hostReplacements` 的 host 替换为当前活跃域名 | `JavCinema.replaceUrl()` |
+| User-Agent | 覆盖 `User-Agent` 头为 Chrome 91 Windows UA | `JavCinema.java:107` |
+| X-Requested-With | 添加 `X-Requested-With: XMLHttpRequest`（对所有非 torrentkitty/btsearch 的 host） | `JavCinema.java:110-111` |
+| Cookie 持久化 | 自动保存/发送 `Cookie` 头（内存级 `CookieJar`） | `JavCinema.COOKIE_JAR` |
 
 **btsow 请求实际发出的请求头示例:**
 ```http
@@ -874,8 +874,8 @@ BtSearch JSON 解析:
 应用启动
   │
   └─ StartActivity
-      └─ 读取 assets/properties.json → JAViewer.DATA_SOURCES
-      └─ 从 /sdcard/JAViewer/configurations.json 加载配置
+      └─ 读取 assets/properties.json → JavCinema.DATA_SOURCES
+      └─ 从 /sdcard/JavCinema/configurations.json 加载配置
       └─ 启动 MainActivity
 
 MainActivity

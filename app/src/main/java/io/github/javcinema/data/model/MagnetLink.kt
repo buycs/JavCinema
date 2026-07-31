@@ -3,7 +3,7 @@ package io.github.javcinema.data.model
 import java.io.Serializable
 
 /**
- * Project: JAViewer
+ * Project: JavCinema
  */
 class MagnetLink : Serializable {
 

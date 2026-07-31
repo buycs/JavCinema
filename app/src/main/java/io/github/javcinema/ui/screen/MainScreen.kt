@@ -31,7 +31,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import io.github.javcinema.ui.navigation.JAViewerNavHost
+import io.github.javcinema.ui.navigation.JavCinemaNavHost
 import io.github.javcinema.ui.navigation.NavRoutes
 
 data class BottomNavItem(
@@ -105,7 +105,7 @@ fun MainScreen() {
                 .fillMaxSize()
                 .padding(adjustedPadding)
         ) {
-            JAViewerNavHost(navController = navController, scrollToTopTrigger = scrollToTopTrigger.longValue)
+            JavCinemaNavHost(navController = navController, scrollToTopTrigger = scrollToTopTrigger.longValue)
         }
     }
 }

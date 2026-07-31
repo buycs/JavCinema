@@ -19,10 +19,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Properties
-import io.github.javcinema.ui.theme.JAViewerTheme
+import io.github.javcinema.ui.theme.JavCinemaTheme
 import io.github.javcinema.util.UTF_8
 import io.github.javcinema.util.readText
 import java.io.File
@@ -41,7 +41,7 @@ class StartActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            JAViewerTheme {
+            JavCinemaTheme {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -78,7 +78,7 @@ class StartActivity : ComponentActivity() {
     private fun readProperties() {
         try {
             assets.open("properties.json").use { `is` ->
-                val properties = JAViewer.parseJson(Properties::class.java, readText(`is`, UTF_8))
+                val properties = JavCinema.parseJson(Properties::class.java, readText(`is`, UTF_8))
                 if (properties != null) {
                     handleProperties(properties)
                 }
@@ -90,19 +90,19 @@ class StartActivity : ComponentActivity() {
     }
 
     private fun handleProperties(properties: Properties) {
-        JAViewer.DATA_SOURCES.clear()
-        properties.dataSources?.let { JAViewer.DATA_SOURCES.addAll(it) }
-        JAViewer.MAGNET_SOURCES.clear()
-        properties.magnetSources?.let { JAViewer.MAGNET_SOURCES.addAll(it) }
+        JavCinema.DATA_SOURCES.clear()
+        properties.dataSources?.let { JavCinema.DATA_SOURCES.addAll(it) }
+        JavCinema.MAGNET_SOURCES.clear()
+        properties.magnetSources?.let { JavCinema.MAGNET_SOURCES.addAll(it) }
 
-        JAViewer.CONFIGURATIONS?.applyCustomUrls()
+        JavCinema.CONFIGURATIONS?.applyCustomUrls()
 
-        JAViewer.hostReplacements.clear()
-        val currentDs = JAViewer.getDataSource()
+        JavCinema.hostReplacements.clear()
+        val currentDs = JavCinema.getDataSource()
         val currentHost = try { URI(currentDs.link).host } catch (_: Exception) { null }
         if (currentHost != null) {
             currentDs.legacies?.forEach { h ->
-                JAViewer.hostReplacements[h] = currentHost
+                JavCinema.hostReplacements[h] = currentHost
             }
         }
 
@@ -129,16 +129,16 @@ class StartActivity : ComponentActivity() {
     }
 
     private fun checkPermissions() {
-        val config = File(JAViewer.getStorageDir(), "configurations.json")
+        val config = File(JavCinema.getStorageDir(), "configurations.json")
 
-        val noMedia = File(JAViewer.getStorageDir(), ".nomedia")
+        val noMedia = File(JavCinema.getStorageDir(), ".nomedia")
         try {
             noMedia.createNewFile()
         } catch (e: IOException) {
             e.printStackTrace()
         }
 
-        JAViewer.CONFIGURATIONS = Configurations().load(config)
+        JavCinema.CONFIGURATIONS = Configurations().load(config)
         Configurations.loadPrefs(this)
 
         readProperties()

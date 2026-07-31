@@ -9,5 +9,5 @@
       }
     }
   },
-  "customInstructions": "JAViewer 是一个 JAV 影片浏览应用。架构：Kotlin + Jetpack Compose + Retrofit + Jsoup + Coil + Media3。当前正在从旧版 Java/XML 迁移到 Kotlin/Compose。遵循 Material 3 设计规范。"
+  "customInstructions": "JavCinema 是一个 JAV 影片浏览应用。架构：Kotlin + Jetpack Compose + Retrofit + Jsoup + Coil + Media3。当前正在从旧版 Java/XML 迁移到 Kotlin/Compose。遵循 Material 3 设计规范。"
 }

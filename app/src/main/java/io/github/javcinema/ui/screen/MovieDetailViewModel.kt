@@ -3,7 +3,7 @@ package io.github.javcinema.ui.screen
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.data.model.MovieDetail
 import io.github.javcinema.network.provider.AVMOProvider
@@ -45,7 +45,7 @@ class MovieDetailViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            JAViewer.dataSourceVersionFlow.drop(1).collectLatest { version ->
+            JavCinema.dataSourceVersionFlow.drop(1).collectLatest { version ->
                 lastVersion = version
                 if (currentMovieCode.isNotEmpty()) {
                     loadDetail(currentMovieCode, currentMovieLink)
@@ -66,7 +66,7 @@ class MovieDetailViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = MovieDetailUiState.Loading
             try {
-                val ds = JAViewer.getDataSource()
+                val ds = JavCinema.getDataSource()
                 val isAvmoo = ds.name?.contains("AVMOO", ignoreCase = true) == true ||
                     ds.name == "骑兵" || ds.name == "步兵" || ds.name == "欧美"
 
@@ -82,7 +82,7 @@ class MovieDetailViewModel : ViewModel() {
     }
 
     private suspend fun loadDetailFromApi(movieCode: String, movieLink: String?) {
-        val api = JAViewer.AVMOO_API_SERVICE ?: run {
+        val api = JavCinema.AVMOO_API_SERVICE ?: run {
             _uiState.value = MovieDetailUiState.Error("API service not initialized")
             return
         }
@@ -120,7 +120,7 @@ class MovieDetailViewModel : ViewModel() {
     }
 
     private suspend fun loadRelatedMovies(movieId: String) {
-        val api = JAViewer.AVMOO_API_SERVICE ?: return
+        val api = JavCinema.AVMOO_API_SERVICE ?: return
         try {
             val response = withContext(Dispatchers.IO) {
                 api.getRelatedMovies(listOf(movieId, "cn", 12))
@@ -132,7 +132,7 @@ class MovieDetailViewModel : ViewModel() {
 
     private suspend fun loadDetailFromHtml(movieCode: String, movieLink: String?) {
         val link = movieLink ?: "/cn/${movieCode.replace("-", "/")}"
-        val service = JAViewer.SERVICE ?: run {
+        val service = JavCinema.SERVICE ?: run {
             _uiState.value = MovieDetailUiState.Error("Service not initialized")
             return
         }
@@ -159,7 +159,7 @@ class MovieDetailViewModel : ViewModel() {
     }
 
     fun toggleStar() {
-        val config = JAViewer.CONFIGURATIONS ?: return
+        val config = JavCinema.CONFIGURATIONS ?: return
         val m = movie ?: return
 
         if (config.starredMovies?.contains(m) == true) {
@@ -174,6 +174,6 @@ class MovieDetailViewModel : ViewModel() {
 
     private fun checkStarred() {
         val m = movie
-        _isStarred.value = JAViewer.CONFIGURATIONS?.starredMovies?.contains(m) == true
+        _isStarred.value = JavCinema.CONFIGURATIONS?.starredMovies?.contains(m) == true
     }
 }

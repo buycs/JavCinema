@@ -45,7 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import androidx.navigation.NavController
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.ui.navigation.NavRoutes
 
@@ -102,7 +102,7 @@ fun SettingsScreen(navController: NavController? = null) {
 }
 
 private fun getCurrentSourceSummary(): String {
-    val ds = JAViewer.getDataSource()
+    val ds = JavCinema.getDataSource()
     return ds?.toString() ?: "未选择"
 }
 
@@ -154,8 +154,8 @@ private fun SettingsItem(
 @Composable
 private fun DataSourceDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
-    val dataSources = JAViewer.DATA_SOURCES
-    val currentSource = JAViewer.getDataSource()
+    val dataSources = JavCinema.DATA_SOURCES
+    val currentSource = JavCinema.getDataSource()
     var selectedSource by remember { mutableStateOf(currentSource) }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
@@ -208,13 +208,13 @@ private fun DataSourceDialog(onDismiss: () -> Unit, navController: NavController
         },
         confirmButton = {
             Button(onClick = {
-                val config = JAViewer.CONFIGURATIONS
+                val config = JavCinema.CONFIGURATIONS
                 if (config != null) {
                     config.dataSource = selectedSource
                     config.save()
                 }
                 try {
-                    JAViewer.recreateService()
+                    JavCinema.recreateService()
                     saved = true
                     Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
                     onDismiss()
@@ -241,7 +241,7 @@ private fun DataSourceDialog(onDismiss: () -> Unit, navController: NavController
 @Composable
 private fun DataUrlDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
-    val items = JAViewer.DATA_SOURCES.map { ds ->
+    val items = JavCinema.DATA_SOURCES.map { ds ->
         val defaultLink = ds.link ?: ""
         val custom = when (ds.name) {
             "骑兵" -> Configurations.customAvmooUrl
@@ -263,7 +263,7 @@ private fun DataUrlDialog(onDismiss: () -> Unit, navController: NavController? =
 @Composable
 private fun MagnetUrlDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
-    val items = JAViewer.MAGNET_SOURCES.map { ds ->
+    val items = JavCinema.MAGNET_SOURCES.map { ds ->
         val defaultLink = ds.link ?: ""
         val custom = when (ds.name) {
             "BtSearch" -> Configurations.customBtSearchUrl
@@ -344,14 +344,14 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                 }
                 Configurations.savePrefs(context)
 
-                val config = JAViewer.CONFIGURATIONS
+                val config = JavCinema.CONFIGURATIONS
                 if (config != null) {
                     config.applyCustomUrls()
                     config.save()
                 }
                 try {
                     if (reloadOnSave) {
-                        JAViewer.recreateService()
+                        JavCinema.recreateService()
                         onDismiss()
                         navController?.navigate(NavRoutes.HOME) {
                             popUpTo(0) { inclusive = true }

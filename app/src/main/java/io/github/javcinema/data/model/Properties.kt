@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName
 import io.github.javcinema.data.model.DataSource
 
 /**
- * Project: JAViewer
+ * Project: JavCinema
  */
 class Properties {
 

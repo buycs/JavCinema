@@ -3,7 +3,7 @@ package io.github.javcinema.data.model
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.stream.JsonReader
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import java.io.File
 import java.net.URI
 import java.io.FileReader
@@ -28,8 +28,8 @@ class Configurations {
         }
     var dataSource: DataSource? = null
         get() {
-            if (field == null && JAViewer.DATA_SOURCES.isNotEmpty()) {
-                field = JAViewer.DATA_SOURCES[0]
+            if (field == null && JavCinema.DATA_SOURCES.isNotEmpty()) {
+                field = JavCinema.DATA_SOURCES[0]
             }
             return field
         }
@@ -39,7 +39,7 @@ class Configurations {
     var downloadCounter: Long = 0
 
     companion object {
-        private const val PREFS_NAME = "javiewer_config"
+        private const val PREFS_NAME = "javcinema_config"
         private const val KEY_CUSTOM_AVMOO = "custom_avmoo_url"
         private const val KEY_CUSTOM_AVSO = "custom_avso_url"
         private const val KEY_CUSTOM_AVXO = "custom_avxo_url"
@@ -77,7 +77,7 @@ class Configurations {
     }
 
     fun applyCustomUrls() {
-        for (ds in JAViewer.DATA_SOURCES) {
+        for (ds in JavCinema.DATA_SOURCES) {
             val custom = when (ds.name) {
                 "骑兵" -> customAvmooUrl
                 "步兵" -> customAvsoUrl
@@ -90,19 +90,19 @@ class Configurations {
             }
         }
         val savedDs = dataSource
-        if (savedDs != null && JAViewer.DATA_SOURCES.isNotEmpty()) {
-            dataSource = JAViewer.DATA_SOURCES.find { it.name == savedDs.name } ?: savedDs
+        if (savedDs != null && JavCinema.DATA_SOURCES.isNotEmpty()) {
+            dataSource = JavCinema.DATA_SOURCES.find { it.name == savedDs.name } ?: savedDs
         }
-        JAViewer.hostReplacements.clear()
-        val ds = JAViewer.getDataSource()
+        JavCinema.hostReplacements.clear()
+        val ds = JavCinema.getDataSource()
         try {
             val host = URI(ds.link!!).host
             ds.legacies?.forEach { h ->
-                JAViewer.hostReplacements[h] = host
+                JavCinema.hostReplacements[h] = host
             }
         } catch (_: Exception) {
         }
-        for (ds in JAViewer.MAGNET_SOURCES) {
+        for (ds in JavCinema.MAGNET_SOURCES) {
             val urlStr = when (ds.name) {
                 "BtSearch" -> customBtSearchUrl
                 "Cili" -> customCiliUrl
@@ -143,7 +143,7 @@ class Configurations {
     fun load(file: File): Configurations {
         var config: Configurations? = null
         try {
-            config = JAViewer.parseJson(Configurations::class.java, JsonReader(FileReader(file)))
+            config = JavCinema.parseJson(Configurations::class.java, JsonReader(FileReader(file)))
         } catch (_: Exception) {
         }
 

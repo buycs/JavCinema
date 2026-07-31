@@ -3,7 +3,7 @@ package io.github.javcinema.ui.screen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.AvmooGenre
 import io.github.javcinema.data.model.Genre
 import io.github.javcinema.network.provider.AVMOProvider
@@ -33,9 +33,9 @@ class GenreListViewModel : ViewModel() {
 
     init {
         loadGenres()
-        lastVersion = JAViewer.dataSourceVersionFlow.value
+        lastVersion = JavCinema.dataSourceVersionFlow.value
         viewModelScope.launch {
-            JAViewer.dataSourceVersionFlow.collectLatest { version ->
+            JavCinema.dataSourceVersionFlow.collectLatest { version ->
                 if (lastVersion != version) {
                     lastVersion = version
                     loadGenres()
@@ -48,7 +48,7 @@ class GenreListViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.value = GenreListUiState.Loading
             try {
-                val ds = JAViewer.getDataSource()
+                val ds = JavCinema.getDataSource()
                 android.util.Log.d("GenreListVM", "loadGenres: ds=${ds.name} link=${ds.link} apiPath=${ds.apiPath}")
                 val isAvmoo = ds.name?.contains("AVMOO", ignoreCase = true) == true ||
                     ds.name == "骑兵" || ds.name == "步兵" || ds.name == "欧美"
@@ -66,7 +66,7 @@ class GenreListViewModel : ViewModel() {
     }
 
     private suspend fun loadGenresFromApi() {
-        val api = JAViewer.AVMOO_API_SERVICE ?: run {
+        val api = JavCinema.AVMOO_API_SERVICE ?: run {
             _uiState.value = GenreListUiState.Error("API service not initialized")
             return
         }
@@ -113,7 +113,7 @@ class GenreListViewModel : ViewModel() {
             "-1" to "其他"
         )
 
-        val ds = JAViewer.getDataSource()
+        val ds = JavCinema.getDataSource()
         val noAvOpen = ds.name == "步兵" || ds.name == "欧美"
 
         val orderedKeys = listOf("0", "1", "2", "3", "4", "5", "6", "7", "-1")
@@ -143,7 +143,7 @@ class GenreListViewModel : ViewModel() {
     }
 
     private suspend fun loadGenresFromHtml() {
-        val service = JAViewer.SERVICE ?: run {
+        val service = JavCinema.SERVICE ?: run {
             _uiState.value = GenreListUiState.Error("Service not initialized")
             return
         }

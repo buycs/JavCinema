@@ -14,6 +14,7 @@ import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.DataSource
 import io.github.javcinema.network.AvmooApiService
 import io.github.javcinema.network.BasicService
+import io.github.javcinema.network.RetryInterceptor
 import retrofit2.converter.gson.GsonConverterFactory
 import android.util.Log
 import coil.request.ImageRequest
@@ -32,7 +33,7 @@ import java.util.HashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
-class JAViewer : Application() {
+class JavCinema : Application() {
 
     override fun onCreate() {
         super.onCreate()
@@ -52,7 +53,7 @@ class JAViewer : Application() {
     }
 
     companion object {
-        lateinit var instance: JAViewer
+        lateinit var instance: JavCinema
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 5.1.1; Nexus 5 Build/LMY48B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/43.0.2357.65 Mobile Safari/537.36"
 
         val SHARED_DISK_CACHE: DiskCache by lazy {
@@ -77,6 +78,7 @@ class JAViewer : Application() {
 
         val HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
             .connectionPool(ConnectionPool(5, 30, TimeUnit.SECONDS))
+            .addInterceptor(RetryInterceptor())
             .addInterceptor(HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }.apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
             })

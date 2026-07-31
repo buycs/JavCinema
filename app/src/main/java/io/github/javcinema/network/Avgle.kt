@@ -1,6 +1,6 @@
 package io.github.javcinema.network
 
-import io.github.javcinema.JAViewer
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.AvgleSearchResult
 import okhttp3.ResponseBody
 import retrofit2.Retrofit
@@ -16,7 +16,7 @@ interface Avgle {
 
         val INSTANCE: Avgle = Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(JAViewer.HTTP_CLIENT)
+            .client(JavCinema.HTTP_CLIENT)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(Avgle::class.java)

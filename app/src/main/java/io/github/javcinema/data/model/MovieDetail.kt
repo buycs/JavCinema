@@ -3,7 +3,7 @@ package io.github.javcinema.data.model
 import java.util.ArrayList
 
 /**
- * Project: JAViewer
+ * Project: JavCinema
  */
 class MovieDetail {
 

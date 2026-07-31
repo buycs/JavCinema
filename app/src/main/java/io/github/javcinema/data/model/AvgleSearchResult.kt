@@ -3,7 +3,7 @@ package io.github.javcinema.data.model
 import com.google.gson.annotations.SerializedName
 
 /**
- * Project: JAViewer
+ * Project: JavCinema
  */
 class AvgleSearchResult {
 
