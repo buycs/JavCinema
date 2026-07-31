@@ -16,8 +16,10 @@ import io.github.javcinema.network.AvmooApiService
 import io.github.javcinema.network.BasicService
 import retrofit2.converter.gson.GsonConverterFactory
 import android.util.Log
+import coil.request.ImageRequest
 import okhttp3.Cookie
 import okhttp3.CookieJar
+import okhttp3.ConnectionPool
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -27,6 +29,8 @@ import java.io.File
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.util.HashMap
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 class JAViewer : Application() {
 
@@ -42,12 +46,7 @@ class JAViewer : Application() {
                         .maxSizePercent(0.25)
                         .build()
                 }
-                .diskCache {
-                    DiskCache.Builder()
-                        .directory(cacheDir.resolve("image_cache"))
-                        .maxSizeBytes(512L * 1024 * 1024)
-                        .build()
-                }
+                .diskCache(SHARED_DISK_CACHE)
                 .build()
         )
     }
@@ -55,6 +54,13 @@ class JAViewer : Application() {
     companion object {
         lateinit var instance: JAViewer
         const val USER_AGENT = "Mozilla/5.0 (Linux; Android 5.1.1; Nexus 5 Build/LMY48B; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/43.0.2357.65 Mobile Safari/537.36"
+
+        val SHARED_DISK_CACHE: DiskCache by lazy {
+            DiskCache.Builder()
+                .directory(instance.cacheDir.resolve("image_cache"))
+                .maxSizeBytes(512L * 1024 * 1024)
+                .build()
+        }
 
         val DATA_SOURCES: MutableList<DataSource> = mutableListOf()
         val MAGNET_SOURCES: MutableList<DataSource> = mutableListOf()
@@ -70,6 +76,7 @@ class JAViewer : Application() {
         val dataSourceVersionFlow = MutableStateFlow(0)
 
         val HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(5, 30, TimeUnit.SECONDS))
             .addInterceptor(HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }.apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
             })
@@ -106,13 +113,73 @@ class JAViewer : Application() {
                         .maxSizePercent(0.25)
                         .build()
                 }
-                .diskCache {
-                    DiskCache.Builder()
-                        .directory(instance.cacheDir.resolve("image_cache"))
-                        .maxSizeBytes(512L * 1024 * 1024)
+                .diskCache(SHARED_DISK_CACHE)
+                .build()
+        }
+
+        val PREFETCH_HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
+            .addInterceptor(HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }.apply {
+                level = HttpLoggingInterceptor.Level.HEADERS
+            })
+            .addInterceptor { chain ->
+                val original = chain.request()
+                val request = original.newBuilder()
+                    .url(replaceUrl(original.url))
+                    .header("User-Agent", USER_AGENT)
+                    .build()
+                chain.proceed(request)
+            }
+            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 1 })
+            .build()
+
+        val prefetchImageLoader: ImageLoader by lazy {
+            ImageLoader.Builder(instance)
+                .okHttpClient(PREFETCH_HTTP_CLIENT)
+                .memoryCache {
+                    MemoryCache.Builder(instance)
+                        .maxSizePercent(0.05)
                         .build()
                 }
+                .diskCache(SHARED_DISK_CACHE)
                 .build()
+        }
+
+        val prefetchedLargeCovers: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+        fun enqueueCoverWithRetry(
+            url: String,
+            context: Context,
+            onSuccess: (() -> Unit)? = null,
+            onFailed: (() -> Unit)? = null
+        ) {
+            enqueueCoverInternal(url, context, 0, onSuccess, onFailed)
+        }
+
+        private fun enqueueCoverInternal(
+            url: String,
+            context: Context,
+            attempt: Int,
+            onSuccess: (() -> Unit)?,
+            onFailed: (() -> Unit)?
+        ) {
+            val disposable = runCatching {
+                prefetchImageLoader.enqueue(
+                    ImageRequest.Builder(context).data(url).build()
+                )
+            }.getOrNull() ?: run {
+                onFailed?.invoke()
+                return
+            }
+            disposable.job.invokeOnCompletion { completion ->
+                when {
+                    completion == null -> onSuccess?.invoke()
+                    attempt < 1 -> enqueueCoverInternal(url, context, attempt + 1, onSuccess, onFailed)
+                    else -> onFailed?.invoke()
+                }
+            }
         }
 
         fun getDataSource(): DataSource {

@@ -10,7 +10,7 @@ import retrofit2.http.POST
 interface BTSO {
 
     companion object {
-        const val BASE_URL = "https://btsow.pics"
+        const val BASE_URL = "https://btsow.live"
 
         private var _instance: BTSO? = null
 

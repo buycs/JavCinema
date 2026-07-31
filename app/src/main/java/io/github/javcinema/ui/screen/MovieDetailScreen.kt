@@ -38,6 +38,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
@@ -62,9 +64,6 @@ import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import coil.imageLoader
 import coil.request.ImageRequest
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -73,20 +72,16 @@ import android.graphics.Canvas
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Actress
@@ -101,7 +96,9 @@ import io.github.javcinema.ui.components.GenreFlow
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.components.ScreenshotRow
+import io.github.javcinema.ui.components.ZoomableImage
 import io.github.javcinema.ui.navigation.NavRoutes
+import io.github.javcinema.util.saveImageToGallery
 import java.net.URLEncoder
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -121,24 +118,33 @@ fun MovieDetailScreen(
     var dialogActress by remember { mutableStateOf<Actress?>(null) }
     var galleryUrls by remember { mutableStateOf<List<String>>(emptyList()) }
     var galleryIndex by remember { mutableStateOf<Int?>(null) }
+    var galleryMovie by remember { mutableStateOf<Movie?>(null) }
     var savedScroll by remember { mutableFloatStateOf(0f) }
     val scrollState = rememberScrollState()
     LaunchedEffect(scrollState.value) {
         savedScroll = scrollState.value.toFloat()
     }
+    val localContext = LocalContext.current
+    var coverPrefetched by remember(movieCode) {
+        mutableStateOf(thumbnailUrl == null || !thumbnailUrl.endsWith("ps.jpg"))
+    }
     LaunchedEffect(movieCode) {
+        val thumb = thumbnailUrl
+        if (thumb != null && thumb.endsWith("ps.jpg")) {
+            val large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
+            if (JAViewer.prefetchedLargeCovers.contains(thumb)) {
+                coverPrefetched = true
+            } else {
+                JAViewer.enqueueCoverWithRetry(
+                    large,
+                    localContext,
+                    onSuccess = { coverPrefetched = true },
+                    onFailed = { coverPrefetched = true }
+                )
+            }
+        }
         viewModel.loadDetail(movieCode, movieLink, thumbnailUrl)
     }
-
-    var coverReady by remember { mutableStateOf(false) }
-    val ctx = LocalContext.current
-    val coverLoading = uiState is MovieDetailUiState.Loading ||
-            (uiState is MovieDetailUiState.Success && !coverReady)
-
-    val blurRadius by animateFloatAsState(
-        targetValue = if (coverLoading) 20f else 0f,
-        animationSpec = tween(durationMillis = 600)
-    )
 
     // Keep thumbnail painter alive across state transitions to avoid flicker
     val thumbnailPainter = rememberAsyncImagePainter(model = thumbnailUrl)
@@ -146,8 +152,18 @@ fun MovieDetailScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
             is MovieDetailUiState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize().blur(blurRadius.dp)) {
-                    if (thumbnailUrl != null) {
+                val loadingUrl = if (coverPrefetched && thumbnailUrl?.endsWith("ps.jpg") == true) {
+                    thumbnailUrl.substring(0, thumbnailUrl.length - "ps.jpg".length) + "pl.jpg"
+                } else null
+                Box(modifier = Modifier.fillMaxSize().blur(20.dp)) {
+                    if (loadingUrl != null) {
+                        AsyncImage(
+                            model = loadingUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else if (thumbnailUrl != null) {
                         Image(
                             painter = thumbnailPainter,
                             contentDescription = null,
@@ -177,67 +193,39 @@ fun MovieDetailScreen(
             is MovieDetailUiState.Success -> {
                 val d = detail ?: return@Box
                 val cover = defaultCover ?: d.coverUrl
-                LaunchedEffect(cover) {
-                    coverReady = false
-                    if (cover != null) {
-                        ctx.imageLoader.execute(
-                            ImageRequest.Builder(ctx)
-                                .data(cover)
-                                .crossfade(true)
-                                .build()
-                        )
-                    }
-                    coverReady = true
-                }
-                // Blur overlay while cover loads + during animation; no content underneath
-                if (!coverReady || blurRadius > 8f) {
-                    Box(modifier = Modifier.fillMaxSize().blur(blurRadius.dp)) {
-                        if (thumbnailUrl != null) {
-                            Image(
-                                painter = thumbnailPainter,
-                                contentDescription = null,
-                                contentScale = ContentScale.FillWidth,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                MovieDetailContent(
+                    detail = d,
+                    coverUrl = cover,
+                    thumbnailUrl = thumbnailUrl,
+                    coverPrefetched = coverPrefetched,
+                    relatedMovies = relatedMovies,
+                    movieCode = movieCode,
+                    navController = navController,
+                    scrollState = scrollState,
+                    onScreenshotClick = { urls, index ->
+                        galleryUrls = urls
+                        galleryIndex = index
+                        galleryMovie = Movie().apply {
+                            code = d.code ?: movieCode
+                            title = d.title
                         }
-                    }
-                    if (!coverReady) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
+                    },
+                    onPreviewClick = { /* TODO: preview video */ },
+                    onPlayClick = { /* TODO: play video */ },
+                    onMovieLongClick = { dialogMovie = it },
+                    onActressLongClick = { dialogActress = it },
+                    onCoverLongClick = {
+                        dialogMovie = Movie().apply {
+                            code = d.code ?: movieCode
+                            title = d.title
+                            link = d.id ?: movieCode
+                            coverUrl = defaultCover ?: d.coverUrl
+                            date = d.headers.find { it.name == "发行日期" }?.value
+                            dataSourceName = JAViewer.getDataSource()?.name
                         }
-                    }
-                } else {
-                    MovieDetailContent(
-                        detail = d,
-                        coverUrl = cover,
-                        relatedMovies = relatedMovies,
-                        movieCode = movieCode,
-                        navController = navController,
-                        scrollState = scrollState,
-                        onScreenshotClick = { urls, index ->
-                            galleryUrls = urls
-                            galleryIndex = index
-                        },
-                        onPreviewClick = { /* TODO: preview video */ },
-                        onPlayClick = { /* TODO: play video */ },
-                        onMovieLongClick = { dialogMovie = it },
-                        onActressLongClick = { dialogActress = it },
-                        onCoverLongClick = {
-                            dialogMovie = Movie().apply {
-                                code = d.code ?: movieCode
-                                title = d.title
-                                link = d.id ?: movieCode
-                                coverUrl = defaultCover ?: d.coverUrl
-                                date = d.headers.find { it.name == "发行日期" }?.value
-                                dataSourceName = JAViewer.getDataSource()?.name
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }
@@ -259,6 +247,7 @@ fun MovieDetailScreen(
         GalleryOverlay(
             imageUrls = galleryUrls,
             initialIndex = index,
+            movie = galleryMovie,
             onClose = { galleryIndex = null }
         )
     }
@@ -268,11 +257,11 @@ fun MovieDetailScreen(
 private fun GalleryOverlay(
     imageUrls: List<String>,
     initialIndex: Int,
+    movie: Movie?,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    var showSaveDialog by remember { mutableStateOf(false) }
     var backgroundBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val loopedPageCount = if (imageUrls.size > 1) Int.MAX_VALUE else 1
     val pagerState = rememberPagerState(
@@ -331,40 +320,12 @@ private fun GalleryOverlay(
             modifier = Modifier.fillMaxSize(),
             pageContent = { page ->
                 val actualIndex = if (imageUrls.size > 1) page % imageUrls.size else 0
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale = (scale * zoom).coerceIn(0.5f, 5f)
-                                offset = Offset(
-                                    x = offset.x + pan.x,
-                                    y = offset.y + pan.y
-                                )
-                            }
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures(onTap = { onClose() })
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(imageUrls.getOrNull(actualIndex) ?: "")
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y
-                            )
-                    )
-                }
+                ZoomableImage(
+                    imageUrl = imageUrls.getOrNull(actualIndex) ?: "",
+                    onTap = { onClose() },
+                    onLongPress = { showSaveDialog = true },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         )
 
@@ -388,6 +349,44 @@ private fun GalleryOverlay(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 24.dp)
+        )
+    }
+
+    if (showSaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveDialog = false },
+            title = { Text("保存图片") },
+            text = { Text("将当前图片保存到本地？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSaveDialog = false
+                    val url = imageUrls.getOrNull(currentPageIndex) ?: return@TextButton
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val subDir = if (movie != null) {
+                                "[${movie.code}] ${movie.title}"
+                            } else {
+                                "gallery"
+                            }
+                            saveImageToGallery(context, url, subDir)
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }) {
+                    Text("保存")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveDialog = false }) {
+                    Text("取消")
+                }
+            }
         )
     }
 }
@@ -511,6 +510,8 @@ private fun SectionWithIcon(icon: ImageVector, content: @Composable () -> Unit) 
 private fun MovieDetailContent(
     detail: MovieDetail,
     coverUrl: String?,
+    thumbnailUrl: String?,
+    coverPrefetched: Boolean,
     relatedMovies: List<Movie>,
     movieCode: String,
     navController: NavController,
@@ -529,23 +530,37 @@ private fun MovieDetailContent(
             .verticalScroll(scrollState)
             .navigationBarsPadding()
     ) {
-        if (coverUrl != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(coverUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = detail.title,
-                contentScale = ContentScale.FillWidth,
+        val coverContext = LocalContext.current
+        var coverModel by remember(coverUrl, thumbnailUrl) {
+            mutableStateOf(thumbnailUrl ?: coverUrl)
+        }
+        LaunchedEffect(coverPrefetched, coverUrl, thumbnailUrl) {
+            if (coverPrefetched && coverUrl != null && coverUrl != coverModel) {
+                coverModel = coverUrl
+            }
+        }
+        if (coverModel != null) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .aspectRatio(800f / 565f)
                     .combinedClickable(
                         onClick = {
-                            onScreenshotClick?.invoke(listOf(coverUrl), 0)
+                            onScreenshotClick?.invoke(listOfNotNull(coverUrl ?: coverModel), 0)
                         },
                         onLongClick = onCoverLongClick
                     )
-            )
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(coverContext)
+                        .data(coverModel)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = detail.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
         Column(
             modifier = Modifier
@@ -615,15 +630,35 @@ private fun MovieDetailContent(
 
             if (detail.screenshots.isNotEmpty()) {
                 SectionWithIcon(Icons.Outlined.Collections) {
-                    ScreenshotRow(
-                        screenshots = detail.screenshots,
-                        imageLoader = JAViewer.screenshotImageLoader,
-                        onScreenshotClick = { screenshot ->
-                            val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
-                            val index = detail.screenshots.indexOf(screenshot)
-                            onScreenshotClick?.invoke(urls, index.coerceAtLeast(0))
+                    var showScreenshots by remember(detail.code) { mutableStateOf(false) }
+                    LaunchedEffect(detail.code) {
+                        delay(400)
+                        showScreenshots = true
+                    }
+                    if (showScreenshots) {
+                        ScreenshotRow(
+                            screenshots = detail.screenshots,
+                            imageLoader = JAViewer.screenshotImageLoader,
+                            onScreenshotClick = { screenshot ->
+                                val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
+                                val index = detail.screenshots.indexOf(screenshot)
+                                onScreenshotClick?.invoke(urls, index.coerceAtLeast(0))
+                            }
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "截图加载中…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    )
+                    }
                 }
             } else if (detail.coverUrl != null) {
                 SectionWithIcon(Icons.Outlined.Collections) {

@@ -656,7 +656,7 @@ return bytesToHex(bytes);
 
 **文件:** `fragment/MagnetSearchFragment.java`（非 Retrofit，直接使用 OkHttp）
 
-**Base URL:** `https://btsow.pics`
+**Base URL:** `https://btsow.live`
 
 ### 8.0 鉴权机制
 
@@ -672,7 +672,7 @@ btsow API **无显式鉴权**（无 API Key、无签名算法）。请求通过�
 **btsow 请求实际发出的请求头示例:**
 ```http
 POST /bts/data/api/search HTTP/1.1
-Host: btsow.pics
+Host: btsow.live
 content-type: application/json
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36
 X-Requested-With: XMLHttpRequest
@@ -683,7 +683,7 @@ X-Requested-With: XMLHttpRequest
 ### 8.1 搜索
 
 ```
-POST https://btsow.pics/bts/data/api/search
+POST https://btsow.live/bts/data/api/search
 Content-Type: application/json
 
 [{"search": "MADB-004"}, 30, 1]
@@ -713,7 +713,7 @@ Content-Type: application/json
 ### 8.2 获取文件列表
 
 ```
-POST https://btsow.pics/bts/data/api/magnet
+POST https://btsow.live/bts/data/api/magnet
 Content-Type: application/json
 
 ["6D8CD7F3E8821906D4EB3E0759A59F581FB2A8F5"]

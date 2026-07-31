@@ -17,6 +17,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import io.github.javcinema.JAViewer
 import io.github.javcinema.data.model.Movie
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -50,6 +52,15 @@ fun MovieCard(
         )
     ) {
             Column {
+                LaunchedEffect(movie.coverUrl) {
+                    val thumb = movie.coverUrl
+                    if (thumb != null && thumb.endsWith("ps.jpg") && !JAViewer.prefetchedLargeCovers.contains(thumb)) {
+                        val large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
+                        JAViewer.enqueueCoverWithRetry(large, JAViewer.instance) {
+                            JAViewer.prefetchedLargeCovers.add(thumb)
+                        }
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
