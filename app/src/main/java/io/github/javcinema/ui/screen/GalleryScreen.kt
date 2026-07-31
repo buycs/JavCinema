@@ -33,11 +33,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.github.javcinema.JavCinema
 import io.github.javcinema.ui.components.ZoomableImage
-import io.github.javcinema.util.saveImageToGallery
-import kotlinx.coroutines.Dispatchers
+import io.github.javcinema.ui.components.rememberSaveImageAction
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +56,7 @@ fun GalleryScreen(
     var showBars by remember { mutableStateOf(true) }
     var showSaveDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val saveImage = rememberSaveImageAction()
 
     val activity = LocalContext.current as? androidx.activity.ComponentActivity
     val onBack = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -108,24 +106,12 @@ fun GalleryScreen(
                     actions = {
                         IconButton(onClick = {
                             val url = images.getOrNull(currentPageIndex) ?: return@IconButton
-                            val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
-                            scope.launch {
-                                try {
-                                    val subDir = if (movie != null) {
-                                        "[${movie.code}] ${movie.title}"
-                                    } else {
-                                        "gallery"
-                                    }
-                                    saveImageToGallery(context, url, subDir)
-                                    withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "保存成功", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch (e: Exception) {
-                                    withContext(Dispatchers.Main) {
-                                        android.widget.Toast.makeText(context, "保存失败: ${e.localizedMessage}", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                }
+                            val subDir = if (movie != null) {
+                                "[${movie.code}] ${movie.title}"
+                            } else {
+                                "gallery"
                             }
+                            saveImage(url, subDir)
                         }) {
                             Icon(Icons.Filled.Save, contentDescription = "保存")
                         }
@@ -164,24 +150,12 @@ fun GalleryScreen(
                 TextButton(onClick = {
                     showSaveDialog = false
                     val url = images.getOrNull(currentPageIndex) ?: return@TextButton
-                    val scope = kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
-                    scope.launch {
-                        try {
-                            val subDir = if (movie != null) {
-                                "[${movie.code}] ${movie.title}"
-                            } else {
-                                "gallery"
-                            }
-                            saveImageToGallery(context, url, subDir)
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "保存成功", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                android.widget.Toast.makeText(context, "保存失败: ${e.localizedMessage}", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                    val subDir = if (movie != null) {
+                        "[${movie.code}] ${movie.title}"
+                    } else {
+                        "gallery"
                     }
+                    saveImage(url, subDir)
                 }) {
                     Text("保存")
                 }

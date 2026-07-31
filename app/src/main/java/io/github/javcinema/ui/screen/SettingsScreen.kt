@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
@@ -44,6 +45,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import android.content.Intent
+import android.net.Uri
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Configurations
@@ -55,6 +58,7 @@ fun SettingsScreen(navController: NavController? = null) {
     var showDataSourceDialog by remember { mutableStateOf(false) }
     var showDataUrlDialog by remember { mutableStateOf(false) }
     var showMagnetUrlDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -78,6 +82,16 @@ fun SettingsScreen(navController: NavController? = null) {
             title = "磁力源配置",
             summary = "自定义磁力源地址",
             onClick = { showMagnetUrlDialog = true }
+        )
+        SettingsItem(
+            icon = Icons.Filled.Code,
+            title = "原仓库地址",
+            summary = "https://github.com/SplashCodes/JAViewer",
+            onClick = {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/SplashCodes/JAViewer"))
+                )
+            }
         )
     }
 

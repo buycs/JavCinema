@@ -97,6 +97,7 @@ import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.components.ScreenshotRow
 import io.github.javcinema.ui.components.ZoomableImage
+import io.github.javcinema.ui.components.rememberSaveImageAction
 import io.github.javcinema.ui.navigation.NavRoutes
 import io.github.javcinema.util.saveImageToGallery
 import java.net.URLEncoder
@@ -263,6 +264,7 @@ private fun GalleryOverlay(
     val context = LocalContext.current
     var showSaveDialog by remember { mutableStateOf(false) }
     var backgroundBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val saveImage = rememberSaveImageAction()
     val loopedPageCount = if (imageUrls.size > 1) Int.MAX_VALUE else 1
     val pagerState = rememberPagerState(
         pageCount = { loopedPageCount },
@@ -361,23 +363,12 @@ private fun GalleryOverlay(
                 TextButton(onClick = {
                     showSaveDialog = false
                     val url = imageUrls.getOrNull(currentPageIndex) ?: return@TextButton
-                    kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
-                        try {
-                            val subDir = if (movie != null) {
-                                "[${movie.code}] ${movie.title}"
-                            } else {
-                                "gallery"
-                            }
-                            saveImageToGallery(context, url, subDir)
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
-                            }
-                        } catch (e: Exception) {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                    val subDir = if (movie != null) {
+                        "[${movie.code}] ${movie.title}"
+                    } else {
+                        "gallery"
                     }
+                    saveImage(url, subDir)
                 }) {
                     Text("保存")
                 }
