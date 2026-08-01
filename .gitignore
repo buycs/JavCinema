@@ -13,3 +13,12 @@ build/
 *.aab
 *.jks
 *.keystore
+
+# 内部开发文件（不上传）
+opencode.json
+AGENTS.md
+API_DOCUMENTATION.md
+IMAGE_FLOW_PLAN.md
+MAGNET_SEARCH.md
+run.bat
+start_emu.bat

@@ -2,8 +2,6 @@ package io.github.javcinema
 
 import android.app.Application
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
@@ -28,8 +26,6 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
-import java.security.MessageDigest
-import java.security.NoSuchAlgorithmException
 import java.util.HashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -244,23 +240,6 @@ class JavCinema : Application() {
 
         fun Objects_equals(a: Any?, b: Any?): Boolean {
             return a === b || a != null && a == b
-        }
-
-        fun a(context: Context) {
-            val url = "https://qr.alipay.com/a6x05027ymf6n8kl0qkoa54"
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TASK
-            context.startActivity(intent)
-        }
-
-        fun b(s1: String, s2: String): String? {
-            return try {
-                val md = MessageDigest.getInstance("MD5")
-                val bytes = md.digest(String.format("%s%sBrynhildr", s1, s2).toByteArray())
-                bytesToHex(bytes)
-            } catch (e: NoSuchAlgorithmException) {
-                null
-            }
         }
     }
 }

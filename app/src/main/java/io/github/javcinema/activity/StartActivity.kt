@@ -117,7 +117,7 @@ class StartActivity : ComponentActivity() {
             if (properties.changelog != null) {
                 message += "\n\n更新日志：\n\n" + properties.changelog + "\n"
             }
-            updateDialog = UpdateInfo(message, "https://github.com/SplashCodes/JAViewer/releases")
+            updateDialog = UpdateInfo(message, "https://github.com/buycs/JavCinema/releases")
         } else {
             start()
         }
