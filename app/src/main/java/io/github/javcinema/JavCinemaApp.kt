@@ -7,6 +7,7 @@ import android.net.Uri
 import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
+import coil.imageLoader
 import coil.memory.MemoryCache
 import com.google.gson.GsonBuilder
 import com.google.gson.stream.JsonReader
@@ -32,6 +33,13 @@ import java.security.NoSuchAlgorithmException
 import java.util.HashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+
+data class ImageUrls(
+    val posterSmall: String? = null,
+    val posterLarge: String? = null,
+    val sampleSmall: List<String>? = null,
+    val sampleLarge: List<String>? = null
+)
 
 class JavCinema : Application() {
 
@@ -104,6 +112,7 @@ class JavCinema : Application() {
             .build()
 
         val SCREENSHOT_HTTP_CLIENT: OkHttpClient = HTTP_CLIENT.newBuilder()
+            .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
             .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 2 })
             .build()
 
@@ -119,37 +128,28 @@ class JavCinema : Application() {
                 .build()
         }
 
-        val PREFETCH_HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
+        val COVER_HTTP_CLIENT: OkHttpClient = HTTP_CLIENT.newBuilder()
             .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
-            .addInterceptor(HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }.apply {
-                level = HttpLoggingInterceptor.Level.HEADERS
-            })
-            .addInterceptor { chain ->
-                val original = chain.request()
-                val request = original.newBuilder()
-                    .url(replaceUrl(original.url))
-                    .header("User-Agent", USER_AGENT)
-                    .build()
-                chain.proceed(request)
-            }
-            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 1 })
+            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 2 })
             .build()
 
-        val prefetchImageLoader: ImageLoader by lazy {
+        val coverImageLoader: ImageLoader by lazy {
             ImageLoader.Builder(instance)
-                .okHttpClient(PREFETCH_HTTP_CLIENT)
+                .okHttpClient(COVER_HTTP_CLIENT)
                 .memoryCache {
                     MemoryCache.Builder(instance)
-                        .maxSizePercent(0.05)
+                        .maxSizePercent(0.25)
                         .build()
                 }
                 .diskCache(SHARED_DISK_CACHE)
                 .build()
         }
 
+        val imageUrlsRegistry: MutableMap<String, ImageUrls> = ConcurrentHashMap()
+
         val prefetchedLargeCovers: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+        val prefetchSemaphore: java.util.concurrent.Semaphore = java.util.concurrent.Semaphore(3)
 
         fun enqueueCoverWithRetry(
             url: String,
@@ -157,30 +157,24 @@ class JavCinema : Application() {
             onSuccess: (() -> Unit)? = null,
             onFailed: (() -> Unit)? = null
         ) {
-            enqueueCoverInternal(url, context, 0, onSuccess, onFailed)
-        }
-
-        private fun enqueueCoverInternal(
-            url: String,
-            context: Context,
-            attempt: Int,
-            onSuccess: (() -> Unit)?,
-            onFailed: (() -> Unit)?
-        ) {
+            val loader = runCatching { instance.imageLoader }.getOrNull() ?: run {
+                onFailed?.invoke()
+                return
+            }
             val disposable = runCatching {
-                prefetchImageLoader.enqueue(
-                    ImageRequest.Builder(context).data(url).build()
+                loader.enqueue(
+                    ImageRequest.Builder(context)
+                        .data(url)
+                        .memoryCacheKey(url)
+                        .size(1080, 763)
+                        .build()
                 )
             }.getOrNull() ?: run {
                 onFailed?.invoke()
                 return
             }
             disposable.job.invokeOnCompletion { completion ->
-                when {
-                    completion == null -> onSuccess?.invoke()
-                    attempt < 1 -> enqueueCoverInternal(url, context, attempt + 1, onSuccess, onFailed)
-                    else -> onFailed?.invoke()
-                }
+                if (completion == null) onSuccess?.invoke() else onFailed?.invoke()
             }
         }
 
@@ -195,6 +189,7 @@ class JavCinema : Application() {
         fun recreateService() {
             val ds = getDataSource()
             hostReplacements.clear()
+            imageUrlsRegistry.clear()
             val host = try { java.net.URI(ds.link!!).host } catch (_: Exception) { null }
             if (host != null) {
                 ds.legacies?.forEach { h -> hostReplacements[h] = host }

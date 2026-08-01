@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 
@@ -36,7 +37,8 @@ fun MovieCard(
     movie: Movie,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    prefetchCover: Boolean = true
 ) {
     Card(
         modifier = modifier
@@ -53,12 +55,21 @@ fun MovieCard(
     ) {
             Column {
                 LaunchedEffect(movie.coverUrl) {
-                    val thumb = movie.coverUrl
-                    if (thumb != null && thumb.endsWith("ps.jpg") && !JavCinema.prefetchedLargeCovers.contains(thumb)) {
-                        val large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
-                        JavCinema.enqueueCoverWithRetry(large, JavCinema.instance) {
-                            JavCinema.prefetchedLargeCovers.add(thumb)
-                        }
+                    if (!prefetchCover) return@LaunchedEffect
+                    val thumb = movie.coverUrl ?: return@LaunchedEffect
+                    if (JavCinema.prefetchedLargeCovers.contains(thumb)) return@LaunchedEffect
+                    var large = movie.link?.let { JavCinema.imageUrlsRegistry[it]?.posterLarge }
+                    if (large == null && thumb.endsWith("ps.jpg")) {
+                        large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
+                    }
+                    if (large != null && JavCinema.prefetchSemaphore.tryAcquire()) {
+                        JavCinema.enqueueCoverWithRetry(large, JavCinema.instance,
+                            onSuccess = {
+                                JavCinema.prefetchedLargeCovers.add(thumb)
+                                JavCinema.prefetchSemaphore.release()
+                            },
+                            onFailed = { JavCinema.prefetchSemaphore.release() }
+                        )
                     }
                 }
                 Box(
@@ -70,7 +81,11 @@ fun MovieCard(
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
-                        model = movie.coverUrl,
+                        model = ImageRequest.Builder(JavCinema.instance)
+                            .data(movie.coverUrl)
+                            .size(147, 200)
+                            .memoryCacheKey(movie.coverUrl)
+                            .build(),
                         contentDescription = movie.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -88,7 +103,7 @@ fun MovieCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 60.dp)
+                        .heightIn(min = 68.dp)
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalArrangement = Arrangement.Bottom
                 ) {
@@ -109,13 +124,11 @@ fun MovieCard(
                             color = Color(0xFFE91E63)
                         )
 
-                        movie.date?.let { date ->
-                            Text(
-                                text = date,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = movie.date ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

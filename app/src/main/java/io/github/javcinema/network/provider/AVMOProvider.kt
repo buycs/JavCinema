@@ -1,5 +1,7 @@
 package io.github.javcinema.network.provider
 
+import io.github.javcinema.ImageUrls
+import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.AvmooMovie
 import io.github.javcinema.data.model.AvmooMovieDetail
@@ -141,11 +143,19 @@ object AVMOProvider {
 
     fun fromApiList(apiMovies: List<AvmooMovie>): List<Movie> {
         return apiMovies.map { api ->
+            api.movieId?.let { id ->
+                JavCinema.imageUrlsRegistry[id] = ImageUrls(
+                    posterSmall = api.posterSmall,
+                    posterLarge = api.posterLarge,
+                    sampleSmall = api.sampleSmall,
+                    sampleLarge = api.sampleLarge
+                )
+            }
             Movie().apply {
                 id = api.movieId
                 code = api.movieFanHao
                 title = api.title ?: api.title_ja ?: api.title_cn ?: api.movieFanHao
-coverUrl = api.posterSmall
+                coverUrl = api.posterSmall
                 date = api.releaseDate
                 link = api.movieId
             }

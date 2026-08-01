@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -24,24 +28,25 @@ fun ScreenshotRow(
     screenshots: List<Screenshot>,
     onScreenshotClick: (Screenshot) -> Unit,
     modifier: Modifier = Modifier,
-    imageLoader: ImageLoader = LocalContext.current.imageLoader
+    imageLoader: ImageLoader = LocalContext.current.imageLoader,
+    fallbackUrl: String? = null,
+    onFallbackClick: (() -> Unit)? = null
 ) {
+    var failedCount by remember(screenshots) { mutableStateOf(0) }
+    val allFailed = fallbackUrl != null && screenshots.isNotEmpty() && failedCount >= screenshots.size
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        screenshots.chunked(4).forEach { chunk ->
+        if (allFailed) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                val items = chunk.toMutableList<Screenshot?>().apply {
-                    while (size < 4) add(null)
-                }
-                items.forEach { screenshot ->
-                    if (screenshot != null) {
+                repeat(4) { index ->
+                    if (index == 0) {
                         AsyncImage(
-                            model = screenshot.thumbnailUrl,
+                            model = fallbackUrl,
                             imageLoader = imageLoader,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
@@ -49,7 +54,7 @@ fun ScreenshotRow(
                                 .weight(1f)
                                 .aspectRatio(16f / 9f)
                                 .clip(RoundedCornerShape(4.dp))
-                                .clickable { onScreenshotClick(screenshot) }
+                                .clickable { onFallbackClick?.invoke() }
                         )
                     } else {
                         Box(
@@ -57,6 +62,39 @@ fun ScreenshotRow(
                                 .weight(1f)
                                 .aspectRatio(16f / 9f)
                         )
+                    }
+                }
+            }
+        } else {
+            screenshots.chunked(4).forEach { chunk ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val items = chunk.toMutableList<Screenshot?>().apply {
+                        while (size < 4) add(null)
+                    }
+                    items.forEach { screenshot ->
+                        if (screenshot != null) {
+                            AsyncImage(
+                                model = screenshot.thumbnailUrl,
+                                imageLoader = imageLoader,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                onError = { failedCount++ },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(16f / 9f)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onScreenshotClick(screenshot) }
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(16f / 9f)
+                            )
+                        }
                     }
                 }
             }

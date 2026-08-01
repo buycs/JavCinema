@@ -19,6 +19,7 @@ class RetryInterceptor(
             } catch (e: IOException) {
                 if (attempt >= maxRetries) throw e
                 attempt++
+                if (e.message?.contains("Canceled", ignoreCase = true) == true) throw e
                 Log.w("RetryInterceptor", "IOException retry ${attempt}/${maxRetries}: ${request.url} - ${e.message}")
                 Thread.sleep(baseDelayMs * attempt)
                 continue

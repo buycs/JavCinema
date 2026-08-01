@@ -61,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
 import coil.imageLoader
 import coil.request.ImageRequest
 import android.content.ClipData
@@ -80,6 +79,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -126,55 +127,60 @@ fun MovieDetailScreen(
         savedScroll = scrollState.value.toFloat()
     }
     val localContext = LocalContext.current
-    var coverPrefetched by remember(movieCode) {
-        mutableStateOf(thumbnailUrl == null || !thumbnailUrl.endsWith("ps.jpg"))
-    }
+    var largeCoverUrl by remember(movieCode) { mutableStateOf<String?>(null) }
     LaunchedEffect(movieCode) {
         val thumb = thumbnailUrl
-        if (thumb != null && thumb.endsWith("ps.jpg")) {
-            val large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
-            if (JavCinema.prefetchedLargeCovers.contains(thumb)) {
-                coverPrefetched = true
-            } else {
-                JavCinema.enqueueCoverWithRetry(
-                    large,
-                    localContext,
-                    onSuccess = { coverPrefetched = true },
-                    onFailed = { coverPrefetched = true }
-                )
-            }
+        var large: String? = null
+        movieLink?.let { link -> large = JavCinema.imageUrlsRegistry[link]?.posterLarge }
+        if (large == null && thumb != null && thumb.endsWith("ps.jpg")) {
+            large = thumb.substring(0, thumb.length - "ps.jpg".length) + "pl.jpg"
         }
+        largeCoverUrl = large
         viewModel.loadDetail(movieCode, movieLink, thumbnailUrl)
     }
 
-    // Keep thumbnail painter alive across state transitions to avoid flicker
-    val thumbnailPainter = rememberAsyncImagePainter(model = thumbnailUrl)
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (uiState) {
-            is MovieDetailUiState.Loading -> {
-                val loadingUrl = if (coverPrefetched && thumbnailUrl?.endsWith("ps.jpg") == true) {
-                    thumbnailUrl.substring(0, thumbnailUrl.length - "ps.jpg".length) + "pl.jpg"
-                } else null
-                Box(modifier = Modifier.fillMaxSize().blur(20.dp)) {
-                    if (loadingUrl != null) {
-                        AsyncImage(
-                            model = loadingUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else if (thumbnailUrl != null) {
-                        Image(
-                            painter = thumbnailPainter,
-                            contentDescription = null,
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxSize()
-                        )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .navigationBarsPadding()
+    ) {
+        // Cover renders immediately on entry so pl.jpg downloads in parallel
+        // with the detail API call, instead of waiting for it to finish.
+        DetailCover(
+            coverUrl = largeCoverUrl ?: defaultCover ?: detail?.coverUrl ?: thumbnailUrl,
+            thumbnailUrl = thumbnailUrl,
+            contentDescription = detail?.title ?: movieCode,
+            onClick = {
+                val cover = largeCoverUrl ?: defaultCover ?: detail?.coverUrl ?: thumbnailUrl
+                galleryUrls = listOfNotNull(cover)
+                galleryIndex = 0
+                galleryMovie = detail?.let { d ->
+                    Movie().apply {
+                        code = d.code ?: movieCode
+                        title = d.title
                     }
                 }
+            },
+            onLongClick = detail?.let { d ->
+                {
+                    dialogMovie = Movie().apply {
+                        code = d.code ?: movieCode
+                        title = d.title
+                        link = d.id ?: movieCode
+                        coverUrl = defaultCover ?: d.coverUrl
+                        date = d.headers.find { it.name == "发行日期" }?.value
+                        dataSourceName = JavCinema.getDataSource()?.name
+                    }
+                }
+            }
+        )
+        when (uiState) {
+            is MovieDetailUiState.Loading -> {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -182,7 +188,9 @@ fun MovieDetailScreen(
             }
             is MovieDetailUiState.Error -> {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -192,17 +200,13 @@ fun MovieDetailScreen(
                 }
             }
             is MovieDetailUiState.Success -> {
-                val d = detail ?: return@Box
-                val cover = defaultCover ?: d.coverUrl
+                val d = detail ?: return@Column
                 MovieDetailContent(
                     detail = d,
-                    coverUrl = cover,
-                    thumbnailUrl = thumbnailUrl,
-                    coverPrefetched = coverPrefetched,
+                    fallbackCoverUrl = largeCoverUrl ?: defaultCover ?: d.coverUrl ?: thumbnailUrl,
                     relatedMovies = relatedMovies,
                     movieCode = movieCode,
                     navController = navController,
-                    scrollState = scrollState,
                     onScreenshotClick = { urls, index ->
                         galleryUrls = urls
                         galleryIndex = index
@@ -215,17 +219,7 @@ fun MovieDetailScreen(
                     onPlayClick = { /* TODO: play video */ },
                     onMovieLongClick = { dialogMovie = it },
                     onActressLongClick = { dialogActress = it },
-                    onCoverLongClick = {
-                        dialogMovie = Movie().apply {
-                            code = d.code ?: movieCode
-                            title = d.title
-                            link = d.id ?: movieCode
-                            coverUrl = defaultCover ?: d.coverUrl
-                            date = d.headers.find { it.name == "发行日期" }?.value
-                            dataSourceName = JavCinema.getDataSource()?.name
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -498,61 +492,76 @@ private fun SectionWithIcon(icon: ImageVector, content: @Composable () -> Unit) 
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun MovieDetailContent(
-    detail: MovieDetail,
+private fun DetailCover(
     coverUrl: String?,
     thumbnailUrl: String?,
-    coverPrefetched: Boolean,
+    contentDescription: String?,
+    onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?
+) {
+    val coverContext = LocalContext.current
+    var coverModel by remember(coverUrl, thumbnailUrl) {
+        mutableStateOf(thumbnailUrl ?: coverUrl)
+    }
+    LaunchedEffect(coverUrl, thumbnailUrl) {
+        if (coverUrl != null && coverUrl != coverModel) {
+            coverModel = coverUrl
+        }
+    }
+    if (coverModel != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .combinedClickable(
+                    onClick = onClick ?: {},
+                    onLongClick = onLongClick
+                )
+        ) {
+            if (thumbnailUrl != null && coverModel != thumbnailUrl) {
+                AsyncImage(
+                    model = ImageRequest.Builder(coverContext)
+                        .data(thumbnailUrl)
+                        .size(147, 200)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    imageLoader = JavCinema.coverImageLoader,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            AsyncImage(
+                model = ImageRequest.Builder(coverContext)
+                    .data(coverModel)
+                    .memoryCacheKey(coverModel)
+                    .size(1080, 763)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                imageLoader = JavCinema.coverImageLoader,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun MovieDetailContent(
+    detail: MovieDetail,
+    fallbackCoverUrl: String?,
     relatedMovies: List<Movie>,
     movieCode: String,
     navController: NavController,
-    scrollState: ScrollState,
     onScreenshotClick: ((List<String>, Int) -> Unit)? = null,
     onPreviewClick: () -> Unit,
     onPlayClick: () -> Unit,
     onMovieLongClick: ((Movie) -> Unit)? = null,
     onActressLongClick: ((Actress) -> Unit)? = null,
-    onCoverLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .navigationBarsPadding()
-    ) {
-        val coverContext = LocalContext.current
-        var coverModel by remember(coverUrl, thumbnailUrl) {
-            mutableStateOf(thumbnailUrl ?: coverUrl)
-        }
-        LaunchedEffect(coverPrefetched, coverUrl, thumbnailUrl) {
-            if (coverPrefetched && coverUrl != null && coverUrl != coverModel) {
-                coverModel = coverUrl
-            }
-        }
-        if (coverModel != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(800f / 565f)
-                    .combinedClickable(
-                        onClick = {
-                            onScreenshotClick?.invoke(listOfNotNull(coverUrl ?: coverModel), 0)
-                        },
-                        onLongClick = onCoverLongClick
-                    )
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(coverContext)
-                        .data(coverModel)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = detail.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
+    Column(modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -621,26 +630,31 @@ private fun MovieDetailContent(
 
             if (detail.screenshots.isNotEmpty()) {
                 SectionWithIcon(Icons.Outlined.Collections) {
-                    var showScreenshots by remember(detail.code) { mutableStateOf(false) }
-                    LaunchedEffect(detail.code) {
-                        delay(400)
-                        showScreenshots = true
+                    val screenshotContext = LocalContext.current
+                    var hasScreenshots by remember(detail.code) { mutableStateOf<Boolean?>(null) }
+                    LaunchedEffect(detail.code, detail.screenshots) {
+                        val loader = JavCinema.screenshotImageLoader
+                        val results = withContext(Dispatchers.IO) {
+                            detail.screenshots.take(4).map { s ->
+                                async {
+                                    val url = s.thumbnailUrl ?: return@async false
+                                    try {
+                                        loader.execute(
+                                            ImageRequest.Builder(screenshotContext).data(url).build()
+                                        ) is coil.request.SuccessResult
+                                    } catch (_: Exception) {
+                                        false
+                                    }
+                                }
+                            }.awaitAll()
+                        }
+                        hasScreenshots = results.any { it }
                     }
-                    if (showScreenshots) {
-                        ScreenshotRow(
-                            screenshots = detail.screenshots,
-                            imageLoader = JavCinema.screenshotImageLoader,
-                            onScreenshotClick = { screenshot ->
-                                val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
-                                val index = detail.screenshots.indexOf(screenshot)
-                                onScreenshotClick?.invoke(urls, index.coerceAtLeast(0))
-                            }
-                        )
-                    } else {
-                        Box(
+                    when (hasScreenshots) {
+                        null -> Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(120.dp),
+                                .height(56.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -649,9 +663,50 @@ private fun MovieDetailContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        true -> ScreenshotRow(
+                            screenshots = detail.screenshots,
+                            imageLoader = JavCinema.screenshotImageLoader,
+                            fallbackUrl = fallbackCoverUrl,
+                            onFallbackClick = {
+                                onScreenshotClick?.invoke(listOfNotNull(fallbackCoverUrl), 0)
+                            },
+                            onScreenshotClick = { screenshot ->
+                                val urls = detail.screenshots.mapNotNull { it.getImageUrl() }
+                                val index = detail.screenshots.indexOf(screenshot)
+                                onScreenshotClick?.invoke(urls, index.coerceAtLeast(0))
+                            }
+                        )
+                        false -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                repeat(4) { index ->
+                                    if (index == 0) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(screenshotContext)
+                                                .data(fallbackCoverUrl)
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = "预览",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .aspectRatio(16f / 9f)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .clickable {
+                                                    onScreenshotClick?.invoke(listOfNotNull(fallbackCoverUrl), 0)
+                                                }
+                                        )
+                                    } else {
+                                        Box(modifier = Modifier.weight(1f).aspectRatio(16f / 9f))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-            } else if (detail.coverUrl != null) {
+            } else if (fallbackCoverUrl != null) {
                 SectionWithIcon(Icons.Outlined.Collections) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
@@ -662,7 +717,7 @@ private fun MovieDetailContent(
                                 if (index == 0) {
                                     AsyncImage(
                                         model = ImageRequest.Builder(LocalContext.current)
-                                            .data(detail.coverUrl)
+                                            .data(fallbackCoverUrl)
                                             .crossfade(true)
                                             .build(),
                                         contentDescription = "预览",
@@ -672,7 +727,7 @@ private fun MovieDetailContent(
                                             .aspectRatio(16f / 9f)
                                             .clip(RoundedCornerShape(4.dp))
                                             .clickable {
-                                                onScreenshotClick?.invoke(listOfNotNull(detail.coverUrl), 0)
+                                                onScreenshotClick?.invoke(listOfNotNull(fallbackCoverUrl), 0)
                                             }
                                     )
                                 } else {
@@ -740,6 +795,7 @@ private fun MovieDetailContent(
                                         navController.navigate(NavRoutes.movieDetail(encodedCode, encodedLink, movie.coverUrl))
                                     },
                                     onLongClick = { onMovieLongClick?.invoke(movie) },
+                                    prefetchCover = false,
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxHeight()

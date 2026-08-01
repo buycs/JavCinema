@@ -97,7 +97,7 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
         Box(modifier = Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState,
-                beyondViewportPageCount = 2,
+                beyondViewportPageCount = 0,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 HomeScreen(

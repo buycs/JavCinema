@@ -7,6 +7,8 @@ import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.data.model.MovieDetail
 import io.github.javcinema.network.provider.AVMOProvider
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -88,8 +90,17 @@ class MovieDetailViewModel : ViewModel() {
         }
 
         val movieId = movieLink ?: movieCode
-        val response = withContext(Dispatchers.IO) {
-            api.getMovie(listOf(movieId, "cn"))
+
+        val (response, relatedResponse) = coroutineScope {
+            val detailDeferred = async {
+                withContext(Dispatchers.IO) { api.getMovie(listOf(movieId, "cn")) }
+            }
+            val relatedDeferred = async {
+                runCatching {
+                    withContext(Dispatchers.IO) { api.getRelatedMovies(listOf(movieId, "cn", 12)) }
+                }.getOrNull()
+            }
+            detailDeferred.await() to relatedDeferred.await()
         }
 
         val apiDetail = response.data ?: run {
@@ -116,18 +127,12 @@ class MovieDetailViewModel : ViewModel() {
         checkStarred()
         _uiState.value = MovieDetailUiState.Success(parsed)
 
-        loadRelatedMovies(movieId)
-    }
-
-    private suspend fun loadRelatedMovies(movieId: String) {
-        val api = JavCinema.AVMOO_API_SERVICE ?: return
-        try {
-            val response = withContext(Dispatchers.IO) {
-                api.getRelatedMovies(listOf(movieId, "cn", 12))
+        relatedResponse?.data?.let { data ->
+            val related = AVMOProvider.fromApiList(data)
+            if (related.isNotEmpty()) {
+                _relatedMovies.value = related
             }
-            val related = response.data?.let { AVMOProvider.fromApiList(it) } ?: emptyList()
-            _relatedMovies.value = related
-        } catch (_: Exception) { }
+        }
     }
 
     private suspend fun loadDetailFromHtml(movieCode: String, movieLink: String?) {
@@ -175,5 +180,10 @@ class MovieDetailViewModel : ViewModel() {
     private fun checkStarred() {
         val m = movie
         _isStarred.value = JavCinema.CONFIGURATIONS?.starredMovies?.contains(m) == true
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        currentMovieLink?.let { JavCinema.imageUrlsRegistry.remove(it) }
     }
 }
