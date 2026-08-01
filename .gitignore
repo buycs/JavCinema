@@ -6,7 +6,10 @@
 .DS_Store
 /build
 /captures
-/gradle/wrapper
 /.idea
 /JavCinema.iml
 build/
+*.apk
+*.aab
+*.jks
+*.keystore

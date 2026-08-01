@@ -24,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -58,6 +57,7 @@ fun SettingsScreen(navController: NavController? = null) {
     var showDataSourceDialog by remember { mutableStateOf(false) }
     var showDataUrlDialog by remember { mutableStateOf(false) }
     var showMagnetUrlDialog by remember { mutableStateOf(false) }
+    var showRepoUrlDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     Column(
         modifier = Modifier
@@ -85,13 +85,9 @@ fun SettingsScreen(navController: NavController? = null) {
         )
         SettingsItem(
             icon = Icons.Filled.Code,
-            title = "原仓库地址",
-            summary = "https://github.com/SplashCodes/JAViewer",
-            onClick = {
-                context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/SplashCodes/JAViewer"))
-                )
-            }
+            title = "项目源码",
+            summary = "原项目源码 / 本项目源码",
+            onClick = { showRepoUrlDialog = true }
         )
     }
 
@@ -113,6 +109,49 @@ fun SettingsScreen(navController: NavController? = null) {
             navController = navController
         )
     }
+    if (showRepoUrlDialog) {
+        RepoUrlDialog(onDismiss = { showRepoUrlDialog = false })
+    }
+}
+
+@Composable
+private fun RepoUrlDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val repos = listOf(
+        "原项目源码" to "https://github.com/SplashCodes/JAViewer",
+        "本项目源码" to "https://github.com/buycs/JavCinema.git"
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("项目源码") },
+        text = {
+            Column {
+                repos.forEach { (label, url) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                )
+                            }
+                            .padding(vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
 }
 
 private fun getCurrentSourceSummary(): String {
