@@ -46,6 +46,7 @@ class Configurations {
         private const val KEY_CUSTOM_BTSEARCH = "custom_btsearch_url"
         private const val KEY_CUSTOM_CILI = "custom_cili_url"
         private const val KEY_CUSTOM_BTSOW = "custom_btsow_url"
+        private const val KEY_HOME_PAGE = "home_page"
 
         var customAvmooUrl: String? = null
         var customAvsoUrl: String? = null
@@ -53,6 +54,8 @@ class Configurations {
         var customBtSearchUrl: String? = null
         var customCiliUrl: String? = null
         var customBtsowUrl: String? = null
+
+        var homePage: String? = null
 
         fun loadPrefs(context: Context) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -62,6 +65,7 @@ class Configurations {
             customBtSearchUrl = prefs.getString(KEY_CUSTOM_BTSEARCH, null)
             customCiliUrl = prefs.getString(KEY_CUSTOM_CILI, null)
             customBtsowUrl = prefs.getString(KEY_CUSTOM_BTSOW, null)
+            homePage = prefs.getString(KEY_HOME_PAGE, null)
         }
 
         fun savePrefs(context: Context) {
@@ -72,6 +76,7 @@ class Configurations {
                 .putString(KEY_CUSTOM_BTSEARCH, customBtSearchUrl)
                 .putString(KEY_CUSTOM_CILI, customCiliUrl)
                 .putString(KEY_CUSTOM_BTSOW, customBtsowUrl)
+                .putString(KEY_HOME_PAGE, homePage)
                 .apply()
         }
     }

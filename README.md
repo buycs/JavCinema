@@ -4,13 +4,17 @@
 
 ## 特性
 
-- 支持骑兵 / 步兵 / 欧美多数据源切换，数据源地址可动态配置
-- 磁力搜索（BtSearch / Cili / BTSOW），可自定义磁力源地址
+- 多数据源切换，数据源地址可动态配置
+- 磁力搜索多源并发，可自定义磁力源地址
 - 在线播放（Media3 ExoPlayer）、收藏、女优浏览、类型分类
 - 100% Kotlin + Jetpack Compose + Material 3，单 Activity + Compose Navigation
-- Coil 图片加载、共享磁盘缓存、HTTP 重试拦截器（IOException + 5xx/429 自动重试）
+- Coil 图片加载、封面预取、共享磁盘缓存、HTTP 重试拦截器
+- 图库查看、保存到相册
 - ABI 拆分包（arm64-v8a / armeabi-v7a / x86_64），命名 APK 产物
-- 版本号从上游 `2.2.1 (19)` 重置为 `0.0.1-alpha (1)`
+
+## 版本
+
+当前版本：**0.0.1-alpha (1)**
 
 ## 构建
 
@@ -23,9 +27,14 @@
 # 安装到已连接设备
 ./gradlew installDebug
 
+# Release 构建（R8 混淆 + debug 签名）
+./gradlew assembleRelease
+
 # 单元测试
 ./gradlew test
 ```
+
+> 注意：本机有全局 gradle init 脚本注入阿里云 Maven 镜像，可能与项目冲突，请使用 `./gradlew.bat`。
 
 ## 致谢
 

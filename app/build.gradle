@@ -33,6 +33,7 @@ android {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             manifestPlaceholders = [fileProviderAuthority: "io.github.javcinema.fileprovider"]
+            signingConfig signingConfigs.debug
         }
     }
 

@@ -30,4 +30,7 @@ interface AvmooApiService {
 
     @POST("getGenres")
     suspend fun getGenres(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooGenreListResponse
+
+    @POST("search")
+    suspend fun search(@Body params: List<@kotlin.jvm.JvmSuppressWildcards Any>): AvmooMovieListResponse
 }

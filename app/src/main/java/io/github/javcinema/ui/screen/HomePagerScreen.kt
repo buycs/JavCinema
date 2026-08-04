@@ -13,9 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.NewReleases
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -33,7 +31,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
-import io.github.javcinema.ui.navigation.NavRoutes
 import kotlinx.coroutines.launch
 
 @Composable
@@ -105,20 +102,6 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
                     section = sections[page],
                     viewModel = viewModels[page],
                     scrollToTopTrigger = scrollToTopTrigger
-                )
-            }
-
-            IconButton(
-                onClick = { navController.navigate(NavRoutes.SEARCH) },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .alpha(0.5f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "搜索",
-                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }

@@ -10,9 +10,9 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
@@ -43,7 +43,7 @@ data class BottomNavItem(
 private val bottomItems = listOf(
     BottomNavItem("影片", Icons.Default.VideoLibrary, NavRoutes.HOME),
     BottomNavItem("女优", Icons.Default.Person, NavRoutes.ACTRESSES),
-    BottomNavItem("类别", Icons.Default.Category, NavRoutes.GENRE),
+    BottomNavItem("搜索", Icons.Default.Search, NavRoutes.SEARCH),
     BottomNavItem("收藏", Icons.Default.Favorite, NavRoutes.FAVOURITE),
     BottomNavItem("设置", Icons.Default.Settings, NavRoutes.SETTINGS)
 )

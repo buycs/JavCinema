@@ -7,7 +7,6 @@ object NavRoutes {
     const val POPULAR = "popular"
     const val RELEASED = "released"
     const val ACTRESSES = "actresses"
-    const val GENRE = "genre"
     const val FAVOURITE = "favourite"
     const val MOVIE_DETAIL = "movie_detail/{movieCode}?link={link}&coverUrl={coverUrl}"
     const val MOVIE_LIST = "movie_list/{title}/{url}"

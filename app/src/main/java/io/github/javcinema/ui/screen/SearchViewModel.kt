@@ -8,6 +8,7 @@ import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.network.BasicService
 import io.github.javcinema.network.provider.AVMOProvider
+import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.URLEncoder
 
 sealed class SearchUiState {
     data object Idle : SearchUiState()
@@ -69,6 +69,16 @@ class SearchViewModel : ViewModel() {
         }
     }
 
+    fun reset() {
+        loadJob?.cancel()
+        currentQuery = ""
+        currentPage = 1
+        hasMore = true
+        _movies.value = emptyList()
+        _isLoadingMore.value = false
+        _uiState.value = SearchUiState.Idle
+    }
+
     fun search(query: String) {
         val currentVersion = JavCinema.dataSourceVersionFlow.value
         if (query == currentQuery && lastVersion == currentVersion) return
@@ -96,19 +106,15 @@ class SearchViewModel : ViewModel() {
 
     private suspend fun loadPage(page: Int) {
         try {
-            val service = JavCinema.SERVICE ?: run {
-                _uiState.value = SearchUiState.Error("Service not initialized")
-                return
-            }
+            val ds = JavCinema.getDataSource()
+            val isAvmoo = ds.name?.contains("AVMOO", ignoreCase = true) == true ||
+                ds.name == "骑兵" || ds.name == "步兵" || ds.name == "欧美"
 
-            val encodedQuery = withContext(Dispatchers.IO) {
-                URLEncoder.encode(currentQuery, "UTF-8")
+            val parsed: List<Movie> = if (isAvmoo && JavCinema.AVMOO_API_SERVICE != null) {
+                loadPageFromApi(page)
+            } else {
+                loadPageFromHtml(page)
             }
-            val response = withContext(Dispatchers.IO) {
-                service.get("${BasicService.LANGUAGE_NODE}/search/$encodedQuery/page/$page")
-            }
-            val html = withContext(Dispatchers.IO) { response.string() }
-            val parsed = withContext(Dispatchers.IO) { AVMOProvider.parseMovies(html) }
 
             if (parsed.isEmpty()) {
                 hasMore = false
@@ -122,5 +128,25 @@ class SearchViewModel : ViewModel() {
             android.util.Log.e("SearchVM", "loadPage error: ${e.message}", e)
             _uiState.value = SearchUiState.Error(e.message ?: "搜索失败")
         }
+    }
+
+    private suspend fun loadPageFromApi(page: Int): List<Movie> {
+        val api = JavCinema.AVMOO_API_SERVICE ?: return emptyList()
+        val body = listOf<Any>(mapOf("search" to currentQuery, "lang" to "cn"), 60, page)
+        val response = withContext(Dispatchers.IO) { api.search(body) }
+        val apiMovies = response.data ?: emptyList()
+        return withContext(Dispatchers.IO) { AVMOProvider.fromApiList(apiMovies) }
+    }
+
+    private suspend fun loadPageFromHtml(page: Int): List<Movie> {
+        val service = JavCinema.SERVICE ?: return emptyList()
+        val encodedQuery = withContext(Dispatchers.IO) {
+            URLEncoder.encode(currentQuery, "UTF-8")
+        }
+        val response = withContext(Dispatchers.IO) {
+            service.get("${BasicService.LANGUAGE_NODE}/search/$encodedQuery/page/$page")
+        }
+        val html = withContext(Dispatchers.IO) { response.string() }
+        return withContext(Dispatchers.IO) { AVMOProvider.parseMovies(html) }
     }
 }

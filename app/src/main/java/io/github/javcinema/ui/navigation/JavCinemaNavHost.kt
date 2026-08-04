@@ -3,6 +3,7 @@ package io.github.javcinema.ui.navigation
 import coil.imageLoader
 import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
+import io.github.javcinema.data.model.Configurations
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
@@ -16,11 +17,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import io.github.javcinema.ui.screen.ActressListScreen
+import io.github.javcinema.ui.screen.ActressGenrePagerScreen
 import io.github.javcinema.ui.screen.DownloadScreen
 import io.github.javcinema.ui.screen.FavouritesScreen
 import io.github.javcinema.ui.screen.GalleryScreen
-import io.github.javcinema.ui.screen.GenreListScreen
 import io.github.javcinema.ui.screen.HomePagerScreen
 import io.github.javcinema.ui.screen.MovieDetailScreen
 import io.github.javcinema.ui.screen.MovieListScreen
@@ -35,9 +35,11 @@ fun JavCinemaNavHost(
     scrollToTopTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
+    val startDestination = if (Configurations.homePage == NavRoutes.SEARCH) NavRoutes.SEARCH else NavRoutes.HOME
+
     NavHost(
         navController = navController,
-        startDestination = NavRoutes.HOME,
+        startDestination = startDestination,
         modifier = modifier
     ) {
         composable(route = NavRoutes.HOME) {
@@ -45,11 +47,7 @@ fun JavCinemaNavHost(
         }
 
         composable(route = NavRoutes.ACTRESSES) {
-            ActressListScreen(navController = navController, scrollToTopTrigger = scrollToTopTrigger)
-        }
-
-        composable(route = NavRoutes.GENRE) {
-            GenreListScreen(navController = navController)
+            ActressGenrePagerScreen(navController = navController, scrollToTopTrigger = scrollToTopTrigger)
         }
 
         composable(route = NavRoutes.FAVOURITE) {

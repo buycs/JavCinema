@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
@@ -58,6 +59,7 @@ fun SettingsScreen(navController: NavController? = null) {
     var showDataUrlDialog by remember { mutableStateOf(false) }
     var showMagnetUrlDialog by remember { mutableStateOf(false) }
     var showRepoUrlDialog by remember { mutableStateOf(false) }
+    var showHomePageDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     Column(
         modifier = Modifier
@@ -82,6 +84,12 @@ fun SettingsScreen(navController: NavController? = null) {
             title = "磁力源配置",
             summary = "自定义磁力源地址",
             onClick = { showMagnetUrlDialog = true }
+        )
+        SettingsItem(
+            icon = Icons.Filled.Home,
+            title = "首页设置",
+            summary = getHomePageSummary(),
+            onClick = { showHomePageDialog = true }
         )
         SettingsItem(
             icon = Icons.Filled.Code,
@@ -112,6 +120,88 @@ fun SettingsScreen(navController: NavController? = null) {
     if (showRepoUrlDialog) {
         RepoUrlDialog(onDismiss = { showRepoUrlDialog = false })
     }
+    if (showHomePageDialog) {
+        HomePageDialog(onDismiss = { showHomePageDialog = false })
+    }
+}
+
+private fun getHomePageSummary(): String {
+    return when (Configurations.homePage) {
+        NavRoutes.SEARCH -> "搜索为首页"
+        else -> "影片为首页"
+    }
+}
+
+@Composable
+private fun HomePageDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val current = Configurations.homePage
+    var selected by remember { mutableStateOf(current ?: NavRoutes.HOME) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val options = listOf(
+        NavRoutes.HOME to "影片为首页",
+        NavRoutes.SEARCH to "搜索为首页"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("首页设置") },
+        text = {
+            Column {
+                Text(
+                    text = "app 启动时默认显示的功能页面",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                options.forEach { (route, label) ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selected = route }
+                            .padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(
+                            selected = selected == route,
+                            onClick = { selected = route }
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(text = label)
+                    }
+                }
+                if (errorMsg != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = errorMsg!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                try {
+                    Configurations.homePage = selected
+                    Configurations.savePrefs(context)
+                    Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                } catch (e: Exception) {
+                    errorMsg = "保存失败: ${e.localizedMessage}"
+                    Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                }
+            }) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
 
 @Composable

@@ -1,18 +1,47 @@
 package io.github.javcinema.ui.screen
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -20,22 +49,39 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
-import io.github.javcinema.ui.components.SwipeBackContainer
 import io.github.javcinema.ui.navigation.NavRoutes
+import kotlin.math.roundToInt
+
+private const val HISTORY_MAX = 25
+private const val MAX_HISTORY_ROWS = 2
+
+private data class VisibleChips(val visibleCount: Int, val hasMore: Boolean)
 
 @Composable
 fun SearchScreen(
@@ -47,7 +93,7 @@ fun SearchScreen(
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
-    var query by remember { mutableStateOf(initialQuery) }
+    var query by rememberSaveable { mutableStateOf(initialQuery) }
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
     var savedIndex by rememberSaveable { mutableIntStateOf(0) }
     var savedOffset by rememberSaveable { mutableIntStateOf(0) }
@@ -55,6 +101,10 @@ fun SearchScreen(
         initialFirstVisibleItemIndex = savedIndex,
         initialFirstVisibleItemScrollOffset = savedOffset
     )
+
+    val context = LocalContext.current
+    var history by remember { mutableStateOf(SearchHistoryStore.load(context).take(HISTORY_MAX)) }
+    val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(scrollToTopTrigger) {
         if (scrollToTopTrigger > 0) {
@@ -97,38 +147,83 @@ fun SearchScreen(
         savedOffset = gridState.firstVisibleItemScrollOffset
     }
 
-    SwipeBackContainer(
-        onBack = { navController.popBackStack() },
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            state = gridState,
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            item {
+    fun doSearch(keyword: String) {
+        val q = keyword.trim()
+        if (q.isEmpty()) return
+        query = q
+        history = SearchHistoryStore.add(context, q).take(HISTORY_MAX)
+        viewModel.search(q)
+    }
+
+    val hasActiveSearch = query.isNotBlank() || uiState !is SearchUiState.Idle
+    BackHandler(enabled = hasActiveSearch) {
+        query = ""
+        viewModel.reset()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 TextField(
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("搜索影片...") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { doSearch(query) }),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
                 )
+                Button(
+                    onClick = {
+                        focusRequester.requestFocus()
+                        if (query.isNotBlank()) doSearch(query)
+                    },
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Text("搜索")
+                }
             }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                state = gridState,
+                contentPadding = PaddingValues(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                if (uiState is SearchUiState.Idle && history.isNotEmpty()) {
+                    item(span = { GridItemSpan(3) }) {
+                        SearchHistorySection(
+                            history = history,
+                            onSelect = { doSearch(it) },
+                            onDelete = {
+                                history = SearchHistoryStore.remove(context, it).take(HISTORY_MAX)
+                            },
+                            onClear = {
+                                SearchHistoryStore.clear(context)
+                                history = emptyList()
+                            }
+                        )
+                    }
+                }
 
             when (uiState) {
                 is SearchUiState.Idle -> {}
                 is SearchUiState.Loading -> {
                     if (movies.isEmpty()) {
-                        item {
+                        item(span = { GridItemSpan(3) }) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -158,7 +253,7 @@ fun SearchScreen(
             }
 
             if (isLoadingMore) {
-                item {
+                item(span = { GridItemSpan(3) }) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -171,11 +266,202 @@ fun SearchScreen(
             }
         }
     }
+    }
 
     dialogMovie?.let { movie ->
         MovieFavoriteDialog(
             movie = movie,
             onDismiss = { dialogMovie = null }
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SearchHistorySection(
+    history: List<String>,
+    onSelect: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    val textMeasurer = rememberTextMeasurer()
+    var expanded by remember { mutableStateOf(false) }
+    var managing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(history.isEmpty()) {
+        if (history.isEmpty()) managing = false
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "历史记录",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.weight(1f))
+            if (managing) {
+                TextButton(onClick = { managing = false }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Text("完成", fontSize = 12.sp)
+                }
+            } else {
+                TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Text("清空", fontSize = 12.sp)
+                }
+            }
+        }
+
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val chipStyle = MaterialTheme.typography.labelSmall
+            val plusStyle = chipStyle.copy(fontWeight = FontWeight.Bold)
+            val density = LocalDensity.current
+            val visible = remember(textMeasurer, history, constraints.maxWidth) {
+                val chipHPadPx = with(density) { 12.dp.toPx() }.roundToInt() * 2
+                val spacingPx = with(density) { 4.dp.toPx() }.roundToInt()
+                fun chipWidthPx(text: String, style: TextStyle): Int =
+                    textMeasurer.measure(AnnotatedString(text), style, maxLines = 1).size.width + chipHPadPx
+                val plusW = chipWidthPx("+", plusStyle) + spacingPx
+
+                fun countVisible(hasMore: Boolean): Int {
+                    fun currentAvail(rows: Int): Int {
+                        val reserve = if (hasMore && rows == MAX_HISTORY_ROWS) plusW else 0
+                        return constraints.maxWidth - reserve
+                    }
+
+                    var rows = 1
+                    var used = 0
+                    var shown = 0
+                    for (item in history) {
+                        val w = chipWidthPx(item, chipStyle)
+                        if (used > 0 && used + spacingPx + w > currentAvail(rows)) {
+                            rows++
+                            if (rows > MAX_HISTORY_ROWS) return shown
+                            used = 0
+                        }
+                        val rowAvail = currentAvail(rows)
+                        if (used + w > rowAvail) {
+                            if (rows >= MAX_HISTORY_ROWS) return shown
+                            used = w
+                            shown++
+                            continue
+                        }
+                        used += (if (used > 0) spacingPx else 0) + w
+                        shown++
+                    }
+                    return shown
+                }
+
+                val allFit = countVisible(hasMore = false) >= history.size
+                VisibleChips(
+                    visibleCount = if (allFit) history.size else countVisible(hasMore = true),
+                    hasMore = !allFit
+                )
+            }
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val shown = if (expanded) history else history.take(visible.visibleCount)
+                shown.forEach { item ->
+                    HistoryChip(
+                        text = item,
+                        style = chipStyle,
+                        managing = managing,
+                        onClick = { onSelect(item) },
+                        onLongClick = { managing = true },
+                        onDelete = { onDelete(item) }
+                    )
+                }
+                if (!expanded && visible.hasMore) {
+                    HistoryChip(
+                        text = "+",
+                        style = plusStyle,
+                        emphasized = true,
+                        onClick = { expanded = true }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HistoryChip(
+    text: String,
+    style: TextStyle,
+    emphasized: Boolean = false,
+    managing: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
+    val shake: Float
+    if (managing) {
+        val infiniteTransition = rememberInfiniteTransition(label = "shake")
+        shake = infiniteTransition.animateFloat(
+            initialValue = -1f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 120, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shakeOffset"
+        ).value
+    } else {
+        shake = 0f
+    }
+
+    val base = Modifier
+        .clip(RoundedCornerShape(16.dp))
+        .background(
+            if (emphasized) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant
+        )
+
+    Box(
+        modifier = base
+            .then(if (managing) Modifier.offset(x = (shake * 2f).dp) else Modifier)
+            .then(
+                if (managing) {
+                    Modifier.combinedClickable(onClick = {}, onLongClick = {})
+                } else {
+                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                }
+            )
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            style = style,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (emphasized) MaterialTheme.colorScheme.onPrimaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (managing) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 5.dp, y = (-5).dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.error)
+                    .clickable { onDelete?.invoke() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "删除",
+                    tint = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
     }
 }
