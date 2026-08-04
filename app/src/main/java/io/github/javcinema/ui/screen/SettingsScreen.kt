@@ -361,7 +361,7 @@ private fun DataSourceDialog(onDismiss: () -> Unit, navController: NavController
                     saved = true
                     Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
                     onDismiss()
-                    navController?.navigate(NavRoutes.HOME) {
+                    navController?.navigate(homeDestination()) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -496,7 +496,7 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                     if (reloadOnSave) {
                         JavCinema.recreateService()
                         onDismiss()
-                        navController?.navigate(NavRoutes.HOME) {
+                        navController?.navigate(homeDestination()) {
                             popUpTo(0) { inclusive = true }
                             launchSingleTop = true
                         }
@@ -521,5 +521,8 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
         }
     )
 }
+
+private fun homeDestination(): String =
+    if (Configurations.homePage == NavRoutes.SEARCH) NavRoutes.SEARCH else NavRoutes.HOME
 
 

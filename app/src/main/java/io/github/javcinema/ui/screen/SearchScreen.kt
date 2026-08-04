@@ -36,10 +36,13 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -52,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,6 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -76,6 +81,7 @@ import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.navigation.NavRoutes
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private const val HISTORY_MAX = 25
@@ -105,6 +111,8 @@ fun SearchScreen(
     val context = LocalContext.current
     var history by remember { mutableStateOf(SearchHistoryStore.load(context).take(HISTORY_MAX)) }
     val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(scrollToTopTrigger) {
         if (scrollToTopTrigger > 0) {
@@ -174,25 +182,39 @@ fun SearchScreen(
                     onValueChange = { query = it },
                     placeholder = { Text("搜索影片...") },
                     singleLine = true,
+                    shape = RoundedCornerShape(28.dp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { doSearch(query) }),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
                     ),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            focusRequester.requestFocus()
+                            if (query.isBlank()) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("请输入搜索关键字")
+                                }
+                            } else {
+                                doSearch(query)
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(focusRequester)
                 )
-                Button(
-                    onClick = {
-                        focusRequester.requestFocus()
-                        if (query.isNotBlank()) doSearch(query)
-                    },
-                    modifier = Modifier.padding(start = 8.dp)
-                ) {
-                    Text("搜索")
-                }
+                Spacer(Modifier.padding(start = 8.dp))
             }
 
             LazyVerticalGrid(
@@ -266,6 +288,13 @@ fun SearchScreen(
             }
         }
     }
+
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 16.dp)
+    )
     }
 
     dialogMovie?.let { movie ->
