@@ -8,6 +8,17 @@
 -keep,allowobfuscation,allowshrinking interface io.github.javcinema.network.AvmooApiService
 -keep,allowobfuscation,allowshrinking interface io.github.javcinema.network.BasicService
 
+# btsearch.love / btsow.live response models (populated via Gson reflection).
+-keep class io.github.javcinema.network.BtSearchResponse { *; }
+-keep class io.github.javcinema.network.BtSearchItem { *; }
+-keep class io.github.javcinema.network.BtSearchDetailResponse { *; }
+-keep class io.github.javcinema.network.BtSearchTorrentFile { *; }
+-keep class io.github.javcinema.network.BTSOSearchResponse { *; }
+-keep class io.github.javcinema.network.BTSOSearchItem { *; }
+-keep class io.github.javcinema.network.BTSOMagnetResponse { *; }
+-keep class io.github.javcinema.network.BTSOMagnetData { *; }
+-keep class io.github.javcinema.network.BTSOFile { *; }
+
 # Generic signatures are required by Gson/Retrofit for typed reflection.
 -keepattributes Signature, InnerClasses, EnclosingMethod
 -keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations, AnnotationDefault
