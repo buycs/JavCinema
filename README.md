@@ -1,6 +1,7 @@
 # JavCinema
 
-基于上游开源项目 **JAViewer**（https://github.com/SplashCodes/JAViewer）二次开发的 JAV 影片浏览应用。
+基于上游开源项目 **JAViewer** 的二次开发的 JAV 影片浏览应用。
+https://github.com/SplashCodes/JAViewer
 
 ## 特性
 
