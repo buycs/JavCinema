@@ -15,7 +15,7 @@ https://github.com/SplashCodes/JAViewer
 
 ## 版本
 
-当前版本：**0.0.1-alpha (1)**
+当前版本：**0.0.1-beta (2)**
 
 ## 构建
 
