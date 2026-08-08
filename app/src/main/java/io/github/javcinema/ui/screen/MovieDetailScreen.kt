@@ -1,5 +1,6 @@
 package io.github.javcinema.ui.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -82,7 +83,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
@@ -283,6 +283,11 @@ private fun GalleryOverlay(
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    // 悬浮查看时按返回键关闭悬浮窗
+    BackHandler {
+        onClose()
     }
 
     Box(

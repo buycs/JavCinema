@@ -1,6 +1,7 @@
 package io.github.javcinema.ui.screen
 
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
@@ -89,6 +90,10 @@ fun GalleryScreen(
             delay(3000)
             showBars = false
         }
+    }
+
+    BackHandler {
+        onClose()
     }
 
     Scaffold(
