@@ -187,7 +187,8 @@ fun MissavPlayScreen(
                         settings.javaScriptCanOpenWindowsAutomatically = false
                         settings.setSupportMultipleWindows(false)
                         settings.mediaPlaybackRequiresUserGesture = false
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        // 站点本体是 HTTPS，流探测也不依赖 HTTP 资源；不放宽混合内容，避免降级攻击面。
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             settings.safeBrowsingEnabled = true
                         }
