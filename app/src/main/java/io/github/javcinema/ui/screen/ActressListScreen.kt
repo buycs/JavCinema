@@ -37,7 +37,6 @@ import coil.compose.AsyncImage
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.ui.components.ActressFavoriteDialog
 import io.github.javcinema.ui.navigation.NavRoutes
-import java.net.URLEncoder
 
 @Composable
 fun ActressListScreen(
@@ -113,12 +112,11 @@ fun ActressListScreen(
                 ActressListItem(
                     actress = actress,
                     onClick = {
-                        val rawUrl = actress.link ?: ""
-                        val url = URLEncoder.encode(
-                            if (rawUrl.contains("/")) rawUrl else "star/$rawUrl", "UTF-8"
+                        val starId = actressStarId(actress.link)
+                        if (starId.isBlank()) return@ActressListItem
+                        navController.navigate(
+                            NavRoutes.actressDetail(starId, actress.name, actress.imageUrl)
                         )
-                        val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
-                        navController.navigate(NavRoutes.movieList(name, url))
                     },
                     onLongClick = { dialogActress = actress }
                 )

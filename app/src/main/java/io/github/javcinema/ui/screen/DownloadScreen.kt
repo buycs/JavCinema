@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,7 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.javcinema.data.model.DownloadLink
+import io.github.javcinema.data.model.MagnetFile
+import io.github.javcinema.util.copyText
 import kotlinx.coroutines.launch
 
 @Composable
@@ -51,10 +50,9 @@ fun DownloadScreen(
     keyword: String,
     viewModel: DownloadViewModel = viewModel()
 ) {
-    val btsoResults by viewModel.btsoResults.collectAsState()
-    val ciliResults by viewModel.ciliResults.collectAsState()
-    val btSearchResults by viewModel.btSearchResults.collectAsState()
-    val isSearching by viewModel.isSearching.collectAsState()
+    val btsoState by viewModel.btsoState.collectAsState()
+    val ciliState by viewModel.ciliState.collectAsState()
+    val btSearchState by viewModel.btSearchState.collectAsState()
     val magnetLink by viewModel.magnetLink.collectAsState()
     val isGettingMagnet by viewModel.isGettingMagnet.collectAsState()
     val scope = rememberCoroutineScope()
@@ -65,7 +63,6 @@ fun DownloadScreen(
             viewModel.resetSearch()
             return@LaunchedEffect
         }
-        viewModel.startSearch()
         viewModel.search(keyword, "btsearch")
         viewModel.search(keyword, "cili")
         viewModel.search(keyword, "btso")
@@ -81,13 +78,7 @@ fun DownloadScreen(
             confirmButton = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     TextButton(onClick = {
-                        try {
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("magnet-link", magnetLink))
-                            android.widget.Toast.makeText(context, "复制成功", android.widget.Toast.LENGTH_SHORT).show()
-                        } catch (_: Exception) {
-                            android.widget.Toast.makeText(context, "复制失败", android.widget.Toast.LENGTH_SHORT).show()
-                        }
+                        copyText(context, magnetLink ?: "", "已复制磁力链接")
                         viewModel.dismissMagnet()
                     }, modifier = Modifier.weight(1f)) {
                         Text("复制链接")
@@ -131,37 +122,57 @@ fun DownloadScreen(
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) { page ->
-            val results = listOf(btSearchResults, ciliResults, btsoResults).getOrElse(page) { btsoResults }
+            val uiState = listOf(btSearchState, ciliState, btsoState).getOrElse(page) { btsoState }
+            val providerName = magnetSources[page].second
 
             Box(modifier = Modifier.fillMaxSize()) {
-                if (isSearching && results.isEmpty()) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else if (results.isEmpty()) {
-                    Text(
-                        text = "未找到结果",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                LazyColumn(
-                    contentPadding = PaddingValues(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(
-                        items = results,
-                        key = { "${it.link ?: ""}_${it.title ?: ""}_${it.hashCode()}" }
-                    ) { link ->
-                        DownloadLinkItem(
-                            link = link,
-                            onMagnetClick = {
-                                val providerNames = listOf("btsearch", "cili", "btso")
-                                val providerName = providerNames.getOrElse(page) { "btso" }
-                                viewModel.getMagnetLink(link, providerName)
-                            }
+                when (val source = uiState) {
+                    MagnetSourceUi.Idle, MagnetSourceUi.Loading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    }
+                    is MagnetSourceUi.Error -> {
+                        Text(
+                            text = source.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.align(Alignment.Center).padding(16.dp)
                         )
+                    }
+                    is MagnetSourceUi.Success -> {
+                        if (source.items.isEmpty()) {
+                            Text(
+                                text = "未找到结果",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        } else {
+                            val visibleItems = source.items.filter { !isAdText(it.title) }.ifEmpty { source.items }
+                            LazyColumn(
+                                contentPadding = PaddingValues(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(
+                                    items = visibleItems,
+                                    key = { "${it.link ?: ""}_${it.title ?: ""}" }
+                                ) { link ->
+                                    DownloadLinkItem(
+                                        title = link.title,
+                                        size = link.size,
+                                        date = link.date,
+                                        files = link.files,
+                                        filesError = link.filesError,
+                                        onMagnetClick = {
+                                            viewModel.getMagnetLink(link, providerName)
+                                        },
+                                        onExpand = {
+                                            viewModel.loadFiles(link, providerName)
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -190,8 +201,13 @@ private fun formatFileSize(bytes: Long): String {
 
 @Composable
 private fun DownloadLinkItem(
-    link: DownloadLink,
+    title: String?,
+    size: String?,
+    date: String?,
+    files: List<MagnetFile>?,
+    filesError: String?,
     onMagnetClick: () -> Unit,
+    onExpand: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -207,7 +223,7 @@ private fun DownloadLinkItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = link.title ?: "",
+                    text = title ?: "",
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -217,8 +233,6 @@ private fun DownloadLinkItem(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.padding(top = 4.dp)
                 ) {
-                    val size = link.size
-                    val date = link.date
                     if (date?.isNotEmpty() == true) {
                         Text(
                             text = date,
@@ -235,7 +249,10 @@ private fun DownloadLinkItem(
                     }
                 }
             }
-            IconButton(onClick = { expanded = !expanded }) {
+            IconButton(onClick = {
+                expanded = !expanded
+                if (expanded) onExpand()
+            }) {
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "收起" else "展开"
@@ -245,35 +262,60 @@ private fun DownloadLinkItem(
 
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(start = 16.dp, top = 4.dp)) {
-                if (link.files != null) {
-                    link.files?.forEach { file ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                when {
+                    files != null -> {
+                        val visible = visibleMagnetFiles(files)
+                        val mainIndex = largestVideoIndex(visible)
+                        if (visible.isEmpty()) {
                             Text(
-                                text = file.filename,
+                                text = "没有媒体文件",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (file.size > 0) {
+                        }
+                        visible.forEachIndexed { index, file ->
+                            val isMain = index == mainIndex
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 Text(
-                                    text = formatFileSize(file.size),
+                                    text = file.filename,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontWeight = if (isMain) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isMain) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
                                 )
+                                if (file.size > 0) {
+                                    Text(
+                                        text = formatFileSize(file.size),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
-                } else {
-                    Text(
-                        text = "加载中...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    filesError != null -> {
+                        Text(
+                            text = filesError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = "加载中...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

@@ -14,13 +14,16 @@ fun Movie.toggleStar() {
         link = this@toggleStar.link
         coverUrl = this@toggleStar.coverUrl
         date = this@toggleStar.date
-        dataSourceName = JavCinema.getDataSource()?.name
+        dataSourceName = this@toggleStar.dataSourceName ?: JavCinema.getDataSource()?.name
     }
-    if (config.starredMovies?.contains(m) == true) {
-        config.starredMovies?.remove(m)
+    val movies = config.starredMovies ?: return
+    val existing = movies.firstOrNull { sameFavoriteMovie(it, m) }
+    if (existing != null) {
+        movies.remove(existing)
     } else {
-        config.starredMovies?.add(0, m)
+        movies.add(0, m)
     }
+    JavCinema.favoritesVersionFlow.value++
 }
 class Movie : Linkable() {
 
@@ -47,13 +50,13 @@ class Movie : Linkable() {
     }
 
     override fun equals(other: Any?): Boolean {
-        if (super.equals(other)) return true
-        if (other is Movie) return this.code == other.code
-        return false
+        if (this === other) return true
+        if (other !is Movie) return false
+        return sameFavoriteMovie(this, other)
     }
 
     override fun hashCode(): Int {
-        return code?.hashCode() ?: 0
+        return movieFavoriteKey(code, dataSourceName).hashCode()
     }
 
     override fun toString(): String {

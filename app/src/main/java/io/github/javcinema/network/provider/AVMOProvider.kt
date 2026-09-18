@@ -158,6 +158,7 @@ object AVMOProvider {
                 coverUrl = api.posterSmall
                 date = api.releaseDate
                 link = api.movieId
+                dataSourceName = JavCinema.getDataSource()?.name
             }
         }
     }

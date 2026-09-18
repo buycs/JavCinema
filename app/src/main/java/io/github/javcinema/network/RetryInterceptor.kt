@@ -6,30 +6,38 @@ import okhttp3.Response
 import java.io.IOException
 
 class RetryInterceptor(
-    private val maxRetries: Int = 2,
-    private val baseDelayMs: Long = 500
+    private val maxRetries: Int = 2
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
-        var attempt = 0
+        var retryCount = 0
         while (true) {
             val request = chain.request()
             val response = try {
                 chain.proceed(request)
             } catch (e: IOException) {
-                if (attempt >= maxRetries) throw e
-                attempt++
-                if (e.message?.contains("Canceled", ignoreCase = true) == true) throw e
-                Log.w("RetryInterceptor", "IOException retry ${attempt}/${maxRetries}: ${request.url} - ${e.message}")
-                Thread.sleep(baseDelayMs * attempt)
+                val canceled = chain.call().isCanceled() ||
+                    e.message?.contains("Canceled", ignoreCase = true) == true
+                if (!shouldRetry(request.method, null, true, canceled, retryCount, maxRetries)) {
+                    throw e
+                }
+                retryCount++
+                Log.w("RetryInterceptor", "IOException retry $retryCount/$maxRetries: ${request.url} - ${e.message}")
                 continue
             }
 
-            if (response.code in RETRYABLE_STATUS && attempt < maxRetries) {
+            if (shouldRetry(
+                    request.method,
+                    response.code,
+                    false,
+                    chain.call().isCanceled(),
+                    retryCount,
+                    maxRetries
+                )
+            ) {
                 response.close()
-                attempt++
-                Log.w("RetryInterceptor", "HTTP ${response.code} retry ${attempt}/${maxRetries}: ${request.url}")
-                Thread.sleep(baseDelayMs * attempt)
+                retryCount++
+                Log.w("RetryInterceptor", "HTTP ${response.code} retry $retryCount/$maxRetries: ${request.url}")
                 continue
             }
             return response
@@ -37,6 +45,21 @@ class RetryInterceptor(
     }
 
     companion object {
-        private val RETRYABLE_STATUS = setOf(502, 503, 504, 429)
+        private val RETRYABLE_STATUS = setOf(429, 502, 503, 504)
+
+        fun shouldRetry(
+            method: String,
+            httpCode: Int?,
+            ioFailed: Boolean,
+            canceled: Boolean,
+            retryCount: Int,
+            maxRetries: Int = 2
+        ): Boolean {
+            if (canceled) return false
+            if (retryCount >= maxRetries) return false
+            if (!method.equals("GET", ignoreCase = true)) return false
+            if (ioFailed) return true
+            return httpCode != null && httpCode in RETRYABLE_STATUS
+        }
     }
 }

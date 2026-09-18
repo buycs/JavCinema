@@ -2,6 +2,8 @@ package io.github.javcinema.player
 
 import android.view.SurfaceView
 import android.view.ViewGroup
+import android.webkit.CookieManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -51,6 +54,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun PlayerScreen(
     url: String,
+    referer: String = "",
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit = {}
 ) {
@@ -59,11 +63,21 @@ fun PlayerScreen(
     val playerController = remember { SimpleVideoPlayer(context) }
     var progress by remember { mutableFloatStateOf(0f) }
 
+    // 站点直链通常校验来源，带上 Referer 与会话 Cookie 才可能放行。
+    fun streamHeaders(): Map<String, String> = buildMap {
+        if (referer.isNotBlank()) put("Referer", referer)
+        CookieManager.getInstance().getCookie(url)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { put("Cookie", it) }
+    }
+
     LaunchedEffect(url) {
         if (url.isNotBlank()) {
-            exoPlayer.prepare(context, url)
+            exoPlayer.prepare(context, url, streamHeaders())
         }
     }
+
+    BackHandler { onBackClick() }
 
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
@@ -168,6 +182,19 @@ fun PlayerScreen(
             }
         )
 
+        IconButton(
+            onClick = onBackClick,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "返回",
+                tint = Color.White
+            )
+        }
+
         when (playerController.playbackState) {
             PlayerPlaybackState.BUFFERING -> {
                 CircularProgressIndicator(
@@ -191,7 +218,7 @@ fun PlayerScreen(
                         contentDescription = "重试",
                         tint = Color.White,
                         modifier = Modifier.size(48.dp).clickable {
-                            exoPlayer.prepare(context, url)
+                            exoPlayer.prepare(context, url, streamHeaders())
                         }
                     )
                     Spacer(Modifier.height(8.dp))

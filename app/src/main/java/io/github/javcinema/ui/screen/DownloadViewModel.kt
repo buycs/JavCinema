@@ -4,35 +4,34 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.javcinema.data.model.DownloadLink
 import io.github.javcinema.data.model.MagnetFile
+import io.github.javcinema.data.model.MagnetLink
 import io.github.javcinema.network.provider.BTSOLinkProvider
 import io.github.javcinema.network.provider.BtSearchLinkProvider
 import io.github.javcinema.network.provider.CiliInfoLinkProvider
 import io.github.javcinema.network.provider.DownloadLinkProvider
-import org.jsoup.Jsoup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jsoup.Jsoup
+import java.util.concurrent.ConcurrentHashMap
 
 class DownloadViewModel : ViewModel() {
     private val btsoProvider = BTSOLinkProvider()
     private val ciliProvider = CiliInfoLinkProvider()
     private val btSearchProvider = BtSearchLinkProvider()
+    private val loadingFiles = ConcurrentHashMap.newKeySet<String>()
 
-    private val _btsoResults = MutableStateFlow<List<DownloadLink>>(emptyList())
-    val btsoResults: StateFlow<List<DownloadLink>> = _btsoResults.asStateFlow()
+    private val _btsoState = MutableStateFlow<MagnetSourceUi>(MagnetSourceUi.Idle)
+    val btsoState: StateFlow<MagnetSourceUi> = _btsoState.asStateFlow()
 
-    private val _ciliResults = MutableStateFlow<List<DownloadLink>>(emptyList())
-    val ciliResults: StateFlow<List<DownloadLink>> = _ciliResults.asStateFlow()
+    private val _ciliState = MutableStateFlow<MagnetSourceUi>(MagnetSourceUi.Idle)
+    val ciliState: StateFlow<MagnetSourceUi> = _ciliState.asStateFlow()
 
-    private val _btSearchResults = MutableStateFlow<List<DownloadLink>>(emptyList())
-    val btSearchResults: StateFlow<List<DownloadLink>> = _btSearchResults.asStateFlow()
-
-    private val _searchCount = java.util.concurrent.atomic.AtomicInteger(0)
-    private val _isSearching = MutableStateFlow(false)
-    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+    private val _btSearchState = MutableStateFlow<MagnetSourceUi>(MagnetSourceUi.Idle)
+    val btSearchState: StateFlow<MagnetSourceUi> = _btSearchState.asStateFlow()
 
     private val _magnetLink = MutableStateFlow<String?>(null)
     val magnetLink: StateFlow<String?> = _magnetLink.asStateFlow()
@@ -42,75 +41,89 @@ class DownloadViewModel : ViewModel() {
 
     fun search(keyword: String, providerName: String) {
         if (keyword.isBlank()) return
+        val state = sourceState(providerName)
         viewModelScope.launch {
-            _searchCount.incrementAndGet()
-            _isSearching.value = true
+            state.value = MagnetSourceUi.Loading
             try {
-                when (providerName.lowercase()) {
-                    "btsearch" -> {
-                        val results = withContext(Dispatchers.IO) { btSearchProvider.searchApi(keyword, 1) }
-                        withContext(Dispatchers.IO) {
-                            results.forEach { link ->
-                                try {
-                                    val id = link.link ?: return@forEach
-                                    val kw = link.title ?: return@forEach
-                                    val detail = btSearchProvider.getDetail(id, kw)
-                                    val torrentFiles = detail?.torrentfile
-                                    if (torrentFiles != null) {
-                                        link.files = btSearchProvider.parseFilesFromTorrentFiles(torrentFiles)
-                                    }
-                                } catch (_: Exception) { }
-                            }
+                val results = withContext(Dispatchers.IO) {
+                    when (providerName.lowercase()) {
+                        "btsearch" -> btSearchProvider.searchApi(keyword, 1)
+                        "btso" -> btsoProvider.searchApi(keyword, 1)
+                        "ciliinfo", "cili" -> {
+                            val response = ciliProvider.search(keyword, 1)
+                            val html = response.string()
+                            ciliProvider.parseDownloadLinks(html)
                         }
-                        _btSearchResults.value = results
-                    }
-                    "btso" -> {
-                        val results = withContext(Dispatchers.IO) { btsoProvider.searchApi(keyword, 1) }
-                        withContext(Dispatchers.IO) {
-                            results.forEach { link ->
-                                val hash = link.link ?: return@forEach
-                                val files = btsoProvider.getMagnetDetail(hash)
-                                if (files.isNotEmpty()) {
-                                    link.files = files
-                                }
-                            }
-                        }
-                        _btsoResults.value = results
-                    }
-                    "ciliinfo", "cili" -> {
-                        val provider = getProvider(providerName)
-                        val response = withContext(Dispatchers.IO) { provider.search(keyword, 1) }
-                        val html = withContext(Dispatchers.IO) { response?.string() ?: "" }
-                        val results = withContext(Dispatchers.IO) { provider.parseDownloadLinks(html) }
-                        withContext(Dispatchers.IO) {
-                            results.forEach { link ->
-                                try {
-                                    val detailUrl = link.link ?: return@forEach
-                                    val detailResponse = ciliProvider.get(detailUrl)
-                                    val detailHtml = detailResponse?.string() ?: return@forEach
-                                    val magnet = ciliProvider.parseMagnetLink(detailHtml)
-                                    link.magnetLink = magnet
-                                    val doc = Jsoup.parse(detailHtml)
-                                    val dateEl = doc.select("dt:contains(发布日期)").first()?.nextElementSibling()
-                                    val date = dateEl?.text()?.trim() ?: ""
-                                    if (date.isNotEmpty()) link.date = date
-                                    val files = ciliProvider.parseFiles(detailHtml)
-                                    link.files = files.ifEmpty {
-                                        listOf(MagnetFile().apply {
-                                            filename = link.title ?: magnet?.magnetLink ?: ""
-                                        })
-                                    }
-                                } catch (_: Exception) { }
-                            }
-                        }
-                        _ciliResults.value = results
+                        else -> emptyList()
                     }
                 }
-            } catch (_: Exception) {
+                state.value = toMagnetSourceUi(true, results, null)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                state.value = toMagnetSourceUi(false, emptyList(), e.message)
+            }
+        }
+    }
+
+    fun loadFiles(link: DownloadLink, providerName: String) {
+        val key = itemKey(link)
+        if (!shouldLoadFiles(link.files, loadingFiles.contains(key))) return
+        loadingFiles.add(key)
+        viewModelScope.launch {
+            try {
+                val loaded = withContext(Dispatchers.IO) {
+                    when (providerName.lowercase()) {
+                        "btsearch" -> {
+                            val id = link.link ?: throw IllegalStateException("缺少资源 id")
+                            val keyword = link.title ?: throw IllegalStateException("缺少标题")
+                            val detail = btSearchProvider.getDetail(id, keyword)
+                            val torrentFiles = detail?.torrentfile
+                                ?: throw IllegalStateException("未获取到文件列表")
+                            LoadedFiles(btSearchProvider.parseFilesFromTorrentFiles(torrentFiles))
+                        }
+                        "btso" -> {
+                            val hash = link.link ?: throw IllegalStateException("缺少 hash")
+                            val files = btsoProvider.getMagnetDetail(hash)
+                            LoadedFiles(files.ifEmpty { throw IllegalStateException("未获取到文件列表") })
+                        }
+                        "ciliinfo", "cili" -> {
+                            val detailUrl = link.link ?: throw IllegalStateException("缺少详情地址")
+                            val detailResponse = ciliProvider.get(detailUrl)
+                            val detailHtml = detailResponse.string()
+                            val magnet = ciliProvider.parseMagnetLink(detailHtml)
+                            val dateEl = Jsoup.parse(detailHtml)
+                                .select("dt:contains(发布日期)")
+                                .first()
+                                ?.nextElementSibling()
+                            val date = dateEl?.text()?.trim().orEmpty()
+                            LoadedFiles(
+                                files = ciliProvider.parseFiles(detailHtml).ifEmpty {
+                                    listOf(MagnetFile().apply {
+                                        filename = link.title ?: magnet.magnetLink ?: ""
+                                    })
+                                },
+                                magnetLink = magnet,
+                                date = date.takeIf { it.isNotEmpty() }
+                            )
+                        }
+                        else -> throw IllegalStateException("未知磁力源")
+                    }
+                }
+                replaceItem(providerName, key) { item ->
+                    item.copy(
+                        files = loaded.files,
+                        filesError = null,
+                        magnetLink = loaded.magnetLink ?: item.magnetLink,
+                        date = loaded.date ?: item.date
+                    )
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                replaceItem(providerName, key) { item ->
+                    item.copy(filesError = e.message?.takeIf { it.isNotBlank() } ?: "加载失败")
+                }
             } finally {
-                if (_searchCount.decrementAndGet() <= 0) {
-                    _isSearching.value = false
-                }
+                loadingFiles.remove(key)
             }
         }
     }
@@ -130,60 +143,9 @@ class DownloadViewModel : ViewModel() {
                 val html = withContext(Dispatchers.IO) { response?.string() ?: "" }
                 val magnet = withContext(Dispatchers.IO) { provider.parseMagnetLink(html) }
                 _magnetLink.value = magnet?.magnetLink
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _magnetLink.value = null
-            } finally {
-                _isGettingMagnet.value = false
-            }
-        }
-    }
-
-    fun loadBtSearchDetail(link: DownloadLink) {
-        viewModelScope.launch {
-            val id = link.link ?: return@launch
-            val keyword = link.title ?: return@launch
-            try {
-                val detail = withContext(Dispatchers.IO) { btSearchProvider.getDetail(id, keyword) }
-                val torrentFiles = detail?.torrentfile
-                if (torrentFiles != null) {
-                    val files = btSearchProvider.parseFilesFromTorrentFiles(torrentFiles)
-                    link.files = files
-                }
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    fun loadBTSODetail(link: DownloadLink) {
-        viewModelScope.launch {
-            val hash = link.link ?: return@launch
-            try {
-                val files = withContext(Dispatchers.IO) { btsoProvider.getMagnetDetail(hash) }
-                if (files.isNotEmpty()) {
-                    link.files = files
-                }
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    fun getMagnetLinkInline(link: DownloadLink) {
-        viewModelScope.launch {
-            if (link.files != null) return@launch
-            _isGettingMagnet.value = true
-            try {
-                val detailUrl = link.link ?: return@launch
-                val response = withContext(Dispatchers.IO) { ciliProvider.get(detailUrl) }
-                val html = withContext(Dispatchers.IO) { response?.string() ?: "" }
-                val magnet = withContext(Dispatchers.IO) { ciliProvider.parseMagnetLink(html) }
-                link.magnetLink = magnet
-                val files = withContext(Dispatchers.IO) { ciliProvider.parseFiles(html) }
-                link.files = files.ifEmpty {
-                    listOf(io.github.javcinema.data.model.MagnetFile().apply {
-                        filename = link.title ?: magnet?.magnetLink ?: ""
-                    })
-                }
-            } catch (_: Exception) {
             } finally {
                 _isGettingMagnet.value = false
             }
@@ -194,17 +156,42 @@ class DownloadViewModel : ViewModel() {
         _magnetLink.value = null
     }
 
-    fun startSearch() {
-        _isSearching.value = true
+    fun resetSearch() {
+        _btSearchState.value = MagnetSourceUi.Idle
+        _ciliState.value = MagnetSourceUi.Idle
+        _btsoState.value = MagnetSourceUi.Idle
     }
 
-    fun resetSearch() {
-        _searchCount.set(0)
-        _isSearching.value = false
-        _btSearchResults.value = emptyList()
-        _ciliResults.value = emptyList()
-        _btsoResults.value = emptyList()
+    private fun sourceState(providerName: String): MutableStateFlow<MagnetSourceUi> {
+        return when (providerName.lowercase()) {
+            "btsearch" -> _btSearchState
+            "ciliinfo", "cili" -> _ciliState
+            else -> _btsoState
+        }
     }
+
+    private fun itemKey(link: DownloadLink): String =
+        "${link.link.orEmpty()}|${link.title.orEmpty()}"
+
+    private fun replaceItem(
+        providerName: String,
+        key: String,
+        transform: (DownloadLink) -> DownloadLink
+    ) {
+        val state = sourceState(providerName)
+        val current = state.value as? MagnetSourceUi.Success ?: return
+        state.value = MagnetSourceUi.Success(
+            current.items.map { item ->
+                if (itemKey(item) == key) transform(item) else item
+            }
+        )
+    }
+
+    private data class LoadedFiles(
+        val files: List<MagnetFile>,
+        val magnetLink: MagnetLink? = null,
+        val date: String? = null
+    )
 
     private fun getProvider(name: String): DownloadLinkProvider {
         return when (name.lowercase()) {

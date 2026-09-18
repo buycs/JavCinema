@@ -1,8 +1,5 @@
 package io.github.javcinema.ui.components
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
@@ -16,6 +13,7 @@ import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.data.model.toggleStar
+import io.github.javcinema.util.copyText
 
 @Composable
 fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
@@ -35,9 +33,7 @@ fun MovieFavoriteDialog(movie: Movie, onDismiss: () -> Unit) {
         text = {
             Column {
                 TextButton(onClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("code", movie.code ?: ""))
-                    Toast.makeText(context, "已复制番号", Toast.LENGTH_SHORT).show()
+                    copyText(context, movie.code ?: "")
                     onDismiss()
                 }) {
                     Text("复制番号", style = MaterialTheme.typography.bodyLarge)
@@ -73,9 +69,7 @@ fun ActressFavoriteDialog(actress: Actress, onDismiss: () -> Unit) {
         text = {
             Column {
                 TextButton(onClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("name", actress.name ?: ""))
-                    Toast.makeText(context, "已复制女优", Toast.LENGTH_SHORT).show()
+                    copyText(context, actress.name ?: "", "已复制女优")
                     onDismiss()
                 }) {
                     Text("复制女优", style = MaterialTheme.typography.bodyLarge)

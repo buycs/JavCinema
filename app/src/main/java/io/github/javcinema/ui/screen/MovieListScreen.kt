@@ -2,6 +2,7 @@ package io.github.javcinema.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +12,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
+import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
@@ -39,11 +43,14 @@ fun MovieListScreen(
     title: String,
     url: String,
     viewModel: MovieListViewModel = viewModel(),
-    scrollToTopTrigger: Long = 0L
+    scrollToTopTrigger: Long = 0L,
+    enableSwipeBack: Boolean = true
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val uiPrefsVersion by JavCinema.uiPrefsVersionFlow.collectAsState()
+    val gridColumns = if (uiPrefsVersion >= 0) Configurations.gridColumns.coerceIn(2, 4) else 3
     var savedIndex by rememberSaveable { mutableIntStateOf(0) }
     var savedOffset by rememberSaveable { mutableIntStateOf(0) }
     val gridState = rememberLazyGridState(
@@ -90,44 +97,94 @@ fun MovieListScreen(
         savedOffset = gridState.firstVisibleItemScrollOffset
     }
 
-    SwipeBackContainer(
-        onBack = { navController.popBackStack() },
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            state = gridState,
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            items(
-                items = movies,
-                key = { it.code?.let { c -> it.link?.let { l -> "$c-$l" } ?: c } ?: it.hashCode().toString() }
-            ) { movie ->
-                MovieCard(
-                    movie = movie,
-                    onClick = {
-                        navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl))
-                    },
-                    onLongClick = { dialogMovie = movie }
-                )
-            }
-
-            if (isLoadingMore) {
-                item {
+    val listContent = @Composable {
+        when (uiState) {
+            is MovieListUiState.Loading -> {
+                if (movies.isEmpty()) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
                     }
                 }
             }
+            is MovieListUiState.Error -> {
+                if (movies.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = (uiState as MovieListUiState.Error).message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            }
+            is MovieListUiState.Success -> {
+                if (movies.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "暂无数据")
+                    }
+                }
+            }
+        }
+
+        if (movies.isNotEmpty()) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(gridColumns),
+                state = gridState,
+                contentPadding = PaddingValues(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(
+                    items = movies,
+                    key = { it.code?.let { c -> it.link?.let { l -> "$c-$l" } ?: c } ?: it.hashCode().toString() }
+                ) { movie ->
+                    MovieCard(
+                        movie = movie,
+                        onClick = {
+                            navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl))
+                        },
+                        onLongClick = { dialogMovie = movie }
+                    )
+                }
+
+                if (isLoadingMore) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (enableSwipeBack) {
+        SwipeBackContainer(
+            onBack = { navController.popBackStack() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            listContent()
+        }
+    } else {
+        Box(modifier = Modifier.fillMaxSize()) {
+            listContent()
         }
     }
 

@@ -11,6 +11,7 @@ class DownloadLink : Linkable() {
     var magnetLink: MagnetLink? = null
     var files: List<MagnetFile>? = null
     var filesExpanded: Boolean = false
+    var filesError: String? = null
 
     companion object {
         fun create(title: String, size: String, date: String, link: String?, magnetLinkStr: String?): DownloadLink {
@@ -30,5 +31,23 @@ class DownloadLink : Linkable() {
 
     fun setMagnetLink(link: String) {
         magnetLink = MagnetLink.create(link)
+    }
+
+    fun copy(
+        files: List<MagnetFile>? = this.files,
+        filesError: String? = this.filesError,
+        magnetLink: MagnetLink? = this.magnetLink,
+        date: String? = this.date
+    ): DownloadLink {
+        return DownloadLink().also { copy ->
+            copy.title = title
+            copy.size = size
+            copy.date = date
+            copy.link = link
+            copy.magnetLink = magnetLink
+            copy.files = files
+            copy.filesExpanded = filesExpanded
+            copy.filesError = filesError
+        }
     }
 }

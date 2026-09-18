@@ -24,13 +24,13 @@ open class Actress : Linkable() {
     }
 
     override fun equals(other: Any?): Boolean {
-        if (super.equals(other)) return true
-        if (other is Actress) return this.name == other.name
-        return false
+        if (this === other) return true
+        if (other !is Actress) return false
+        return sameFavoriteActress(this, other)
     }
 
     override fun hashCode(): Int {
-        return name?.hashCode() ?: 0
+        return actressFavoriteKey(name, dataSourceName).hashCode()
     }
 }
 
@@ -40,11 +40,14 @@ fun Actress.toggleStar() {
         name = this@toggleStar.name
         imageUrl = this@toggleStar.imageUrl
         link = this@toggleStar.link
-        dataSourceName = JavCinema.getDataSource()?.name
+        dataSourceName = this@toggleStar.dataSourceName ?: JavCinema.getDataSource()?.name
     }
-    if (config.starredActresses?.contains(a) == true) {
-        config.starredActresses?.remove(a)
+    val actresses = config.starredActresses ?: return
+    val existing = actresses.firstOrNull { sameFavoriteActress(it, a) }
+    if (existing != null) {
+        actresses.remove(existing)
     } else {
-        config.starredActresses?.add(0, a)
+        actresses.add(0, a)
     }
+    JavCinema.favoritesVersionFlow.value++
 }

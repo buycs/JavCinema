@@ -7,8 +7,12 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import io.github.javcinema.JavCinema
+import io.github.javcinema.data.model.Configurations
 
 private val LightColorScheme = lightColorScheme(
     primary = OrangePrimary,
@@ -46,16 +50,23 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun JavCinemaTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val prefsVersion by JavCinema.uiPrefsVersionFlow.collectAsState()
+    val themeMode = if (prefsVersion >= 0) Configurations.themeMode else "system"
+    val resolvedDark = darkTheme ?: when (themeMode) {
+        "dark" -> true
+        "light" -> false
+        else -> isSystemInDarkTheme()
+    }
+    val colorScheme = if (resolvedDark) DarkColorScheme else LightColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !resolvedDark
         }
     }
 

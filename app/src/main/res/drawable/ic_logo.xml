@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  启动页标志：胶片框 + 播放键 + JAV 字标。
+  画布 144x144。胶片框与播放键保持原设计，仅重绘下方字标。
+
+  字标规格（修正原版笔画过细、间距不匀的问题）：
+  - 笔画统一 11 单位宽，圆角收笔；
+  - 字母高度 y=76..102，间距均匀；
+  - 三字母整体居中：J x=30..48、A x=58..86、V x=96..120。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="144dp"
-    android:height="144dp"
+    android:width="200dp"
+    android:height="200dp"
     android:viewportWidth="144"
     android:viewportHeight="144">
 
+    <!-- ===== 胶片框（原设计）===== -->
     <path
         android:fillColor="#ffffff"
         android:fillType="evenOdd"
@@ -12,63 +22,44 @@
 M32,14h6v5h-6z M32,22h6v5h-6z M32,30h6v5h-6z M32,38h6v5h-6z M32,46h6v5h-6z
 M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z" />
 
+    <!-- ===== 播放键（原设计）===== -->
     <path
         android:fillColor="@color/colorPrimary"
         android:pathData="M58,21 L86,34 L58,47 z" />
 
+    <!-- ===== JAV 字标 ===== -->
+
+    <!-- J：竖笔自上而下，底部以直角圆弧左钩（不用大 C 弯，避免像数字 3） -->
     <path
         android:strokeColor="#ffffff"
-        android:strokeWidth="5"
+        android:strokeWidth="12"
+        android:strokeLineCap="butt"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M50,78 L50,96 A7,7 0 0 1 43,103 L38,103" />
+
+    <!-- A：左右斜撑，顶点圆角 -->
+    <path
+        android:strokeColor="#ffffff"
+        android:strokeWidth="12"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="@android:color/transparent"
-        android:pathData="M20,76 L28,76 M24,76 L24,92 C24,95 22,96 20,95" />
+        android:pathData="M62,103 L72,79 L82,103" />
+    <!-- A：横杠上移至视觉中线 -->
     <path
         android:strokeColor="#ffffff"
-        android:strokeWidth="5"
+        android:strokeWidth="11"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent"
-        android:pathData="M29,86 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 M39,86 L39,97" />
+        android:pathData="M66,91 L78,91" />
+
+    <!-- V：两斜撑交汇于底，顶点圆角 -->
     <path
         android:strokeColor="#ffffff"
-        android:strokeWidth="5"
+        android:strokeWidth="12"
         android:strokeLineCap="round"
+        android:strokeLineJoin="round"
         android:fillColor="@android:color/transparent"
-        android:pathData="M43,76 L48,94 L53,76" />
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M60,76 A11,11 0 1 0 60,98" />
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M68,73 L68,75 M68,81 L68,97" />
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M73,97 L73,83 C73,79 81,79 81,83 L81,97" />
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M90,86 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 M86,86 L94,86" />
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M101,97 L101,83 C101,79 105,79 105,83 L105,88 C105,84 109,84 109,88 L109,97" />
-    <path
-        android:strokeColor="#ffffff"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M114,86 a5,5 0 1 1 10,0 a5,5 0 1 1 -10,0 M124,86 L124,97" />
+        android:pathData="M94,79 L104,103 L114,79" />
 </vector>

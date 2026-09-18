@@ -1,6 +1,7 @@
 package io.github.javcinema
 
-import android.app.Application
-import android.test.ApplicationTestCase
-
-class ApplicationTest : ApplicationTestCase<Application>(Application::class.java)
+/**
+ * Instrumentation placeholder. ApplicationTestCase was removed because
+ * that API is no longer on the AndroidX test classpath.
+ */
+class ApplicationTest

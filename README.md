@@ -7,15 +7,19 @@ https://github.com/SplashCodes/JAViewer
 
 - 多数据源切换，数据源地址可动态配置
 - 磁力搜索多源并发，可自定义磁力源地址
-- 在线播放（Media3 ExoPlayer）、收藏、女优浏览、类型分类
-- 100% Kotlin + Jetpack Compose + Material 3，单 Activity + Compose Navigation
+- 收藏、女优浏览、类型分类
+- Kotlin + Jetpack Compose + Material 3（StartActivity 引导启动，MainActivity 承载 Compose Navigation）
 - Coil 图片加载、封面预取、共享磁盘缓存、HTTP 重试拦截器
 - 图库查看、保存到相册
 - ABI 拆分包（arm64-v8a / armeabi-v7a / x86_64），命名 APK 产物
 
 ## 版本
 
-当前版本：**0.0.1-beta (2)**
+当前版本：**0.3.0 (5)**
+
+## 后续
+
+- 播放：现在详情页「播放」仍走 MissAV WebView（搜番号、过人机、选片后由站点播放器播放）。站点页面广告多，后续改成原生选片页，并在已验证会话里取流交给本地 Media3 播放器。
 
 ## 构建
 

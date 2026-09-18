@@ -3,8 +3,6 @@ package io.github.javcinema.ui.screen
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import coil.imageLoader
-import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.AvmooMovieListResponse
 import io.github.javcinema.data.model.Movie
@@ -42,25 +40,8 @@ class HomeViewModel : ViewModel() {
     private var hasMore = true
     private var section: String = ""
     private var loadJob: kotlinx.coroutines.Job? = null
+    private var moreJob: kotlinx.coroutines.Job? = null
     private var lastVersion: Int = -1
-
-    private fun preloadCovers(movies: List<Movie>) {
-        val urls = movies.mapNotNull { it.coverUrl }
-        if (urls.isEmpty()) return
-        val loader = runCatching { JavCinema.instance.imageLoader }.getOrNull() ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            urls.forEach { url ->
-                try {
-                    loader.enqueue(ImageRequest.Builder(JavCinema.instance)
-                        .data(url)
-                        .memoryCacheKey(url)
-                        .build())
-                } catch (e: Exception) {
-                    Log.w("HomeViewModel", "preload failed: $url - ${e.message}")
-                }
-            }
-        }
-    }
 
     init {
         viewModelScope.launch {
@@ -84,6 +65,8 @@ class HomeViewModel : ViewModel() {
         isRefreshing = true
         currentPage = 1
         hasMore = true
+        moreJob?.cancel()
+        _isLoadingMore.value = false
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
@@ -92,12 +75,15 @@ class HomeViewModel : ViewModel() {
     }
 
     fun loadMore() {
-        if (_isLoadingMore.value || !hasMore) return
+        if (!shouldStartLoadMore(_isLoadingMore.value, hasMore, loadJob?.isActive == true)) return
         _isLoadingMore.value = true
-        loadJob?.cancel()
-        loadJob = viewModelScope.launch {
-            loadPage(currentPage + 1)
-            _isLoadingMore.value = false
+        moreJob?.cancel()
+        moreJob = viewModelScope.launch {
+            try {
+                loadPage(currentPage + 1)
+            } finally {
+                _isLoadingMore.value = false
+            }
         }
     }
 
@@ -113,6 +99,7 @@ class HomeViewModel : ViewModel() {
                 loadPageFromHtml(page)
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e("HomeViewModel", "loadPage error: ${e.message}", e)
             _uiState.value = HomeUiState.Error(e.message ?: "Unknown error")
             isRefreshing = false
@@ -141,7 +128,6 @@ class HomeViewModel : ViewModel() {
         if (apiMovies.isEmpty()) {
             hasMore = false
         }
-        preloadCovers(parsed)
 
         if (isRefreshing || page == 1) {
             _movies.value = parsed
@@ -179,7 +165,6 @@ class HomeViewModel : ViewModel() {
         if (parsed.isEmpty()) {
             hasMore = false
         }
-        preloadCovers(parsed)
 
         if (isRefreshing || page == 1) {
             _movies.value = parsed

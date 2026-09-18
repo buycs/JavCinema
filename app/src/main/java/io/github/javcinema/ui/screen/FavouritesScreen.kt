@@ -1,8 +1,5 @@
 package io.github.javcinema.ui.screen
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,11 +51,11 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
-import io.github.javcinema.data.model.DataSource
+import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.navigation.NavRoutes
-import java.net.URLEncoder
+import io.github.javcinema.util.copyText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +66,9 @@ fun FavouritesScreen(
     val context = LocalContext.current
     val starredMovies = remember { mutableStateOf(emptyList<Movie>()) }
     val starredActresses = remember { mutableStateOf(emptyList<Actress>()) }
+    val favoritesVersion by JavCinema.favoritesVersionFlow.collectAsState()
+    val uiPrefsVersion by JavCinema.uiPrefsVersionFlow.collectAsState()
+    val gridColumns = if (uiPrefsVersion >= 0) Configurations.gridColumns.coerceIn(2, 4) else 3
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
     var showItemDialog by remember { mutableStateOf(false) }
@@ -80,7 +80,7 @@ fun FavouritesScreen(
     val moviesGridState = rememberLazyGridState()
     val actressesListState = rememberLazyListState()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(favoritesVersion) {
         val movies = io.github.javcinema.JavCinema.CONFIGURATIONS?.starredMovies?.toList() ?: emptyList()
         val actresses = io.github.javcinema.JavCinema.CONFIGURATIONS?.starredActresses?.toList() ?: emptyList()
         starredMovies.value = movies
@@ -132,6 +132,7 @@ fun FavouritesScreen(
             }
         }
         config.save()
+        JavCinema.favoritesVersionFlow.value++
         Toast.makeText(context, "已取消收藏", Toast.LENGTH_SHORT).show()
     }
 
@@ -155,9 +156,7 @@ fun FavouritesScreen(
                 text = {
                     Column {
                         TextButton(onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("code", movie.code ?: ""))
-                            Toast.makeText(context, "已复制番号", Toast.LENGTH_SHORT).show()
+                            copyText(context, movie.code ?: "")
                             showItemDialog = false
                             dialogMovieItem = null
                         }) {
@@ -189,9 +188,7 @@ fun FavouritesScreen(
                 text = {
                     Column {
                         TextButton(onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("name", actress.name ?: ""))
-                            Toast.makeText(context, "已复制女优", Toast.LENGTH_SHORT).show()
+                            copyText(context, actress.name ?: "", "已复制女优")
                             showItemDialog = false
                             dialogActressItem = null
                         }) {
@@ -276,20 +273,24 @@ fun FavouritesScreen(
 
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.weight(1f).fillMaxWidth()
         ) { page ->
             when (page) {
                 0 -> {
-                    if (starredMovies.value.isEmpty()) {
+                    val filteredMovies = starredMovies.value
+                    if (filteredMovies.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("暂无收藏的影片", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "暂无收藏的影片",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     } else {
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
+                            columns = GridCells.Fixed(gridColumns),
                             state = moviesGridState,
                             contentPadding = PaddingValues(8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -297,8 +298,8 @@ fun FavouritesScreen(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(
-                                items = starredMovies.value,
-                                key = { "${it.code ?: ""}_${it.link ?: ""}_${it.hashCode()}" }
+                                items = filteredMovies,
+                                key = { "${it.dataSourceName ?: ""}_${it.code ?: ""}_${it.link ?: ""}" }
                             ) { movie ->
                                 MovieCard(
                                     movie = movie,
@@ -307,18 +308,14 @@ fun FavouritesScreen(
                                         if (movie.dataSourceName != null && currentSource != null && movie.dataSourceName != currentSource) {
                                             pendingSwitchSourceName = movie.dataSourceName
                                             pendingSwitchNavigate = {
-                                                val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
-                                                val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
-                                                navController.navigate(NavRoutes.movieDetail(code, link, movie.coverUrl)) {
+                                                navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl)) {
                                                     popUpTo(0) { inclusive = true }
                                                     launchSingleTop = true
                                                 }
                                             }
                                             showDataSourceSwitchDialog = true
                                         } else {
-                                            val code = URLEncoder.encode(movie.code ?: "", "UTF-8")
-                                            val link = movie.link?.let { URLEncoder.encode(it, "UTF-8") }
-                                            navController.navigate(NavRoutes.movieDetail(code, link, movie.coverUrl))
+                                            navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl))
                                         }
                                     },
                                     onLongClick = {
@@ -332,12 +329,16 @@ fun FavouritesScreen(
                     }
                 }
                 1 -> {
-                    if (starredActresses.value.isEmpty()) {
+                    val filteredActresses = starredActresses.value
+                    if (filteredActresses.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("暂无收藏的女优", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "暂无收藏的女优",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     } else {
                         LazyColumn(
@@ -347,8 +348,8 @@ fun FavouritesScreen(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(
-                                items = starredActresses.value,
-                                key = { "${it.link ?: ""}_${it.name ?: ""}_${it.hashCode()}" }
+                                items = filteredActresses,
+                                key = { "${it.dataSourceName ?: ""}_${it.name ?: ""}_${it.link ?: ""}" }
                             ) { actress ->
                                 val clickModifier = if (actress.link != null) {
                                     Modifier.pointerInput(actress) {
@@ -358,24 +359,20 @@ fun FavouritesScreen(
                                                 if (actress.dataSourceName != null && currentSource != null && actress.dataSourceName != currentSource) {
                                                     pendingSwitchSourceName = actress.dataSourceName
                                                     pendingSwitchNavigate = {
-                                                        val rawUrl = actress.link ?: ""
-                                                        val url = URLEncoder.encode(
-                                                            if (rawUrl.contains("/")) rawUrl else "star/$rawUrl", "UTF-8"
-                                                        )
-                                                        val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
-                                                        navController.navigate(NavRoutes.movieList(name, url)) {
+                                                        val starId = actressStarId(actress.link)
+                                                        navController.navigate(
+                                                            NavRoutes.actressDetail(starId, actress.name, actress.imageUrl)
+                                                        ) {
                                                             popUpTo(0) { inclusive = true }
                                                             launchSingleTop = true
                                                         }
                                                     }
                                                     showDataSourceSwitchDialog = true
                                                 } else {
-                                                    val rawUrl = actress.link ?: ""
-                                                    val url = URLEncoder.encode(
-                                                        if (rawUrl.contains("/")) rawUrl else "star/$rawUrl", "UTF-8"
+                                                    val starId = actressStarId(actress.link)
+                                                    navController.navigate(
+                                                        NavRoutes.actressDetail(starId, actress.name, actress.imageUrl)
                                                     )
-                                                    val name = URLEncoder.encode(actress.name ?: "", "UTF-8")
-                                                    navController.navigate(NavRoutes.movieList(name, url))
                                                 }
                                             },
                                             onLongPress = {

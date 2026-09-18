@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -28,7 +29,9 @@ fun SwipeBackContainer(
     var offsetX by remember { mutableStateOf(0f) }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val screenWidthPx: Float = with(density) { 1080.dp.toPx() }
+    val screenWidthPx: Float = with(density) {
+        LocalConfiguration.current.screenWidthDp.dp.toPx()
+    }
 
     Box(
         modifier = modifier

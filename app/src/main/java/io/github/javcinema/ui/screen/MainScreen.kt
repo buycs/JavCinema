@@ -48,6 +48,9 @@ private val bottomItems = listOf(
     BottomNavItem("设置", Icons.Default.Settings, NavRoutes.SETTINGS)
 )
 
+private val movieDetailBase = NavRoutes.MOVIE_DETAIL.substringBefore("/{").substringBefore("?")
+private val missavPlayBase = NavRoutes.MISSAV_PLAY.substringBefore("/{").substringBefore("?")
+
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
@@ -55,6 +58,7 @@ fun MainScreen() {
     val currentDestination = navBackStackEntry?.destination
 
     val currentRoute = currentDestination?.route?.substringBefore("?") ?: NavRoutes.HOME
+    val hideBottomBar = currentRoute.startsWith(movieDetailBase) || currentRoute.startsWith(missavPlayBase)
 
     val currentItem = bottomItems.find { item ->
         currentDestination?.hierarchy?.any { it.route?.startsWith(item.route) == true } == true
@@ -64,41 +68,42 @@ fun MainScreen() {
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.height(56.dp)
-            ) {
-                bottomItems.forEach { item ->
-                    NavigationBarItem(
-                        selected = currentRoute == item.route ||
-                            currentDestination?.hierarchy?.any { it.route?.startsWith(item.route) == true } == true,
-                        onClick = {
-                            if (currentRoute == item.route) {
-                                scrollToTopTrigger.longValue = System.nanoTime()
-                            } else {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+            if (!hideBottomBar) {
+                NavigationBar(
+                    modifier = Modifier.height(56.dp)
+                ) {
+                    bottomItems.forEach { item ->
+                        NavigationBarItem(
+                            selected = currentRoute == item.route ||
+                                currentDestination?.hierarchy?.any { it.route?.startsWith(item.route) == true } == true,
+                            onClick = {
+                                if (currentRoute == item.route) {
+                                    scrollToTopTrigger.longValue = System.nanoTime()
+                                } else {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
                                 }
-                            }
-                        },
-                        icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(22.dp)) },
-                        label = { Text(item.label, style = MaterialTheme.typography.bodySmall) },
-                        colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    )
+                            },
+                            icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(22.dp)) },
+                            label = { Text(item.label, style = MaterialTheme.typography.bodySmall) },
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                        )
+                    }
                 }
             }
         }
     ) { paddingValues ->
-        val isMovieDetail = currentRoute.startsWith("movie_detail")
         val layoutDirection = LocalLayoutDirection.current
         val adjustedPadding = PaddingValues(
             top = paddingValues.calculateTopPadding(),
             start = paddingValues.calculateLeftPadding(layoutDirection),
             end = paddingValues.calculateRightPadding(layoutDirection),
-            bottom = if (isMovieDetail) 0.dp else paddingValues.calculateBottomPadding()
+            bottom = if (hideBottomBar) 0.dp else paddingValues.calculateBottomPadding()
         )
         Box(
             modifier = Modifier

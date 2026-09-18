@@ -9,16 +9,18 @@ import coil.imageLoader
 import coil.memory.MemoryCache
 import com.google.gson.GsonBuilder
 import com.google.gson.stream.JsonReader
+import io.github.javcinema.BuildConfig
 import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.DataSource
 import io.github.javcinema.network.AvmooApiService
 import io.github.javcinema.network.BasicService
+import io.github.javcinema.network.HostCookieJar
 import io.github.javcinema.network.RetryInterceptor
+import io.github.javcinema.util.BoundedLruMap
+import io.github.javcinema.util.BoundedLruSet
 import retrofit2.converter.gson.GsonConverterFactory
 import android.util.Log
 import coil.request.ImageRequest
-import okhttp3.Cookie
-import okhttp3.CookieJar
 import okhttp3.ConnectionPool
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -27,7 +29,6 @@ import retrofit2.Retrofit
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.util.HashMap
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 data class ImageUrls(
@@ -36,6 +37,19 @@ data class ImageUrls(
     val sampleSmall: List<String>? = null,
     val sampleLarge: List<String>? = null
 )
+
+internal fun selectDataSource(
+    sources: List<DataSource>,
+    saved: DataSource?
+): DataSource {
+    if (sources.isNotEmpty()) {
+        return sources.find { it.name == saved?.name } ?: sources[0]
+    }
+    if (saved != null) {
+        return saved
+    }
+    error("No data source available")
+}
 
 class JavCinema : Application() {
 
@@ -63,7 +77,7 @@ class JavCinema : Application() {
         val SHARED_DISK_CACHE: DiskCache by lazy {
             DiskCache.Builder()
                 .directory(instance.cacheDir.resolve("image_cache"))
-                .maxSizeBytes(512L * 1024 * 1024)
+                .maxSizeBytes(256L * 1024 * 1024)
                 .build()
         }
 
@@ -79,12 +93,21 @@ class JavCinema : Application() {
         var hostReplacements: MutableMap<String, String> = HashMap()
 
         val dataSourceVersionFlow = MutableStateFlow(0)
+        val favoritesVersionFlow = MutableStateFlow(0)
+        val uiPrefsVersionFlow = MutableStateFlow(0)
 
         val HTTP_CLIENT: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
             .connectionPool(ConnectionPool(5, 30, TimeUnit.SECONDS))
             .addInterceptor(RetryInterceptor())
             .addInterceptor(HttpLoggingInterceptor { msg -> Log.i("HTTP", msg) }.apply {
-                level = HttpLoggingInterceptor.Level.HEADERS
+                level = if (BuildConfig.DEBUG) {
+                    HttpLoggingInterceptor.Level.HEADERS
+                } else {
+                    HttpLoggingInterceptor.Level.NONE
+                }
             })
             .addInterceptor { chain ->
                 val original = chain.request()
@@ -94,56 +117,12 @@ class JavCinema : Application() {
                     .build()
                 chain.proceed(request)
             }
-            .cookieJar(object : CookieJar {
-                private val cookieStore: MutableMap<HttpUrl, MutableList<Cookie>> = HashMap()
-
-                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-                    cookieStore[url] = cookies.toMutableList()
-                }
-
-                override fun loadForRequest(url: HttpUrl): List<Cookie> {
-                    return cookieStore[url] ?: mutableListOf()
-                }
-            })
+            .cookieJar(HostCookieJar())
             .build()
 
-        val SCREENSHOT_HTTP_CLIENT: OkHttpClient = HTTP_CLIENT.newBuilder()
-            .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
-            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 2 })
-            .build()
+        val imageUrlsRegistry = BoundedLruMap<String, ImageUrls>(80)
 
-        val screenshotImageLoader: ImageLoader by lazy {
-            ImageLoader.Builder(instance)
-                .okHttpClient(SCREENSHOT_HTTP_CLIENT)
-                .memoryCache {
-                    MemoryCache.Builder(instance)
-                        .maxSizePercent(0.25)
-                        .build()
-                }
-                .diskCache(SHARED_DISK_CACHE)
-                .build()
-        }
-
-        val COVER_HTTP_CLIENT: OkHttpClient = HTTP_CLIENT.newBuilder()
-            .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
-            .dispatcher(okhttp3.Dispatcher().apply { maxRequestsPerHost = 2 })
-            .build()
-
-        val coverImageLoader: ImageLoader by lazy {
-            ImageLoader.Builder(instance)
-                .okHttpClient(COVER_HTTP_CLIENT)
-                .memoryCache {
-                    MemoryCache.Builder(instance)
-                        .maxSizePercent(0.25)
-                        .build()
-                }
-                .diskCache(SHARED_DISK_CACHE)
-                .build()
-        }
-
-        val imageUrlsRegistry: MutableMap<String, ImageUrls> = ConcurrentHashMap()
-
-        val prefetchedLargeCovers: MutableSet<String> = ConcurrentHashMap.newKeySet()
+        val prefetchedLargeCovers = BoundedLruSet<String>(80)
 
         val prefetchSemaphore: java.util.concurrent.Semaphore = java.util.concurrent.Semaphore(3)
 
@@ -175,17 +154,14 @@ class JavCinema : Application() {
         }
 
         fun getDataSource(): DataSource {
-            val saved = CONFIGURATIONS?.dataSource
-            if (saved != null && DATA_SOURCES.isNotEmpty()) {
-                return DATA_SOURCES.find { it.name == saved.name } ?: saved
-            }
-            return if (DATA_SOURCES.isNotEmpty()) DATA_SOURCES[0] else saved!!
+            return selectDataSource(DATA_SOURCES, CONFIGURATIONS?.dataSource)
         }
 
         fun recreateService() {
             val ds = getDataSource()
             hostReplacements.clear()
             imageUrlsRegistry.clear()
+            prefetchedLargeCovers.clear()
             val host = try { java.net.URI(ds.link!!).host } catch (_: Exception) { null }
             if (host != null) {
                 ds.legacies?.forEach { h -> hostReplacements[h] = host }

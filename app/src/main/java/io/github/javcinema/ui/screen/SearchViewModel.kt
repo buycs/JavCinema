@@ -2,10 +2,10 @@ package io.github.javcinema.ui.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import coil.imageLoader
-import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
+import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Movie
+import io.github.javcinema.data.model.matchesFavoriteQuery
 import io.github.javcinema.network.BasicService
 import io.github.javcinema.network.provider.AVMOProvider
 import java.net.URLEncoder
@@ -19,11 +19,18 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+enum class SearchScope { MOVIES, ACTRESSES, FAVORITES }
+
 sealed class SearchUiState {
     data object Idle : SearchUiState()
     data object Loading : SearchUiState()
     data class Success(val hasMore: Boolean = true) : SearchUiState()
     data class Error(val message: String) : SearchUiState()
+}
+
+internal fun actressMatchesQuery(name: String?, query: String): Boolean {
+    if (query.isBlank()) return true
+    return name.orEmpty().contains(query.trim(), ignoreCase = true)
 }
 
 class SearchViewModel : ViewModel() {
@@ -33,6 +40,12 @@ class SearchViewModel : ViewModel() {
     private val _movies = MutableStateFlow<List<Movie>>(emptyList())
     val movies: StateFlow<List<Movie>> = _movies.asStateFlow()
 
+    private val _actresses = MutableStateFlow<List<Actress>>(emptyList())
+    val actresses: StateFlow<List<Actress>> = _actresses.asStateFlow()
+
+    private val _scope = MutableStateFlow(SearchScope.MOVIES)
+    val scope: StateFlow<SearchScope> = _scope.asStateFlow()
+
     private val _isLoadingMore = MutableStateFlow(false)
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
 
@@ -40,68 +53,113 @@ class SearchViewModel : ViewModel() {
     private var hasMore = true
     private var currentQuery = ""
     private var loadJob: Job? = null
+    private var moreJob: Job? = null
     private var lastVersion: Int = -1
-
-    private fun preloadCovers(movies: List<Movie>) {
-        val urls = movies.mapNotNull { it.coverUrl }
-        if (urls.isEmpty()) return
-        val loader = runCatching { JavCinema.instance.imageLoader }.getOrNull() ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            urls.forEach { url ->
-                try {
-                    loader.enqueue(ImageRequest.Builder(JavCinema.instance)
-                        .data(url)
-                        .memoryCacheKey(url)
-                        .build())
-                } catch (e: Exception) {
-                    android.util.Log.w("SearchVM", "preload failed: $url - ${e.message}")
-                }
-            }
-        }
-    }
 
     init {
         viewModelScope.launch {
             JavCinema.dataSourceVersionFlow.drop(1).collectLatest { version ->
                 lastVersion = version
-                if (currentQuery.isNotEmpty()) search(currentQuery)
+                if (currentQuery.isNotEmpty() || _scope.value == SearchScope.FAVORITES) {
+                    search(currentQuery, _scope.value, force = true)
+                }
+            }
+        }
+        viewModelScope.launch {
+            JavCinema.favoritesVersionFlow.drop(1).collectLatest {
+                if (_scope.value == SearchScope.FAVORITES) {
+                    search(currentQuery, SearchScope.FAVORITES, force = true)
+                }
             }
         }
     }
 
     fun reset() {
         loadJob?.cancel()
+        moreJob?.cancel()
         currentQuery = ""
         currentPage = 1
         hasMore = true
         _movies.value = emptyList()
+        _actresses.value = emptyList()
         _isLoadingMore.value = false
         _uiState.value = SearchUiState.Idle
     }
 
-    fun search(query: String) {
+    fun setScope(scope: SearchScope) {
+        if (_scope.value == scope) return
+        _scope.value = scope
+        when {
+            scope == SearchScope.FAVORITES || currentQuery.isNotBlank() -> {
+                search(currentQuery, scope, force = true)
+            }
+            else -> {
+                loadJob?.cancel()
+                moreJob?.cancel()
+                currentPage = 1
+                hasMore = true
+                _movies.value = emptyList()
+                _actresses.value = emptyList()
+                _isLoadingMore.value = false
+                _uiState.value = SearchUiState.Idle
+            }
+        }
+    }
+
+    fun search(query: String, scope: SearchScope = _scope.value, force: Boolean = false) {
         val currentVersion = JavCinema.dataSourceVersionFlow.value
-        if (query == currentQuery && lastVersion == currentVersion) return
+        if (!force && query == currentQuery && lastVersion == currentVersion && scope == _scope.value) return
         lastVersion = currentVersion
-        if (query.isBlank()) return
+        if (query.isBlank() && scope != SearchScope.FAVORITES) return
         currentQuery = query
+        _scope.value = scope
         currentPage = 1
         hasMore = true
+        moreJob?.cancel()
+        _isLoadingMore.value = false
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.value = SearchUiState.Loading
-            loadPage(1)
+            when (scope) {
+                SearchScope.ACTRESSES -> {
+                    _movies.value = emptyList()
+                    loadActressPage(1)
+                }
+                SearchScope.FAVORITES -> loadFavorites(query)
+                SearchScope.MOVIES -> {
+                    _actresses.value = emptyList()
+                    loadPage(1)
+                }
+            }
         }
     }
 
     fun loadMore() {
-        if (_isLoadingMore.value || !hasMore) return
+        if (!shouldStartLoadMore(_isLoadingMore.value, hasMore, loadJob?.isActive == true)) return
         _isLoadingMore.value = true
-        loadJob?.cancel()
-        loadJob = viewModelScope.launch {
-            loadPage(currentPage + 1)
-            _isLoadingMore.value = false
+        moreJob?.cancel()
+        moreJob = viewModelScope.launch {
+            try {
+                when (_scope.value) {
+                    SearchScope.ACTRESSES -> loadActressPage(currentPage + 1)
+                    SearchScope.MOVIES -> loadPage(currentPage + 1)
+                    SearchScope.FAVORITES -> Unit
+                }
+            } finally {
+                _isLoadingMore.value = false
+            }
         }
+    }
+
+    private fun loadFavorites(query: String) {
+        val movies = JavCinema.CONFIGURATIONS?.starredMovies.orEmpty()
+            .filter { matchesFavoriteQuery(it.title, it.code, query) }
+        val actresses = JavCinema.CONFIGURATIONS?.starredActresses.orEmpty()
+            .filter { matchesFavoriteQuery(it.name, null, query) }
+        _movies.value = movies
+        _actresses.value = actresses
+        hasMore = false
+        _uiState.value = SearchUiState.Success(hasMore = false)
     }
 
     private suspend fun loadPage(page: Int) {
@@ -119,12 +177,12 @@ class SearchViewModel : ViewModel() {
             if (parsed.isEmpty()) {
                 hasMore = false
             }
-            preloadCovers(parsed)
 
             _movies.value = if (page == 1) parsed else _movies.value + parsed
             currentPage = page
             _uiState.value = SearchUiState.Success(hasMore = hasMore)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("SearchVM", "loadPage error: ${e.message}", e)
             _uiState.value = SearchUiState.Error(e.message ?: "搜索失败")
         }
@@ -148,5 +206,52 @@ class SearchViewModel : ViewModel() {
         }
         val html = withContext(Dispatchers.IO) { response.string() }
         return withContext(Dispatchers.IO) { AVMOProvider.parseMovies(html) }
+    }
+
+    private suspend fun loadActressPage(page: Int) {
+        try {
+            var scanPage = page
+            val collected = mutableListOf<Actress>()
+            var sourceEmpty = false
+            while (collected.size < 20 && scanPage <= page + 4) {
+                val parsed = loadActressesFromApi(scanPage).ifEmpty { loadActressesFromHtml(scanPage) }
+                if (parsed.isEmpty()) {
+                    sourceEmpty = true
+                    break
+                }
+                collected += parsed.filter { actressMatchesQuery(it.name, currentQuery) }
+                scanPage++
+            }
+            if (sourceEmpty) {
+                hasMore = false
+            }
+            _actresses.value = if (page == 1) collected else _actresses.value + collected
+            currentPage = scanPage - 1
+            if (currentPage < page) currentPage = page
+            _uiState.value = SearchUiState.Success(hasMore = hasMore)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            _uiState.value = SearchUiState.Error(e.message ?: "搜索失败")
+        }
+    }
+
+    private suspend fun loadActressesFromApi(page: Int): List<Actress> {
+        val api = JavCinema.AVMOO_API_SERVICE ?: return emptyList()
+        val response = withContext(Dispatchers.IO) {
+            api.getStars(listOf("stars", 60, page))
+        }
+        return (response.data ?: emptyList()).map { star ->
+            val name = star.starName ?: star.starName_ja ?: star.starName_en ?: star.starName_cn ?: star.starName_tw ?: ""
+            Actress.create(name, star.avatarUrl ?: star.avatar ?: "", star.starId ?: "").apply {
+                movieCount = star.movieCount
+            }
+        }
+    }
+
+    private suspend fun loadActressesFromHtml(page: Int): List<Actress> {
+        val service = JavCinema.SERVICE ?: return emptyList()
+        val response = withContext(Dispatchers.IO) { service.getActresses(page) }
+        val html = withContext(Dispatchers.IO) { response.string() }
+        return withContext(Dispatchers.IO) { AVMOProvider.parseActresses(html) }
     }
 }

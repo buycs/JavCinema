@@ -4,6 +4,12 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.stream.JsonReader
 import io.github.javcinema.JavCinema
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.net.URI
 import java.io.FileReader
@@ -56,6 +62,13 @@ class Configurations {
         var customBtsowUrl: String? = null
 
         var homePage: String? = null
+        var themeMode: String? = null
+        var gridColumns: Int = 3
+
+        private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_GRID_COLUMNS = "grid_columns"
+        private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val saveMutex = Mutex()
 
         fun loadPrefs(context: Context) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -66,6 +79,8 @@ class Configurations {
             customCiliUrl = prefs.getString(KEY_CUSTOM_CILI, null)
             customBtsowUrl = prefs.getString(KEY_CUSTOM_BTSOW, null)
             homePage = prefs.getString(KEY_HOME_PAGE, null)
+            themeMode = prefs.getString(KEY_THEME_MODE, "system")
+            gridColumns = prefs.getInt(KEY_GRID_COLUMNS, 3).coerceIn(2, 4)
         }
 
         fun savePrefs(context: Context) {
@@ -77,7 +92,10 @@ class Configurations {
                 .putString(KEY_CUSTOM_CILI, customCiliUrl)
                 .putString(KEY_CUSTOM_BTSOW, customBtsowUrl)
                 .putString(KEY_HOME_PAGE, homePage)
+                .putString(KEY_THEME_MODE, themeMode)
+                .putInt(KEY_GRID_COLUMNS, gridColumns.coerceIn(2, 4))
                 .apply()
+            JavCinema.uiPrefsVersionFlow.value++
         }
     }
 
@@ -134,14 +152,48 @@ class Configurations {
     }
 
     fun save() {
-        try {
-            val f = configFile ?: return
-            val writer = FileWriter(f)
-            Gson().toJson(this, writer)
-            writer.flush()
-            writer.close()
-        } catch (e: IOException) {
-            e.printStackTrace()
+        val file = configFile ?: return
+        val snapshot = Configurations().also { copy ->
+            copy.starredMovies = starredMovies?.map { movie ->
+                Movie().apply {
+                    id = movie.id
+                    title = movie.title
+                    code = movie.code
+                    coverUrl = movie.coverUrl
+                    date = movie.date
+                    hot = movie.hot
+                    dataSourceName = movie.dataSourceName
+                    link = movie.link
+                }
+            }?.toMutableList()
+            copy.starredActresses = starredActresses?.map { actress ->
+                Actress().apply {
+                    name = actress.name
+                    imageUrl = actress.imageUrl
+                    movieCount = actress.movieCount
+                    dataSourceName = actress.dataSourceName
+                    link = actress.link
+                }
+            }?.toMutableList()
+            copy.dataSource = dataSource
+            copy.downloadCounter = downloadCounter
+            copy.setShowAds(isShowAds())
+        }
+        ioScope.launch {
+            saveMutex.withLock {
+                try {
+                    val tmp = File(file.parentFile, "${file.name}.tmp")
+                    FileWriter(tmp).use { writer ->
+                        Gson().toJson(snapshot, writer)
+                    }
+                    if (!tmp.renameTo(file)) {
+                        tmp.copyTo(file, overwrite = true)
+                        tmp.delete()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
     }
 

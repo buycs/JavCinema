@@ -30,8 +30,8 @@ import androidx.compose.material.icons.outlined.Collections
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.Label
-import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -67,18 +67,13 @@ import coil.request.ImageRequest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -100,8 +95,8 @@ import io.github.javcinema.ui.components.ScreenshotRow
 import io.github.javcinema.ui.components.ZoomableImage
 import io.github.javcinema.ui.components.rememberSaveImageAction
 import io.github.javcinema.ui.navigation.NavRoutes
+import io.github.javcinema.util.copyText
 import io.github.javcinema.util.saveImageToGallery
-import java.net.URLEncoder
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -215,8 +210,6 @@ fun MovieDetailScreen(
                             title = d.title
                         }
                     },
-                    onPreviewClick = { /* TODO: preview video */ },
-                    onPlayClick = { /* TODO: play video */ },
                     onMovieLongClick = { dialogMovie = it },
                     onActressLongClick = { dialogActress = it },
                     modifier = Modifier.fillMaxWidth()
@@ -257,35 +250,14 @@ private fun GalleryOverlay(
 ) {
     val context = LocalContext.current
     var showSaveDialog by remember { mutableStateOf(false) }
-    var backgroundBitmap by remember { mutableStateOf<Bitmap?>(null) }
     val saveImage = rememberSaveImageAction()
-    val loopedPageCount = if (imageUrls.size > 1) Int.MAX_VALUE else 1
     val pagerState = rememberPagerState(
-        pageCount = { loopedPageCount },
-        initialPage = if (imageUrls.size > 1) {
-            val base = Int.MAX_VALUE / 2
-            base - (base % imageUrls.size) + initialIndex
-        } else 0
+        pageCount = { imageUrls.size.coerceAtLeast(1) },
+        initialPage = initialIndex.coerceIn(0, (imageUrls.size - 1).coerceAtLeast(0))
     )
 
-    val currentPageIndex = if (imageUrls.size > 1) pagerState.currentPage % imageUrls.size else 0
+    val currentPageIndex = pagerState.currentPage.coerceIn(0, (imageUrls.size - 1).coerceAtLeast(0))
 
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.Main) {
-            try {
-                val activity = context as? androidx.activity.ComponentActivity
-                val view = activity?.window?.decorView?.rootView
-                if (view != null && view.width > 0 && view.height > 0) {
-                    val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bitmap)
-                    view.draw(canvas)
-                    backgroundBitmap = bitmap
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    // 悬浮查看时按返回键关闭悬浮窗
     BackHandler {
         onClose()
     }
@@ -299,30 +271,18 @@ private fun GalleryOverlay(
                 onClick = onClose
             )
     ) {
-        if (backgroundBitmap != null) {
-            Image(
-                bitmap = backgroundBitmap!!.asImageBitmap(),
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(25.dp)
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f))
-            )
-        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f))
+        )
 
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
             pageContent = { page ->
-                val actualIndex = if (imageUrls.size > 1) page % imageUrls.size else 0
                 ZoomableImage(
-                    imageUrl = imageUrls.getOrNull(actualIndex) ?: "",
+                    imageUrl = imageUrls.getOrNull(page) ?: "",
                     onTap = { onClose() },
                     onLongPress = { showSaveDialog = true },
                     modifier = Modifier.fillMaxSize()
@@ -391,9 +351,7 @@ private fun InfoRowClickable(label: String, value: String, onClick: () -> Unit) 
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-                    Toast.makeText(context, "已复制: $value", Toast.LENGTH_SHORT).show()
+                    copyText(context, value, if (label.contains("番号")) "已复制番号" else "已复制")
                 }
             )
     ) {
@@ -424,9 +382,7 @@ private fun InfoRowClickableMagnet(label: String, value: String, onClick: () -> 
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-                    Toast.makeText(context, "已复制: $value", Toast.LENGTH_SHORT).show()
+                    copyText(context, value, if (label.contains("番号")) "已复制番号" else "已复制")
                 }
             )
     ) {
@@ -531,7 +487,7 @@ private fun DetailCover(
                         .build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    imageLoader = JavCinema.coverImageLoader,
+                    imageLoader = coverContext.imageLoader,
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -544,7 +500,7 @@ private fun DetailCover(
                     .build(),
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
-                imageLoader = JavCinema.coverImageLoader,
+                    imageLoader = coverContext.imageLoader,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -560,8 +516,6 @@ private fun MovieDetailContent(
     movieCode: String,
     navController: NavController,
     onScreenshotClick: ((List<String>, Int) -> Unit)? = null,
-    onPreviewClick: () -> Unit,
-    onPlayClick: () -> Unit,
     onMovieLongClick: ((Movie) -> Unit)? = null,
     onActressLongClick: ((Actress) -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -575,6 +529,7 @@ private fun MovieDetailContent(
         ) {
             SectionWithIcon(Icons.Outlined.Description) {
                 val movieCodeValue = detail.code ?: movieCode
+                val playContext = LocalContext.current
                 InfoRowClickableMagnet(
                     label = "影片番号",
                     value = movieCodeValue,
@@ -595,33 +550,31 @@ private fun MovieDetailContent(
                         if (prefix != null) {
                             val id = header.link ?: value
                             val filterUrl = "$prefix/$id"
-                            val encodedTitle = URLEncoder.encode(name, "UTF-8")
-                            val encodedUrl = URLEncoder.encode(filterUrl, "UTF-8")
                             InfoRowClickable(
                                 label = name,
                                 value = value,
-                                onClick = { navController.navigate(NavRoutes.movieList(encodedTitle, encodedUrl)) }
+                                onClick = { navController.navigate(NavRoutes.movieList(name, filterUrl)) }
                             )
                         } else {
                             InfoRow(name, value)
                         }
                     }
                 }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     FilledTonalButton(
-                        onClick = onPreviewClick,
+                        onClick = {
+                            Toast.makeText(playContext, "预览暂未实现", Toast.LENGTH_SHORT).show()
+                        },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Outlined.PlayCircle, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("预览")
                     }
-
                     Button(
-                        onClick = onPlayClick,
+                        onClick = {
+                            navController.navigate(NavRoutes.missavPlay(movieCodeValue))
+                        },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null)
@@ -638,7 +591,7 @@ private fun MovieDetailContent(
                     val screenshotContext = LocalContext.current
                     var hasScreenshots by remember(detail.code) { mutableStateOf<Boolean?>(null) }
                     LaunchedEffect(detail.code, detail.screenshots) {
-                        val loader = JavCinema.screenshotImageLoader
+                        val loader = screenshotContext.imageLoader
                         val results = withContext(Dispatchers.IO) {
                             detail.screenshots.take(4).map { s ->
                                 async {
@@ -670,7 +623,7 @@ private fun MovieDetailContent(
                         }
                         true -> ScreenshotRow(
                             screenshots = detail.screenshots,
-                            imageLoader = JavCinema.screenshotImageLoader,
+                            imageLoader = screenshotContext.imageLoader,
                             fallbackUrl = fallbackCoverUrl,
                             onFallbackClick = {
                                 onScreenshotClick?.invoke(listOfNotNull(fallbackCoverUrl), 0)
@@ -749,14 +702,14 @@ private fun MovieDetailContent(
                 SectionWithIcon(Icons.Outlined.Face) {
                     ActressRow(
                         actresses = detail.actresses,
-                        imageLoader = JavCinema.screenshotImageLoader,
+                        imageLoader = LocalContext.current.imageLoader,
                         onActressClick = { actress ->
                             val name = actress.name ?: return@ActressRow
-                            val link = actress.link ?: return@ActressRow
-                            val rawUrl = if (link.contains("/")) link else "star/$link"
-                            val encodedTitle = URLEncoder.encode(name, "UTF-8")
-                            val encodedUrl = URLEncoder.encode(rawUrl, "UTF-8")
-                            navController.navigate(NavRoutes.movieList(encodedTitle, encodedUrl))
+                            val starId = actressStarId(actress.link)
+                            if (starId.isBlank()) return@ActressRow
+                            navController.navigate(
+                                NavRoutes.actressDetail(starId, name, actress.imageUrl)
+                            )
                         },
                         onActressLongClick = { onActressLongClick?.invoke(it) }
                     )
@@ -772,9 +725,7 @@ private fun MovieDetailContent(
                             val name = genre.name ?: return@GenreFlow
                             val link = genre.link ?: return@GenreFlow
                             val rawUrl = if (link.contains("/")) link else "genre/$link"
-                            val encodedTitle = URLEncoder.encode(name, "UTF-8")
-                            val encodedUrl = URLEncoder.encode(rawUrl, "UTF-8")
-                            navController.navigate(NavRoutes.movieList(encodedTitle, encodedUrl))
+                            navController.navigate(NavRoutes.movieList(name, rawUrl))
                         }
                     )
                 }
@@ -795,9 +746,7 @@ private fun MovieDetailContent(
                                     movie = movie,
                                     onClick = {
                                         val link = movie.link ?: movie.code ?: return@MovieCard
-                                        val encodedLink = URLEncoder.encode(link, "UTF-8")
-                                        val encodedCode = URLEncoder.encode(movie.code ?: "", "UTF-8")
-                                        navController.navigate(NavRoutes.movieDetail(encodedCode, encodedLink, movie.coverUrl))
+                                        navController.navigate(NavRoutes.movieDetail(movie.code ?: "", link, movie.coverUrl))
                                     },
                                     onLongClick = { onMovieLongClick?.invoke(movie) },
                                     prefetchCover = false,

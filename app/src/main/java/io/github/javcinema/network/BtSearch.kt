@@ -2,7 +2,6 @@ package io.github.javcinema.network
 
 import io.github.javcinema.JavCinema
 import okhttp3.Interceptor
-import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -69,7 +68,7 @@ interface BtSearch {
         private fun create(baseUrl: String): BtSearch {
             return Retrofit.Builder()
                 .baseUrl(baseUrl)
-                .client(OkHttpClient.Builder()
+                .client(JavCinema.HTTP_CLIENT.newBuilder()
                     .addInterceptor(signingInterceptor)
                     .build())
                 .addConverterFactory(GsonConverterFactory.create())

@@ -2,8 +2,6 @@ package io.github.javcinema.ui.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import coil.imageLoader
-import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.network.provider.AVMOProvider
@@ -37,25 +35,8 @@ class MovieListViewModel : ViewModel() {
     private var hasMore = true
     private var baseUrl: String = ""
     private var loadJob: Job? = null
+    private var moreJob: Job? = null
     private var lastVersion: Int = -1
-
-    private fun preloadCovers(movies: List<Movie>) {
-        val urls = movies.mapNotNull { it.coverUrl }
-        if (urls.isEmpty()) return
-        val loader = runCatching { JavCinema.instance.imageLoader }.getOrNull() ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            urls.forEach { url ->
-                try {
-                    loader.enqueue(ImageRequest.Builder(JavCinema.instance)
-                        .data(url)
-                        .memoryCacheKey(url)
-                        .build())
-                } catch (e: Exception) {
-                    android.util.Log.w("MovieListVM", "preload failed: $url - ${e.message}")
-                }
-            }
-        }
-    }
 
     init {
         viewModelScope.launch {
@@ -73,6 +54,8 @@ class MovieListViewModel : ViewModel() {
         baseUrl = url
         currentPage = 1
         hasMore = true
+        moreJob?.cancel()
+        _isLoadingMore.value = false
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.value = MovieListUiState.Loading
@@ -81,18 +64,23 @@ class MovieListViewModel : ViewModel() {
     }
 
     fun loadMore() {
-        if (_isLoadingMore.value || !hasMore) return
+        if (!shouldStartLoadMore(_isLoadingMore.value, hasMore, loadJob?.isActive == true)) return
         _isLoadingMore.value = true
-        loadJob?.cancel()
-        loadJob = viewModelScope.launch {
-            loadPage(currentPage + 1)
-            _isLoadingMore.value = false
+        moreJob?.cancel()
+        moreJob = viewModelScope.launch {
+            try {
+                loadPage(currentPage + 1)
+            } finally {
+                _isLoadingMore.value = false
+            }
         }
     }
 
     fun refresh() {
         currentPage = 1
         hasMore = true
+        moreJob?.cancel()
+        _isLoadingMore.value = false
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _uiState.value = MovieListUiState.Loading
@@ -112,6 +100,7 @@ class MovieListViewModel : ViewModel() {
                 loadPageFromHtml(page)
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("MovieListVM", "loadPage error: ${e.message}", e)
             _uiState.value = MovieListUiState.Error(e.message ?: "加载失败")
         }
@@ -133,7 +122,7 @@ class MovieListViewModel : ViewModel() {
             else -> null
         }
 
-        val filterId = baseUrl.substringAfterLast("/").takeIf { it.isNotEmpty() }
+        val filterId = baseUrl.substringAfterLast("/").substringBefore('?').takeIf { it.isNotEmpty() }
 
         if (filterType != null && filterId != null) {
             val response = withContext(Dispatchers.IO) {
@@ -146,7 +135,6 @@ class MovieListViewModel : ViewModel() {
             if (apiMovies.isEmpty()) {
                 hasMore = false
             }
-            preloadCovers(parsed)
 
             _movies.value = if (page == 1) parsed else _movies.value + parsed
             currentPage = page
@@ -171,7 +159,6 @@ class MovieListViewModel : ViewModel() {
         if (parsed.isEmpty()) {
             hasMore = false
         }
-        preloadCovers(parsed)
 
         _movies.value = if (page == 1) parsed else _movies.value + parsed
         currentPage = page

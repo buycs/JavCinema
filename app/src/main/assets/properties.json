@@ -1,7 +1,7 @@
 {
-  "latest_version": "0.0.1-beta",
-  "latest_version_code": "2",
-  "changelog": "0.0.1-beta\n\n- 图库图片双击放大/缩小带动画\n- 放大后单指拖动，边缘按图片实际尺寸钳制\n- 左右拖到边界跟随手指过渡翻页\n- 上下越界松手弹回\n- 放大时返回键取消放大，未放大返回关闭图库/悬浮查看",
+  "latest_version": "0.3.0",
+  "latest_version_code": 5,
+  "changelog": "0.3.0\n\n- 收藏按数据源区分，同一番号可分别收藏\n- 收藏页支持搜索和导出\n- 主题与网格列数可配置\n- 可清理图片缓存\n- 关闭系统备份，默认只信任系统证书",
   "data_sources": [
     {
       "name": "骑兵",

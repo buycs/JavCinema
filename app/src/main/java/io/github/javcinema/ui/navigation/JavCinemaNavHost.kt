@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import io.github.javcinema.ui.screen.ActressDetailScreen
 import io.github.javcinema.ui.screen.ActressGenrePagerScreen
 import io.github.javcinema.ui.screen.DownloadScreen
 import io.github.javcinema.ui.screen.FavouritesScreen
@@ -26,8 +27,9 @@ import io.github.javcinema.ui.screen.MovieDetailScreen
 import io.github.javcinema.ui.screen.MovieListScreen
 import io.github.javcinema.ui.screen.SearchScreen
 import io.github.javcinema.ui.screen.SettingsScreen
+import io.github.javcinema.ui.screen.MissavPlayScreen
 import io.github.javcinema.ui.screen.WebViewScreen
-import java.net.URLDecoder
+import io.github.javcinema.player.PlayerScreen
 
 @Composable
 fun JavCinemaNavHost(
@@ -91,9 +93,29 @@ fun JavCinemaNavHost(
                 navArgument("url") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val title = URLDecoder.decode(backStackEntry.arguments?.getString("title") ?: "", "UTF-8")
-            val url = URLDecoder.decode(backStackEntry.arguments?.getString("url") ?: "", "UTF-8")
+            val title = backStackEntry.arguments?.getString("title") ?: ""
+            val url = backStackEntry.arguments?.getString("url") ?: ""
             MovieListScreen(navController = navController, title = title, url = url, scrollToTopTrigger = scrollToTopTrigger)
+        }
+
+        composable(
+            route = NavRoutes.ACTRESS_DETAIL,
+            arguments = listOf(
+                navArgument("starId") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("imageUrl") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
+            val starId = backStackEntry.arguments?.getString("starId") ?: ""
+            val name = backStackEntry.arguments?.getString("name") ?: ""
+            val imageUrl = backStackEntry.arguments?.getString("imageUrl")
+            ActressDetailScreen(
+                navController = navController,
+                starId = starId,
+                name = name,
+                imageUrl = imageUrl,
+                scrollToTopTrigger = scrollToTopTrigger
+            )
         }
 
         composable(
@@ -124,11 +146,43 @@ fun JavCinemaNavHost(
             route = NavRoutes.WEBVIEW,
             arguments = listOf(navArgument("url") { type = NavType.StringType })
         ) { backStackEntry ->
-            val encodedUrl = backStackEntry.arguments?.getString("url") ?: ""
-            val url = URLDecoder.decode(encodedUrl, "UTF-8")
+            val url = backStackEntry.arguments?.getString("url") ?: ""
             WebViewScreen(
                 url = url,
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = NavRoutes.MISSAV_PLAY,
+            arguments = listOf(navArgument("movieCode") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val movieCode = backStackEntry.arguments?.getString("movieCode") ?: ""
+            MissavPlayScreen(
+                movieCode = movieCode,
+                onBack = { navController.popBackStack() },
+                onPlayStream = { streamUrl, referer ->
+                    navController.navigate(NavRoutes.player(streamUrl, referer))
+                }
+            )
+        }
+
+        composable(
+            route = NavRoutes.PLAYER,
+            arguments = listOf(
+                navArgument("url") { type = NavType.StringType },
+                navArgument("referer") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStackEntry ->
+            val url = backStackEntry.arguments?.getString("url") ?: ""
+            val referer = backStackEntry.arguments?.getString("referer") ?: ""
+            PlayerScreen(
+                url = url,
+                referer = referer,
+                onBackClick = { navController.popBackStack() }
             )
         }
     }

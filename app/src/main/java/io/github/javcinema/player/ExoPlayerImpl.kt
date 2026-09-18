@@ -17,12 +17,15 @@ class ExoPlayerImpl(context: Context) {
         return ExoPlayer.Builder(context).build()
     }
 
-    fun prepare(context: Context, url: String) {
+    fun prepare(context: Context, url: String, headers: Map<String, String> = emptyMap()) {
         val userAgent = "JavCinema/${android.os.Build.VERSION.SDK_INT}"
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
+        if (headers.isNotEmpty()) {
+            httpDataSourceFactory.setDefaultRequestProperties(headers)
+        }
 
         val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
 

@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -77,7 +78,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
+import io.github.javcinema.data.model.Actress
+import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Movie
+import io.github.javcinema.ui.components.ActressFavoriteDialog
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.navigation.NavRoutes
@@ -98,9 +102,14 @@ fun SearchScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
+    val actresses by viewModel.actresses.collectAsState()
+    val searchScope by viewModel.scope.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    val uiPrefsVersion by JavCinema.uiPrefsVersionFlow.collectAsState()
+    val gridColumns = if (uiPrefsVersion >= 0) Configurations.gridColumns.coerceIn(2, 4) else 3
     var query by rememberSaveable { mutableStateOf(initialQuery) }
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
+    var dialogActress by remember { mutableStateOf<Actress?>(null) }
     var savedIndex by rememberSaveable { mutableIntStateOf(0) }
     var savedOffset by rememberSaveable { mutableIntStateOf(0) }
     val gridState = rememberLazyGridState(
@@ -109,10 +118,14 @@ fun SearchScreen(
     )
 
     val context = LocalContext.current
-    var history by remember { mutableStateOf(SearchHistoryStore.load(context).take(HISTORY_MAX)) }
+    var history by remember { mutableStateOf(SearchHistoryStore.load(context, SearchScope.MOVIES).take(HISTORY_MAX)) }
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(searchScope) {
+        history = SearchHistoryStore.load(context, searchScope).take(HISTORY_MAX)
+    }
 
     LaunchedEffect(scrollToTopTrigger) {
         if (scrollToTopTrigger > 0) {
@@ -125,7 +138,7 @@ fun SearchScreen(
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {
             query = initialQuery
-            viewModel.search(initialQuery)
+            viewModel.search(initialQuery, searchScope)
         }
     }
 
@@ -157,10 +170,15 @@ fun SearchScreen(
 
     fun doSearch(keyword: String) {
         val q = keyword.trim()
-        if (q.isEmpty()) return
         query = q
-        history = SearchHistoryStore.add(context, q).take(HISTORY_MAX)
-        viewModel.search(q)
+        if (q.isEmpty()) {
+            if (searchScope == SearchScope.FAVORITES) {
+                viewModel.search("", SearchScope.FAVORITES, force = true)
+            }
+            return
+        }
+        history = SearchHistoryStore.add(context, searchScope, q).take(HISTORY_MAX)
+        viewModel.search(q, searchScope)
     }
 
     val hasActiveSearch = query.isNotBlank() || uiState !is SearchUiState.Idle
@@ -180,7 +198,15 @@ fun SearchScreen(
                 TextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("搜索影片...") },
+                    placeholder = {
+                        Text(
+                            when (searchScope) {
+                                SearchScope.ACTRESSES -> "搜索女优..."
+                                SearchScope.FAVORITES -> "搜索收藏..."
+                                SearchScope.MOVIES -> "搜索影片..."
+                            }
+                        )
+                    },
                     singleLine = true,
                     shape = RoundedCornerShape(28.dp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -216,9 +242,29 @@ fun SearchScreen(
                 )
                 Spacer(Modifier.padding(start = 8.dp))
             }
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = searchScope == SearchScope.MOVIES,
+                    onClick = { viewModel.setScope(SearchScope.MOVIES) },
+                    label = { Text("影片") }
+                )
+                FilterChip(
+                    selected = searchScope == SearchScope.ACTRESSES,
+                    onClick = { viewModel.setScope(SearchScope.ACTRESSES) },
+                    label = { Text("女优") }
+                )
+                FilterChip(
+                    selected = searchScope == SearchScope.FAVORITES,
+                    onClick = { viewModel.setScope(SearchScope.FAVORITES) },
+                    label = { Text("收藏") }
+                )
+            }
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
+                columns = GridCells.Fixed(gridColumns),
                 state = gridState,
                 contentPadding = PaddingValues(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -226,15 +272,15 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (uiState is SearchUiState.Idle && history.isNotEmpty()) {
-                    item(span = { GridItemSpan(3) }) {
+                    item(span = { GridItemSpan(gridColumns) }) {
                         SearchHistorySection(
                             history = history,
                             onSelect = { doSearch(it) },
                             onDelete = {
-                                history = SearchHistoryStore.remove(context, it).take(HISTORY_MAX)
+                                history = SearchHistoryStore.remove(context, searchScope, it).take(HISTORY_MAX)
                             },
                             onClear = {
-                                SearchHistoryStore.clear(context)
+                                SearchHistoryStore.clear(context, searchScope)
                                 history = emptyList()
                             }
                         )
@@ -244,8 +290,8 @@ fun SearchScreen(
             when (uiState) {
                 is SearchUiState.Idle -> {}
                 is SearchUiState.Loading -> {
-                    if (movies.isEmpty()) {
-                        item(span = { GridItemSpan(3) }) {
+                    if (movies.isEmpty() && actresses.isEmpty() && searchScope != SearchScope.FAVORITES) {
+                        item(span = { GridItemSpan(gridColumns) }) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -258,24 +304,65 @@ fun SearchScreen(
                     }
                 }
                 is SearchUiState.Error -> {}
-                is SearchUiState.Success -> {}
+                is SearchUiState.Success -> {
+                    if (searchScope == SearchScope.MOVIES && movies.isEmpty() && looksLikeMovieCode(query)) {
+                        item(span = { GridItemSpan(gridColumns) }) {
+                            TextButton(onClick = {
+                                navController.navigate(NavRoutes.download(query.trim()))
+                            }) {
+                                Text("用番号搜磁力")
+                            }
+                        }
+                    }
+                }
             }
 
-            items(
-                items = movies,
-                key = { it.code?.let { c -> it.link?.let { l -> "$c-$l" } ?: c } ?: it.hashCode().toString() }
-            ) { movie ->
-                MovieCard(
-                    movie = movie,
-                    onClick = {
-                        navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl))
-                    },
-                    onLongClick = { dialogMovie = movie }
-                )
+            if (searchScope == SearchScope.MOVIES || searchScope == SearchScope.FAVORITES) {
+                if (searchScope == SearchScope.FAVORITES && movies.isEmpty() && actresses.isEmpty() && uiState is SearchUiState.Success) {
+                    item(span = { GridItemSpan(gridColumns) }) {
+                        Text(
+                            text = if (query.isBlank()) "暂无收藏" else "没有匹配的收藏",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+                items(
+                    items = movies,
+                    key = { "m_${it.dataSourceName ?: ""}_${it.code ?: ""}_${it.link ?: ""}" }
+                ) { movie ->
+                    MovieCard(
+                        movie = movie,
+                        onClick = {
+                            navController.navigate(NavRoutes.movieDetail(movie.code ?: "", movie.link, movie.coverUrl))
+                        },
+                        onLongClick = { dialogMovie = movie }
+                    )
+                }
+            }
+            if (searchScope == SearchScope.ACTRESSES || searchScope == SearchScope.FAVORITES) {
+                items(
+                    items = actresses,
+                    key = { "a_${it.dataSourceName ?: ""}_${it.link ?: ""}_${it.name ?: ""}" },
+                    span = { GridItemSpan(gridColumns) }
+                ) { actress ->
+                    ActressSearchRow(
+                        actress = actress,
+                        onClick = {
+                            val starId = actressStarId(actress.link)
+                            if (starId.isNotBlank()) {
+                                navController.navigate(
+                                    NavRoutes.actressDetail(starId, actress.name, actress.imageUrl)
+                                )
+                            }
+                        },
+                        onLongClick = { dialogActress = actress }
+                    )
+                }
             }
 
             if (isLoadingMore) {
-                item(span = { GridItemSpan(3) }) {
+                item(span = { GridItemSpan(gridColumns) }) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -302,6 +389,53 @@ fun SearchScreen(
             movie = movie,
             onDismiss = { dialogMovie = null }
         )
+    }
+    dialogActress?.let { actress ->
+        ActressFavoriteDialog(
+            actress = actress,
+            onDismiss = { dialogActress = null }
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ActressSearchRow(
+    actress: Actress,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        coil.compose.AsyncImage(
+            model = actress.imageUrl,
+            contentDescription = actress.name,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+        )
+        Column {
+            Text(
+                text = actress.name ?: "",
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            actress.movieCount?.let { count ->
+                Text(
+                    text = "${count} 部作品",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

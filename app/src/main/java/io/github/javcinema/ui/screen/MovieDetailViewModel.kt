@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.data.model.MovieDetail
+import io.github.javcinema.data.model.toggleStar
 import io.github.javcinema.network.provider.AVMOProvider
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +25,14 @@ sealed class MovieDetailUiState {
     data class Success(val detail: MovieDetail) : MovieDetailUiState()
     data class Error(val message: String) : MovieDetailUiState()
 }
+
+internal fun shouldSkipDetailLoad(
+    movieCode: String,
+    currentMovieCode: String,
+    version: Int,
+    lastVersion: Int,
+    isError: Boolean
+): Boolean = currentMovieCode == movieCode && lastVersion == version && !isError
 
 class MovieDetailViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<MovieDetailUiState>(MovieDetailUiState.Loading)
@@ -41,14 +51,14 @@ class MovieDetailViewModel : ViewModel() {
     private var currentMovieCode: String = ""
     private var currentMovieLink: String? = null
     private var lastVersion: Int = -1
+    private var detailJob: Job? = null
 
     private val _defaultCover = MutableStateFlow<String?>(null)
     val defaultCover: StateFlow<String?> = _defaultCover.asStateFlow()
 
     init {
         viewModelScope.launch {
-            JavCinema.dataSourceVersionFlow.drop(1).collectLatest { version ->
-                lastVersion = version
+            JavCinema.dataSourceVersionFlow.drop(1).collectLatest {
                 if (currentMovieCode.isNotEmpty()) {
                     loadDetail(currentMovieCode, currentMovieLink)
                 }
@@ -57,15 +67,25 @@ class MovieDetailViewModel : ViewModel() {
     }
 
     fun loadDetail(movieCode: String, movieLink: String? = null, thumbnailUrl: String? = null) {
-        if (currentMovieCode == movieCode && _uiState.value !is MovieDetailUiState.Error) {
+        val version = JavCinema.dataSourceVersionFlow.value
+        if (shouldSkipDetailLoad(
+                movieCode,
+                currentMovieCode,
+                version,
+                lastVersion,
+                _uiState.value is MovieDetailUiState.Error
+            )
+        ) {
             Log.i("MovieDetailVM", "loadDetail: skipped (already loading/success) code=$movieCode")
             return
         }
         currentMovieCode = movieCode
         currentMovieLink = movieLink
+        lastVersion = version
         _defaultCover.value = thumbnailUrl
         Log.i("MovieDetailVM", "loadDetail: code=$movieCode link=$movieLink thumb=$thumbnailUrl")
-        viewModelScope.launch {
+        detailJob?.cancel()
+        detailJob = viewModelScope.launch {
             _uiState.value = MovieDetailUiState.Loading
             try {
                 val ds = JavCinema.getDataSource()
@@ -78,6 +98,7 @@ class MovieDetailViewModel : ViewModel() {
                     loadDetailFromHtml(movieCode, movieLink)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.value = MovieDetailUiState.Error(e.message ?: "Unknown error")
             }
         }
@@ -117,6 +138,8 @@ class MovieDetailViewModel : ViewModel() {
             code = apiDetail.movieFanHao
             title = parsed.title
             coverUrl = parsed.coverUrl
+            link = apiDetail.movieId
+            dataSourceName = JavCinema.getDataSource()?.name
         }
 
         _detail.value = parsed
@@ -152,6 +175,8 @@ class MovieDetailViewModel : ViewModel() {
             code = movieCode
             title = parsed.title
             coverUrl = parsed.coverUrl
+            this.link = movieLink
+            dataSourceName = JavCinema.getDataSource()?.name
         }
 
         _detail.value = parsed
@@ -164,17 +189,10 @@ class MovieDetailViewModel : ViewModel() {
     }
 
     fun toggleStar() {
-        val config = JavCinema.CONFIGURATIONS ?: return
         val m = movie ?: return
-
-        if (config.starredMovies?.contains(m) == true) {
-            config.starredMovies?.remove(m)
-            _isStarred.value = false
-        } else {
-            config.starredMovies?.add(0, m)
-            _isStarred.value = true
-        }
-        config.save()
+        m.toggleStar()
+        JavCinema.CONFIGURATIONS?.save()
+        checkStarred()
     }
 
     private fun checkStarred() {
