@@ -27,6 +27,20 @@ class SimpleVideoPlayer(private val context: Context) {
     var volumePercent: Int by mutableIntStateOf(50)
     var brightnessPercent: Int by mutableIntStateOf(100)
     var isControlsVisible: Boolean by mutableStateOf(true)
+
+    /** 手指是否正按在画面上。按住期间不自动隐藏控件。 */
+    var isTouching: Boolean by mutableStateOf(false)
+        private set
+
+    /**
+     * 「用户动了」的计数器，每次触摸都会 +1。
+     *
+     * 自动隐藏是 `LaunchedEffect` + `delay` 实现的，把这个值放进 key 里，
+     * 就能让任何一次触摸都重新开始倒计时（而不是沿用上一次的剩余时间）。
+     */
+    var controlsIdleTick: Long by mutableLongStateOf(0L)
+        private set
+
     var gestureMode: GestureMode by mutableStateOf(GestureMode.NONE)
     var seekTimeText: String by mutableStateOf("")
     var totalTimeText: String by mutableStateOf("")
@@ -47,6 +61,8 @@ class SimpleVideoPlayer(private val context: Context) {
         get() = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
     fun onTouchDown(x: Float, y: Float, screenWidth: Int) {
+        isTouching = true
+        controlsIdleTick++
         downX = x
         downY = y
         gestureMode = GestureMode.NONE
@@ -85,6 +101,11 @@ class SimpleVideoPlayer(private val context: Context) {
                     gestureMode = GestureMode.VOLUME
                 }
             }
+            // 一旦确认是「拖动」而不是「点击」，就把控件收起来，
+            // 让快进 / 音量 / 亮度浮层单独显示，别和进度条叠在一起。
+            if (gestureMode != GestureMode.NONE) {
+                isControlsVisible = false
+            }
         }
 
         when (gestureMode) {
@@ -122,17 +143,23 @@ class SimpleVideoPlayer(private val context: Context) {
     }
 
     fun onTouchUp(exoPlayer: ExoPlayerImpl) {
-        when (gestureMode) {
-            GestureMode.SEEK -> {
-                exoPlayer.seekTo(seekTimePosition)
-            }
-            else -> {}
+        // 先记住本次手势的类型再清空：它决定控件是「切换」还是「收起」。
+        val mode = gestureMode
+        if (mode == GestureMode.SEEK) {
+            exoPlayer.seekTo(seekTimePosition)
         }
         gestureMode = GestureMode.NONE
+        isTouching = false
+        controlsIdleTick++
+        when (PlayerControlsPolicy.afterGesture(mode)) {
+            ControlsAfterGesture.TOGGLE -> toggleControls()
+            ControlsAfterGesture.HIDE -> isControlsVisible = false
+        }
     }
 
     fun toggleControls() {
         isControlsVisible = !isControlsVisible
+        controlsIdleTick++
     }
 
     private fun formatTime(millis: Long): String {

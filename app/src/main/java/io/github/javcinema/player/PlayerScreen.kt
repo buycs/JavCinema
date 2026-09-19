@@ -201,6 +201,24 @@ fun PlayerScreen(
         }
     }
 
+    // 控件自动隐藏：可见、且手指没按着时，静置 3 秒就淡出，把画面让出来。
+    // key 里带上 controlsIdleTick —— 任何一次触摸都会让它变化，倒计时因此重新开始，
+    // 而不是沿用上一次的剩余时间。
+    LaunchedEffect(
+        playerController.isControlsVisible,
+        playerController.isTouching,
+        playerController.controlsIdleTick
+    ) {
+        val shouldHide = PlayerControlsPolicy.shouldAutoHide(
+            controlsVisible = playerController.isControlsVisible,
+            touching = playerController.isTouching
+        )
+        if (shouldHide) {
+            delay(PlayerControlsPolicy.AUTO_HIDE_DELAY_MS)
+            playerController.isControlsVisible = false
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -281,17 +299,25 @@ fun PlayerScreen(
             }
         )
 
-        IconButton(
-            onClick = onBackClick,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
+        // 返回键跟随控件一起淡出：横屏看片时画面上不该常驻任何 UI。
+        // 退出仍然有两条路 —— 系统返回手势/按键（上面注册了 BackHandler），
+        // 或者点一下画面唤回控件再点返回。
+        AnimatedVisibility(
+            visible = playerController.isControlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopStart)
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "返回",
-                tint = Color.White
-            )
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "返回",
+                    tint = Color.White
+                )
+            }
         }
 
         when (playerController.playbackState) {
