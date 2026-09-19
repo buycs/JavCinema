@@ -65,8 +65,12 @@ class Configurations {
         var themeMode: String? = null
         var gridColumns: Int = 3
 
+        /** 是否在系统「最近任务」列表中隐藏本应用。 */
+        var hideFromRecents: Boolean = false
+
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_GRID_COLUMNS = "grid_columns"
+        private const val KEY_HIDE_FROM_RECENTS = "hide_from_recents"
         private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private val saveMutex = Mutex()
 
@@ -81,6 +85,7 @@ class Configurations {
             homePage = prefs.getString(KEY_HOME_PAGE, null)
             themeMode = prefs.getString(KEY_THEME_MODE, "system")
             gridColumns = prefs.getInt(KEY_GRID_COLUMNS, 3).coerceIn(2, 4)
+            hideFromRecents = prefs.getBoolean(KEY_HIDE_FROM_RECENTS, false)
         }
 
         fun savePrefs(context: Context) {
@@ -94,6 +99,7 @@ class Configurations {
                 .putString(KEY_HOME_PAGE, homePage)
                 .putString(KEY_THEME_MODE, themeMode)
                 .putInt(KEY_GRID_COLUMNS, gridColumns.coerceIn(2, 4))
+                .putBoolean(KEY_HIDE_FROM_RECENTS, hideFromRecents)
                 .apply()
             JavCinema.uiPrefsVersionFlow.value++
         }

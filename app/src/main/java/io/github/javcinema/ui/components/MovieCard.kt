@@ -21,7 +21,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,7 +120,7 @@ fun MovieCard(
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            color = Color(0xFFE91E63)
+                            color = MaterialTheme.colorScheme.secondary
                         )
 
                         Text(

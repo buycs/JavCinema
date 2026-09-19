@@ -397,7 +397,7 @@ private fun InfoRowClickableMagnet(label: String, value: String, onClick: () -> 
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFFE91E63),
+            color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.alignByBaseline()
         )
     }

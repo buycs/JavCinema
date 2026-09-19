@@ -78,4 +78,60 @@ class NavRoutesTest {
     fun player_defaultsBlankReferer() {
         assertEquals("player?url=https%3A%2F%2Fcdn.example.com%2Fa.m3u8&referer=", NavRoutes.player("https://cdn.example.com/a.m3u8"))
     }
+
+    // --- 首页设置 ---
+    // 回归：startDestination 必须等于 composable() 注册的 route，
+    // 而搜索页注册的是 SEARCH_ROUTE（带 query 参数），不是 SEARCH。
+
+    @Test
+    fun searchRoute_isTheRegisteredRouteNotTheBareName() {
+        // 这条断言是本次 bug 的核心：两者不能相等。
+        assertFalse(NavRoutes.SEARCH_ROUTE == NavRoutes.SEARCH)
+        assertEquals("search?query={query}", NavRoutes.SEARCH_ROUTE)
+        assertEquals("search", NavRoutes.SEARCH)
+    }
+
+    @Test
+    fun normalizeHomePage_mapsLegacySearchToRegisteredRoute() {
+        // 历史版本存过 "search"，必须纠正成注册 route，否则 NavHost 匹配失败回落 HOME。
+        assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.normalizeHomePage(NavRoutes.SEARCH))
+        assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.normalizeHomePage(NavRoutes.SEARCH_ROUTE))
+    }
+
+    @Test
+    fun normalizeHomePage_keepsHome() {
+        assertEquals(NavRoutes.HOME, NavRoutes.normalizeHomePage(NavRoutes.HOME))
+    }
+
+    @Test
+    fun normalizeHomePage_defaultsToSearchForNullOrUnknown() {
+        assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.normalizeHomePage(null))
+        assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.normalizeHomePage(""))
+        assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.normalizeHomePage("garbage"))
+    }
+
+    @Test
+    fun normalizeHomePage_resultIsAlwaysARegisteredRoute() {
+        // 归一化结果必须落在注册 route 集合里，否则会出现「选完启动还是影片页」。
+        val registered = setOf(NavRoutes.HOME, NavRoutes.ACTRESSES, NavRoutes.FAVOURITE, NavRoutes.SETTINGS, NavRoutes.SEARCH_ROUTE)
+        listOf(null, "", NavRoutes.HOME, NavRoutes.SEARCH, NavRoutes.SEARCH_ROUTE, "unknown").forEach { input ->
+            assertTrue("input=$input", NavRoutes.normalizeHomePage(input) in registered)
+        }
+    }
+
+    @Test
+    fun homePageOptions_searchComesFirstAsDefault() {
+        // 默认项（列表第一个）就是搜索为首页。
+        assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.HOME_PAGE_OPTIONS.first().first)
+        assertEquals(NavRoutes.DEFAULT_HOME_PAGE, NavRoutes.HOME_PAGE_OPTIONS.first().first)
+        assertEquals(2, NavRoutes.HOME_PAGE_OPTIONS.size)
+    }
+
+    @Test
+    fun homePageLabel_returnsReadableText() {
+        assertEquals("搜索为首页", NavRoutes.homePageLabel(NavRoutes.SEARCH_ROUTE))
+        assertEquals("搜索为首页", NavRoutes.homePageLabel(NavRoutes.SEARCH))
+        assertEquals("搜索为首页", NavRoutes.homePageLabel(null))
+        assertEquals("影片为首页", NavRoutes.homePageLabel(NavRoutes.HOME))
+    }
 }

@@ -22,3 +22,16 @@ val OnSurfaceDark = Color(0xFFE0E0E0)
 
 val CardLight = Color(0xFFFFFFFF)
 val CardDark = Color(0xFF2C2C2C)
+
+// 层级容器色：浅色下用更亮的白 + 极浅灰区分卡片与背景；
+// 深色下用逐级提亮的中性灰，保证卡片能从背景中"浮"出来。
+val CardHighestLight = Color(0xFFEFEFEF)
+val CardHighestDark = Color(0xFF383838)
+
+// 次级文字与描边：浅色下为中性灰，深色下为浅灰，保证对比度符合无障碍要求。
+val NeutralVariantLight = Color(0xFF5F5F5F)
+val NeutralVariantDark = Color(0xFFB0B0B0)
+val OutlineLight = Color(0xFF9E9E9E)
+val OutlineDark = Color(0xFF7A7A7A)
+val OutlineVariantLight = Color(0xFFE0E0E0)
+val OutlineVariantDark = Color(0xFF4A4A4A)

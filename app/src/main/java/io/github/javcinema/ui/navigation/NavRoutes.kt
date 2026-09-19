@@ -14,6 +14,56 @@ object NavRoutes {
     const val GALLERY = "gallery/{index}"
     const val DOWNLOAD = "download/{keyword}"
     const val SEARCH = "search"
+
+    /**
+     * 搜索页在导航图里注册的完整路由（带可选 query 参数）。
+     *
+     * ⚠️ 用于 [androidx.navigation.compose.NavHost] 的 `composable(route = ...)`
+     * 以及 `startDestination`。它们必须传同一个字符串，否则 NavHost 匹配不到目的地，
+     * 会静默回落到第一个注册的 composable。
+     */
+    const val SEARCH_ROUTE = "search?query={query}"
+
+    /**
+     * 「首页设置」的可选值 —— 直接复用导航图里注册的 route，
+     * 这样 `startDestination`、底部栏高亮、设置页读写三处天然一致。
+     *
+     * 之所以不用 [HOME]/[SEARCH]（"home"/"search"）作为存储值：
+     * startDestination 与 `composable(route=)` 必须逐字相同，
+     * 而搜索页注册的是 [SEARCH_ROUTE]，存 "search" 会导致 NavHost 匹配失败。
+     */
+    val HOME_PAGE_OPTIONS: List<Pair<String, String>> = listOf(
+        SEARCH_ROUTE to "搜索为首页",
+        HOME to "影片为首页"
+    )
+
+    /** 首页设置的默认值：搜索为首页。 */
+    const val DEFAULT_HOME_PAGE = SEARCH_ROUTE
+
+    /**
+     * 把持久化的「首页设置」值归一化成导航图里注册的 route。
+     *
+     * ⚠️ 这个函数的返回值会直接传给 `NavHost(startDestination = ...)` 和
+     * `navController.navigate(...)`，必须与 `composable(route = ...)` 逐字一致。
+     *
+     * 为什么要归一化：历史版本曾把 "search"（[SEARCH]）存进偏好设置，
+     * 而搜索页注册的 route 是 [SEARCH_ROUTE]（"search?query={query}"）。
+     * 直接使用 "search" 会导致 NavHost 匹配不到目的地，
+     * 静默回落到第一个注册的 composable（HOME），
+     * 表现为「选了搜索为首页，启动后却显示影片页」。
+     */
+    fun normalizeHomePage(stored: String?): String = when (stored) {
+        HOME -> HOME
+        SEARCH, SEARCH_ROUTE -> SEARCH_ROUTE
+        else -> DEFAULT_HOME_PAGE
+    }
+
+    /** 首页设置值对应的中文说明，用于设置页 summary。 */
+    fun homePageLabel(stored: String?): String {
+        val normalized = normalizeHomePage(stored)
+        return HOME_PAGE_OPTIONS.firstOrNull { it.first == normalized }?.second
+            ?: HOME_PAGE_OPTIONS.first().second
+    }
     const val SETTINGS = "settings"
     const val WEBVIEW = "webview/{url}"
     const val MISSAV_PLAY = "missav_play/{movieCode}"

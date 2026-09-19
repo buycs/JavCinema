@@ -1,17 +1,16 @@
 package io.github.javcinema.ui.screen
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,10 +19,10 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -32,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Text
@@ -46,15 +46,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import androidx.navigation.NavController
 import coil.imageLoader
 import io.github.javcinema.BuildConfig
@@ -68,7 +69,6 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalMaterial3Api::class, coil.annotation.ExperimentalCoilApi::class)
 @Composable
 fun SettingsScreen(navController: NavController? = null) {
-    var showDataSourceDialog by remember { mutableStateOf(false) }
     var showDataUrlDialog by remember { mutableStateOf(false) }
     var showMagnetUrlDialog by remember { mutableStateOf(false) }
     var showHomePageDialog by remember { mutableStateOf(false) }
@@ -78,6 +78,9 @@ fun SettingsScreen(navController: NavController? = null) {
     var showFavoriteBackupChooser by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Configurations.hideFromRecents 是普通字段，改它不会触发重组，
+    // 所以用本地 state 驱动 UI，写回时同时更新两者。
+    var hideFromRecents by remember { mutableStateOf(Configurations.hideFromRecents) }
     val exportFavoritesLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -109,14 +112,8 @@ fun SettingsScreen(navController: NavController? = null) {
     ) {
         SettingsItem(
             icon = Icons.Filled.Star,
-            title = "数据源选择",
-            summary = getCurrentSourceSummary(),
-            onClick = { showDataSourceDialog = true }
-        )
-        SettingsItem(
-            icon = Icons.Filled.Language,
             title = "数据源配置",
-            summary = "自定义数据源地址",
+            summary = "当前：${getCurrentSourceSummary()}（点此切换与自定义地址）",
             onClick = { showDataUrlDialog = true }
         )
         SettingsItem(
@@ -151,15 +148,37 @@ fun SettingsScreen(navController: NavController? = null) {
         )
         SettingsItem(
             icon = Icons.Filled.Delete,
-            title = "清理图片缓存",
-            summary = "清除封面磁盘缓存",
+            title = "清理缓存",
+            summary = "清除图片、网页与内存缓存",
             onClick = {
                 scope.launch {
-                    val cleared = withContext(Dispatchers.IO) {
-                        runCatching { context.imageLoader.diskCache?.clear() }.isSuccess
-                    }
-                    Toast.makeText(context, if (cleared) "缓存已清理" else "清理失败", Toast.LENGTH_SHORT).show()
+                    val outcome = withContext(Dispatchers.IO) { clearAllCaches(context) }
+                    Toast.makeText(context, buildCacheClearMessage(outcome), Toast.LENGTH_SHORT).show()
                 }
+            }
+        )
+        SettingsItem(
+            icon = Icons.Filled.VisibilityOff,
+            title = "最近任务隐藏",
+            summary = if (hideFromRecents) {
+                "不在系统最近任务列表中显示本应用（重启后生效）"
+            } else {
+                "在系统最近任务列表中显示本应用"
+            },
+            trailing = {
+                Switch(
+                    checked = hideFromRecents,
+                    onCheckedChange = { checked ->
+                        hideFromRecents = checked
+                        Configurations.hideFromRecents = checked
+                        Configurations.savePrefs(context)
+                        Toast.makeText(
+                            context,
+                            if (checked) "已开启，重启后生效" else "已关闭，重启后生效",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                )
             }
         )
         SettingsItem(
@@ -170,12 +189,6 @@ fun SettingsScreen(navController: NavController? = null) {
         )
     }
 
-    if (showDataSourceDialog) {
-        DataSourceDialog(
-            onDismiss = { showDataSourceDialog = false },
-            navController = navController
-        )
-    }
     if (showDataUrlDialog) {
         DataUrlDialog(
             onDismiss = { showDataUrlDialog = false },
@@ -332,17 +345,43 @@ private fun openUrlWithChooser(context: Context, url: String) {
     }
 }
 
+/**
+ * 清理全部缓存：Coil 图片磁盘缓存、WebView 缓存、Coil 内存缓存。
+ *
+ * WebView 的 [WebStorage] / [CookieManager] 必须在主线程调用，因此内部切回 Main。
+ * 每一项独立捕获异常，避免一项失败影响其余项。
+ */
+@OptIn(coil.annotation.ExperimentalCoilApi::class)
+private suspend fun clearAllCaches(context: Context): CacheClearOutcome {
+    val imageCleared = withContext(Dispatchers.IO) {
+        runCatching { context.imageLoader.diskCache?.clear() }.isSuccess
+    }
+    val memoryCleared = runCatching { context.imageLoader.memoryCache?.clear() }.isSuccess
+    val webCleared = withContext(Dispatchers.Main) {
+        runCatching {
+            WebStorage.getInstance().deleteAllData()
+            CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
+        }.isSuccess
+    }
+    return CacheClearOutcome(
+        imageCacheCleared = imageCleared,
+        webViewCacheCleared = webCleared,
+        memoryCacheCleared = memoryCleared
+    )
+}
+
 @Composable
 private fun AboutDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repos = listOf(
-        "原项目源码" to "https://github.com/SplashCodes/JAViewer",
-        "本项目源码" to "https://github.com/buycs/JavCinema"
+        "本项目源码" to "https://github.com/buycs/JavCinema",
+        "原项目源码" to "https://github.com/SplashCodes/JAViewer"
     )
     var checking by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf<String?>(null) }
-    var latest by remember { mutableStateOf<ReleaseInfo?>(null) }
+    // 检查结果不在本对话框内展示，而是驱动一个独立浮窗，避免「关于」内容被结果撑长。
+    var updatePrompt by remember { mutableStateOf<UpdatePrompt?>(null) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("关于") },
@@ -350,9 +389,43 @@ private fun AboutDialog(onDismiss: () -> Unit) {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
+                // 版本号 + 检查更新入口放在一起
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "JavCinema ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        enabled = !checking,
+                        onClick = {
+                            checking = true
+                            scope.launch {
+                                val result = fetchLatestRelease()
+                                checking = false
+                                updatePrompt = result.fold(
+                                    onSuccess = { info ->
+                                        if (isNewerVersion(info.tag, BuildConfig.VERSION_NAME)) {
+                                            UpdatePrompt.NewVersion(info)
+                                        } else {
+                                            UpdatePrompt.UpToDate
+                                        }
+                                    },
+                                    onFailure = { e ->
+                                        UpdatePrompt.Failed(e.message ?: "网络异常")
+                                    }
+                                )
+                            }
+                        }
+                    ) { Text(if (checking) "检查中…" else "检查更新") }
+                }
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "JavCinema ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n\n" +
-                        "基于 JAViewer 的二次开发。内容来自第三方数据源，仅供学习交流。"
+                    "基于 JAViewer 的二次开发。内容来自第三方数据源，仅供学习交流。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(12.dp))
                 Text("项目源码", style = MaterialTheme.typography.titleSmall)
@@ -361,84 +434,117 @@ private fun AboutDialog(onDismiss: () -> Unit) {
                         onClick = { openUrlWithChooser(context, url) }
                     ) { Text(label) }
                 }
-                Spacer(Modifier.height(8.dp))
-                Text("版本更新", style = MaterialTheme.typography.titleSmall)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    TextButton(
-                        enabled = !checking,
-                        onClick = {
-                            checking = true
-                            status = null
-                            latest = null
-                            scope.launch {
-                                val result = fetchLatestRelease()
-                                checking = false
-                                result.onSuccess { info ->
-                                    latest = info
-                                    status = if (isNewerVersion(info.tag, BuildConfig.VERSION_NAME)) {
-                                        "发现新版 ${info.tag.ifBlank { info.name }}（当前 ${BuildConfig.VERSION_NAME}）"
-                                    } else {
-                                        "已是最新版本（${BuildConfig.VERSION_NAME}）"
-                                    }
-                                }.onFailure { e ->
-                                    status = "检查失败：${e.message ?: "网络异常"}"
-                                }
-                            }
-                        }
-                    ) { Text(if (checking) "检查中…" else "检查更新") }
-                }
-                if (status != null) {
-                    Text(
-                        text = status!!,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                val info = latest
-                if (info != null && isNewerVersion(info.tag, BuildConfig.VERSION_NAME)) {
-                    if (info.body.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = info.body.take(200),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            openUrlWithChooser(context, info.htmlUrl.ifBlank { UPDATE_RELEASES_PAGE })
-                        }
-                    ) { Text("去下载新版") }
-                }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("关闭") }
         }
     )
-}
 
-private fun getHomePageSummary(): String {
-    return when (Configurations.homePage) {
-        NavRoutes.SEARCH -> "搜索为首页"
-        else -> "影片为首页"
+    // 检查结果浮窗：覆盖在「关于」之上，关闭后回到「关于」。
+    updatePrompt?.let { prompt ->
+        UpdateResultDialog(
+            prompt = prompt,
+            onDismiss = { updatePrompt = null },
+            onOpenRelease = { url ->
+                updatePrompt = null
+                openUrlWithChooser(context, url)
+            }
+        )
     }
 }
+
+/** 「检查更新」的结果，用于驱动结果浮窗。 */
+private sealed interface UpdatePrompt {
+    /** 已是最新版本。 */
+    data object UpToDate : UpdatePrompt
+
+    /** 发现新版本。 */
+    data class NewVersion(val info: ReleaseInfo) : UpdatePrompt
+
+    /** 检查失败。 */
+    data class Failed(val message: String) : UpdatePrompt
+}
+
+/**
+ * 检查更新结果浮窗。
+ *
+ * - 已是最新：单个「知道了」
+ * - 发现新版：展示版本号与更新说明，「去更新」打开 release 页
+ * - 检查失败：展示失败原因
+ */
+@Composable
+private fun UpdateResultDialog(
+    prompt: UpdatePrompt,
+    onDismiss: () -> Unit,
+    onOpenRelease: (String) -> Unit
+) {
+    when (prompt) {
+        is UpdatePrompt.UpToDate -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("检查更新") },
+            text = { Text("已是最新版本（${BuildConfig.VERSION_NAME}）") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
+        )
+
+        is UpdatePrompt.NewVersion -> {
+            val info = prompt.info
+            AlertDialog(
+                onDismissRequest = onDismiss,
+                title = { Text("发现新版本") },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = info.tag.ifBlank { info.name }.ifBlank { "未知版本" },
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "当前版本 ${BuildConfig.VERSION_NAME}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (info.body.isNotBlank()) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = info.body.take(400),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        onOpenRelease(info.htmlUrl.ifBlank { UPDATE_RELEASES_PAGE })
+                    }) { Text("去更新") }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismiss) { Text("稍后") }
+                }
+            )
+        }
+
+        is UpdatePrompt.Failed -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("检查更新") },
+            text = { Text("检查失败：${prompt.message}") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
+        )
+    }
+}
+
+private fun getHomePageSummary(): String = NavRoutes.homePageLabel(Configurations.homePage)
 
 @Composable
 private fun HomePageDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val current = Configurations.homePage
-    var selected by remember { mutableStateOf(current ?: NavRoutes.HOME) }
+    // 存的是导航图里注册的 route；旧版本可能存过 "search"，这里归一化一次。
+    val current = NavRoutes.normalizeHomePage(Configurations.homePage)
+    var selected by remember { mutableStateOf(current) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    val options = listOf(
-        NavRoutes.HOME to "影片为首页",
-        NavRoutes.SEARCH to "搜索为首页"
-    )
+    val options = NavRoutes.HOME_PAGE_OPTIONS
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -512,13 +618,32 @@ private fun SettingsItem(
     summary: String,
     onClick: () -> Unit
 ) {
+    SettingsItem(icon = icon, title = title, summary = summary, onClick = onClick, trailing = null)
+}
+
+/**
+ * 设置项卡片。
+ *
+ * @param trailing 右侧附加控件（如 [Switch]）。为 null 时整行可点击并触发 [onClick]；
+ *   不为 null 时由控件自己处理点击，外层 [Card] 不再可点，避免误触开关。
+ */
+@Composable
+private fun SettingsItem(
+    icon: ImageVector,
+    title: String,
+    summary: String,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp)
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
+        modifier = cardModifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
         Row(
@@ -546,101 +671,19 @@ private fun SettingsItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            if (trailing != null) {
+                Spacer(Modifier.width(12.dp))
+                trailing()
+            }
         }
     }
 }
 
 @Composable
-private fun DataSourceDialog(onDismiss: () -> Unit, navController: NavController? = null) {
-    val context = LocalContext.current
-    val dataSources = JavCinema.DATA_SOURCES
-    val currentSource = JavCinema.getDataSource()
-    var selectedSource by remember { mutableStateOf(currentSource) }
-    var saved by remember { mutableStateOf(false) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-
-    val iconMap = mapOf(
-        "骑兵" to Icons.Filled.Star,
-        "步兵" to Icons.Filled.Visibility,
-        "欧美" to Icons.Filled.Language
-    )
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("数据源选择") },
-        text = {
-            Column {
-                dataSources.forEach { ds ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedSource = ds }
-                            .padding(vertical = 2.dp)
-                    ) {
-                        RadioButton(
-                            selected = selectedSource == ds,
-                            onClick = { selectedSource = ds }
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        val icon = iconMap[ds.name]
-                        if (icon != null) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                        }
-                        Text(text = ds.toString())
-                    }
-                }
-                if (errorMsg != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = errorMsg!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                val config = JavCinema.CONFIGURATIONS
-                if (config != null) {
-                    config.dataSource = selectedSource
-                    config.save()
-                }
-                try {
-                    JavCinema.recreateService()
-                    saved = true
-                    Toast.makeText(context, "保存成功", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                    navController?.navigate(homeDestination()) {
-                        popUpTo(0) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                } catch (e: Exception) {
-                    errorMsg = "保存失败: ${e.localizedMessage}"
-                    Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-                }
-            }) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
-    )
-}
-
-@Composable
 private fun DataUrlDialog(onDismiss: () -> Unit, navController: NavController? = null) {
     val context = LocalContext.current
-    val items = JavCinema.DATA_SOURCES.map { ds ->
+    val dataSources = JavCinema.DATA_SOURCES
+    val items = dataSources.map { ds ->
         val defaultLink = ds.link ?: ""
         val custom = when (ds.name) {
             "骑兵" -> Configurations.customAvmooUrl
@@ -656,7 +699,17 @@ private fun DataUrlDialog(onDismiss: () -> Unit, navController: NavController? =
             }}
         )
     }
-    SourceConfigDialog("数据源配置", items, onDismiss, context, navController)
+    // 数据源选择与地址配置合并：同一个对话框里既选当前源，也改各源地址。
+    SourceConfigDialog(
+        title = "数据源配置",
+        items = items,
+        onDismiss = onDismiss,
+        context = context,
+        navController = navController,
+        selectable = true,
+        initialSelected = JavCinema.getDataSource(),
+        dataSources = dataSources
+    )
 }
 
 @Composable
@@ -689,12 +742,32 @@ private data class SourceItem(
 )
 
 @Composable
-private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss: () -> Unit, context: android.content.Context, navController: NavController? = null, reloadOnSave: Boolean = true) {
+private fun SourceConfigDialog(
+    title: String,
+    items: List<SourceItem>,
+    onDismiss: () -> Unit,
+    context: android.content.Context,
+    navController: NavController? = null,
+    reloadOnSave: Boolean = true,
+    selectable: Boolean = false,
+    initialSelected: Any? = null,
+    dataSources: List<Any> = emptyList()
+) {
     val urls = remember { items.associate { it.label to mutableStateOf(it.initial) } }
     var saved by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var checking by remember { mutableStateOf(false) }
     var pendingHttp by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedIndex by remember {
+        mutableStateOf(
+            if (selectable) {
+                items.indexOfFirst { it.label == (initialSelected as? io.github.javcinema.data.model.DataSource)?.name }
+                    .coerceAtLeast(0)
+            } else {
+                -1
+            }
+        )
+    }
     val scope = rememberCoroutineScope()
 
     AlertDialog(
@@ -705,16 +778,37 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 Text(
-                    text = "留空则恢复默认地址。默认只接受 https，http 需确认。保存前会探测地址。",
+                    text = if (selectable) {
+                        "选择启用的数据源，并可自定义各源地址。留空则恢复默认地址，默认只接受 https。"
+                    } else {
+                        "留空则恢复默认地址。默认只接受 https，http 需确认。保存前会探测地址。"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                val labelWidth = 72.dp
-                items.forEach { item ->
+                // 每个数据源占一行：选择框 + 名称 + 地址输入框。
+                items.forEachIndexed { index, item ->
                     val state = urls[item.label]!!
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("${item.label}：", textAlign = TextAlign.End, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(labelWidth))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (selectable) {
+                            RadioButton(
+                                selected = selectedIndex == index,
+                                onClick = { selectedIndex = index }
+                            )
+                        }
+                        Text(
+                            text = item.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(min = 52.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
                         TextField(
                             value = state.value,
                             onValueChange = { state.value = it; saved = false; errorMsg = null },
@@ -722,10 +816,10 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                             textStyle = MaterialTheme.typography.bodySmall,
                             placeholder = { Text("默认: ${item.defaultLink}", style = MaterialTheme.typography.bodySmall) },
                             colors = TextFieldDefaults.colors(
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary
                             ),
                             modifier = Modifier.height(56.dp).weight(1f)
                         )
@@ -755,7 +849,9 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                             onSaved = { saved = true },
                             onError = { errorMsg = it },
                             onChecking = { checking = it },
-                            onNeedHttpConfirm = { pendingHttp = it }
+                            onNeedHttpConfirm = { pendingHttp = it },
+                            selectedIndex = selectedIndex,
+                            dataSources = dataSources
                         )
                     }
                 }
@@ -789,7 +885,9 @@ private fun SourceConfigDialog(title: String, items: List<SourceItem>, onDismiss
                             onSaved = { saved = true },
                             onError = { errorMsg = it },
                             onChecking = { checking = it },
-                            onNeedHttpConfirm = {}
+                            onNeedHttpConfirm = {},
+                            selectedIndex = selectedIndex,
+                            dataSources = dataSources
                         )
                     }
                 }) { Text("确认") }
@@ -812,7 +910,9 @@ private suspend fun persistSourceUrls(
     onSaved: () -> Unit,
     onError: (String) -> Unit,
     onChecking: (Boolean) -> Unit,
-    onNeedHttpConfirm: (List<String>) -> Unit
+    onNeedHttpConfirm: (List<String>) -> Unit,
+    selectedIndex: Int = -1,
+    dataSources: List<Any> = emptyList()
 ) {
     val httpPending = mutableListOf<String>()
     val normalized = mutableMapOf<String, String?>()
@@ -849,6 +949,13 @@ private suspend fun persistSourceUrls(
         val config = JavCinema.CONFIGURATIONS
         if (config != null) {
             config.applyCustomUrls()
+            // 数据源选择与地址配置合并后，保存时一并应用选中的源。
+            @Suppress("UNCHECKED_CAST")
+            val sources = dataSources as? List<io.github.javcinema.data.model.DataSource>
+            val picked = sources?.getOrNull(selectedIndex)
+            if (picked != null) {
+                config.dataSource = picked
+            }
             config.save()
         }
         if (reloadOnSave) {
@@ -871,7 +978,13 @@ private suspend fun persistSourceUrls(
     }
 }
 
-private fun homeDestination(): String =
-    if (Configurations.homePage == NavRoutes.SEARCH) NavRoutes.SEARCH else NavRoutes.HOME
+/**
+ * 数据源切换后需要重建导航图（[JavCinema.recreateService]），因此要重新导航到首页。
+ *
+ * ⚠️ 返回的必须是导航图里 `composable(route = ...)` 注册的原值：
+ * 搜索页注册的是 [NavRoutes.SEARCH_ROUTE]（"search?query={query}"），
+ * 传 "search" 会匹配不到目的地，NavHost 静默回落到第一个 composable。
+ */
+private fun homeDestination(): String = NavRoutes.normalizeHomePage(Configurations.homePage)
 
 

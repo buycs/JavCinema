@@ -37,7 +37,14 @@ fun JavCinemaNavHost(
     scrollToTopTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
-    val startDestination = if (Configurations.homePage == NavRoutes.SEARCH) NavRoutes.SEARCH else NavRoutes.HOME
+    // 「首页设置」决定底部导航默认落在哪个 tab：HOME=影片，SEARCH_ROUTE=搜索。
+    //
+    // ⚠️ startDestination 必须与下面 composable() 注册的路由字符串**逐字一致**。
+    // search 页注册的是 "search?query={query}"，若这里写 "search" 会匹配不到目的地，
+    // NavHost 会静默回落到第一个 composable（即 HOME），
+    // 表现为「选了搜索为首页，但启动后显示影片页」。
+    // normalizeHomePage() 负责兜住历史版本存下的 "search"。
+    val startDestination = NavRoutes.normalizeHomePage(Configurations.homePage)
 
     NavHost(
         navController = navController,
@@ -119,7 +126,7 @@ fun JavCinemaNavHost(
         }
 
         composable(
-            route = "search?query={query}",
+            route = NavRoutes.SEARCH_ROUTE,
             arguments = listOf(navArgument("query") { defaultValue = "" })
         ) { backStackEntry ->
             val query = backStackEntry.arguments?.getString("query") ?: ""

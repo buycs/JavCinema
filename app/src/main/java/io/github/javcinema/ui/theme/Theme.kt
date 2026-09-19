@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import io.github.javcinema.JavCinema
@@ -25,6 +26,15 @@ private val LightColorScheme = lightColorScheme(
     onSecondaryContainer = AccentBlue,
     surface = SurfaceLight,
     onSurface = OnSurfaceLight,
+    surfaceVariant = CardLight,
+    onSurfaceVariant = NeutralVariantLight,
+    surfaceContainerLowest = BackgroundLight,
+    surfaceContainerLow = SurfaceLight,
+    surfaceContainer = CardLight,
+    surfaceContainerHigh = CardLight,
+    surfaceContainerHighest = CardHighestLight,
+    outline = OutlineLight,
+    outlineVariant = OutlineVariantLight,
     background = BackgroundLight,
     onBackground = OnSurfaceLight,
     error = GoogleRed,
@@ -42,6 +52,15 @@ private val DarkColorScheme = darkColorScheme(
     onSecondaryContainer = AccentBlueLight,
     surface = SurfaceDark,
     onSurface = OnSurfaceDark,
+    surfaceVariant = CardDark,
+    onSurfaceVariant = NeutralVariantDark,
+    surfaceContainerLowest = Color(0xFF0D0D0D),
+    surfaceContainerLow = CardDark,
+    surfaceContainer = CardDark,
+    surfaceContainerHigh = CardHighestDark,
+    surfaceContainerHighest = CardHighestDark,
+    outline = OutlineDark,
+    outlineVariant = OutlineVariantDark,
     background = BackgroundDark,
     onBackground = OnSurfaceDark,
     error = GoogleRed,
