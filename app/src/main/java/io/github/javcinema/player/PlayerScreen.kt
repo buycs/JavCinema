@@ -201,17 +201,20 @@ fun PlayerScreen(
         }
     }
 
-    // 控件自动隐藏：可见、且手指没按着时，静置 3 秒就淡出，把画面让出来。
+    // 控件自动隐藏：可见、手指没按着、且正在播放时，静置 3 秒就淡出，把画面让出来。
+    // 暂停 / 缓冲 / 出错时控件会留在画面上（见 PlayerControlsPolicy.shouldAutoHide）。
     // key 里带上 controlsIdleTick —— 任何一次触摸都会让它变化，倒计时因此重新开始，
     // 而不是沿用上一次的剩余时间。
     LaunchedEffect(
         playerController.isControlsVisible,
         playerController.isTouching,
-        playerController.controlsIdleTick
+        playerController.controlsIdleTick,
+        playerController.playbackState
     ) {
         val shouldHide = PlayerControlsPolicy.shouldAutoHide(
             controlsVisible = playerController.isControlsVisible,
-            touching = playerController.isTouching
+            touching = playerController.isTouching,
+            playing = playerController.playbackState == PlayerPlaybackState.PLAYING
         )
         if (shouldHide) {
             delay(PlayerControlsPolicy.AUTO_HIDE_DELAY_MS)

@@ -34,20 +34,72 @@ class PlayerControlsPolicyTest {
     }
 
     @Test
-    fun visibleIdleControlsShouldAutoHide() {
-        assertTrue(PlayerControlsPolicy.shouldAutoHide(controlsVisible = true, touching = false))
+    fun playingIdleControlsShouldAutoHide() {
+        assertTrue(
+            PlayerControlsPolicy.shouldAutoHide(
+                controlsVisible = true,
+                touching = false,
+                playing = true
+            )
+        )
+    }
+
+    @Test
+    fun pausedControlsStayOnScreen() {
+        // 暂停后正想看进度和播放键，这时把控件收走是最恼人的「自作聪明」。
+        assertFalse(
+            PlayerControlsPolicy.shouldAutoHide(
+                controlsVisible = true,
+                touching = false,
+                playing = false
+            )
+        )
     }
 
     @Test
     fun controlsDoNotHideUnderTheFinger() {
         // 长按超过倒计时时长时，不能把控件从手指底下抽走。
-        assertFalse(PlayerControlsPolicy.shouldAutoHide(controlsVisible = true, touching = true))
+        assertFalse(
+            PlayerControlsPolicy.shouldAutoHide(
+                controlsVisible = true,
+                touching = true,
+                playing = true
+            )
+        )
     }
 
     @Test
     fun alreadyHiddenControlsHaveNothingToDo() {
-        assertFalse(PlayerControlsPolicy.shouldAutoHide(controlsVisible = false, touching = false))
-        assertFalse(PlayerControlsPolicy.shouldAutoHide(controlsVisible = false, touching = true))
+        for (touching in listOf(true, false)) {
+            for (playing in listOf(true, false)) {
+                assertFalse(
+                    "visible=false touching=$touching playing=$playing 不该再倒计时",
+                    PlayerControlsPolicy.shouldAutoHide(
+                        controlsVisible = false,
+                        touching = touching,
+                        playing = playing
+                    )
+                )
+            }
+        }
+    }
+
+    @Test
+    fun onlyPlayingStateCountsAsPlaying() {
+        // 只有 PLAYING 才算「正在播放」；BUFFERING / IDLE / PAUSED / COMPLETED / ERROR
+        // 都必须让控件留在画面上。这条防的是以后有人把判断写成 `!= PAUSED` 之类。
+        for (state in PlayerPlaybackState.entries) {
+            val expected = state == PlayerPlaybackState.PLAYING
+            assertEquals(
+                "状态 $state 的自动隐藏判定不对",
+                expected,
+                PlayerControlsPolicy.shouldAutoHide(
+                    controlsVisible = true,
+                    touching = false,
+                    playing = state == PlayerPlaybackState.PLAYING
+                )
+            )
+        }
     }
 
     @Test

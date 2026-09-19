@@ -34,9 +34,15 @@ internal object PlayerControlsPolicy {
     /**
      * 现在是否应该给控件开始倒计时。
      *
-     * 手指还按着的时候**不能**倒计时，否则长按超过 [AUTO_HIDE_DELAY_MS]
-     * 会把控件从手指底下抽走。
+     * 三个条件缺一不可：
+     * - 控件得是可见的，否则没什么可隐藏；
+     * - 手指**不能**按着，否则长按超过 [AUTO_HIDE_DELAY_MS] 会把控件从手指底下抽走；
+     * - 得**正在播放**。暂停 / 缓冲 / 出错 / 播完时都要把控件留在画面上 ——
+     *   暂停后正想看进度和播放键，倒计时把控件收走是最让人恼火的那种「自作聪明」。
      */
-    fun shouldAutoHide(controlsVisible: Boolean, touching: Boolean): Boolean =
-        controlsVisible && !touching
+    fun shouldAutoHide(
+        controlsVisible: Boolean,
+        touching: Boolean,
+        playing: Boolean
+    ): Boolean = controlsVisible && !touching && playing
 }
