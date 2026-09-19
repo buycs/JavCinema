@@ -16,6 +16,12 @@ import java.nio.charset.Charset
 
 val UTF_8: Charset = Charset.forName("utf-8")
 
+/** 文件系统保留字符，用于把用户输入（如女优名）转成安全的目录名。 */
+private val ILLEGAL_PATH_CHARS_RE = Regex("""[:\\/*?"<>|]""")
+
+/** 把一段文本转成可用作目录名的字符串，非法字符替换为 `-`。 */
+fun sanitizePathSegment(raw: String): String = raw.replace(ILLEGAL_PATH_CHARS_RE, "-")
+
 @Throws(IOException::class)
 fun readText(stream: InputStream, charset: Charset): String {
     return stream.bufferedReader(charset).use { reader ->
@@ -28,7 +34,7 @@ suspend fun saveImageToGallery(context: Context, url: String, subDir: String): F
         val fileName = url.substringAfterLast("/").substringBefore("?").ifBlank {
             "IMG_${System.currentTimeMillis()}.jpg"
         }
-        val safeSubDir = subDir.replace(Regex("[:\\\\/*?\"<>|]"), "-")
+        val safeSubDir = sanitizePathSegment(subDir)
         val request = okhttp3.Request.Builder().url(url).build()
         val bytes = JavCinema.HTTP_CLIENT.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "HTTP ${response.code}" }

@@ -19,9 +19,19 @@ private val MEDIA_EXTENSIONS = VIDEO_EXTENSIONS + listOf(
     ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"
 )
 
+/**
+ * 番号形态：字母（2-8）+ 可选连字符 + 数字（2-6）+ 可选字母后缀。
+ *
+ * 无连字符时要求字母至少 3 个。原规则 `^[A-Za-z]{2,8}-?\d{2,6}[A-Za-z]?$` 过宽：
+ * 「ab123」这类普通用户名/密码也会被判为番号，进而在影片搜索无结果时触发一次
+ * 毫无意义的磁力搜索。真实番号（SSIS-001、IPX-001、ssis001）不受影响。
+ */
+private val MOVIE_CODE_RE = Regex(
+    """^(?:[A-Za-z]{2,8}-\d{2,6}[A-Za-z]?|[A-Za-z]{3,8}\d{2,6}[A-Za-z]?)$"""
+)
+
 internal fun looksLikeMovieCode(query: String): Boolean {
-    val trimmed = query.trim()
-    return Regex("""^[A-Za-z]{2,8}-?\d{2,6}[A-Za-z]?$""").matches(trimmed)
+    return MOVIE_CODE_RE.matches(query.trim())
 }
 
 internal fun isAdText(text: String?): Boolean {

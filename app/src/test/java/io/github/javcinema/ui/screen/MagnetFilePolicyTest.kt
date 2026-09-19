@@ -17,6 +17,29 @@ class MagnetFilePolicyTest {
     }
 
     @Test
+    fun movieCodeDetection_acceptsRealWorldFormats() {
+        assertTrue(looksLikeMovieCode("IPX-001"))
+        assertTrue(looksLikeMovieCode("ipx001"))
+        assertTrue(looksLikeMovieCode("MIDE-1234"))
+        assertTrue(looksLikeMovieCode("SSIS-001A"))
+        assertTrue(looksLikeMovieCode("  SSIS-001  ")) // 前后空白应被 trim
+    }
+
+    @Test
+    fun movieCodeDetection_rejectsNonCodeLookalikes() {
+        // 回归：原规则 ^[A-Za-z]{2,8}-?\d{2,6}[A-Za-z]?$ 过宽，
+        // 「ab123」这类两字母短串也会被当成番号，触发无意义的磁力搜索。
+        assertFalse(looksLikeMovieCode("ab123"))
+        assertFalse(looksLikeMovieCode("xy12"))
+        assertFalse(looksLikeMovieCode("id1234"))
+        assertFalse(looksLikeMovieCode("hello world"))
+        assertFalse(looksLikeMovieCode("SSIS"))
+        assertFalse(looksLikeMovieCode("001"))
+        assertFalse(looksLikeMovieCode("SSIS-"))
+        assertFalse(looksLikeMovieCode("SSIS-001-002"))
+    }
+
+    @Test
     fun filtersAdFilesAndKeepsLargestVideo() {
         val files = listOf(
             MagnetFile().apply { filename = "官网.txt"; size = 12 },

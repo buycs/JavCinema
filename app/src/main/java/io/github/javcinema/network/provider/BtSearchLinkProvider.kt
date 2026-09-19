@@ -6,6 +6,7 @@ import io.github.javcinema.data.model.MagnetLink
 import io.github.javcinema.network.BtSearch
 import io.github.javcinema.network.BtSearchDetailResponse
 import io.github.javcinema.network.BtSearchTorrentFile
+import io.github.javcinema.util.stripHtmlTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
@@ -22,7 +23,7 @@ class BtSearchLinkProvider : DownloadLinkProvider() {
         result.data.map { item ->
             DownloadLink().apply {
                 link = item.id.toString()
-                    title = item.name.replace(Regex("<[^>]+>"), "")
+                title = stripHtmlTags(item.name)
                 size = formatSize(item.size.toLongOrNull() ?: 0L)
                 date = item.created_at.take(10)
                 magnetLink = MagnetLink.create("magnet:?xt=urn:btih:${item.hash}")

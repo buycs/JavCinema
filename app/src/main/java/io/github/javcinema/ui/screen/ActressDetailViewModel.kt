@@ -1,5 +1,6 @@
 package io.github.javcinema.ui.screen
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.javcinema.JavCinema
@@ -16,10 +17,20 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val TAG = "ActressDetail"
+
+/**
+ * 女优资料。
+ *
+ * @param warning 详情未能完整获取时的提示。此时 [actress] 是从导航参数拼出的本地信息，
+ *   仍然可用（能显示名字与头像），但用户应当知道这不是完整资料 —— 原先这种降级是
+ *   静默发生的，用户与开发者都无从察觉。
+ */
 data class ActressProfile(
     val actress: Actress,
     val birthday: String? = null,
-    val size: String? = null
+    val size: String? = null,
+    val warning: String? = null
 )
 
 sealed class ActressDetailUiState {
@@ -82,7 +93,10 @@ class ActressDetailViewModel : ViewModel() {
             try {
                 val api = JavCinema.AVMOO_API_SERVICE
                 if (api == null) {
-                    _uiState.value = ActressDetailUiState.Success(ActressProfile(fallback))
+                    Log.w(TAG, "AVMOO service unavailable, showing local info only: starId=$starId")
+                    _uiState.value = ActressDetailUiState.Success(
+                        ActressProfile(fallback, warning = "数据源不可用，当前显示的是本地信息")
+                    )
                     return@launch
                 }
                 val response = withContext(Dispatchers.IO) {
@@ -90,7 +104,10 @@ class ActressDetailViewModel : ViewModel() {
                 }
                 val star = response.data
                 if (star == null) {
-                    _uiState.value = ActressDetailUiState.Success(ActressProfile(fallback))
+                    Log.w(TAG, "no profile returned for starId=$starId")
+                    _uiState.value = ActressDetailUiState.Success(
+                        ActressProfile(fallback, warning = "未找到该女优的详细资料")
+                    )
                     return@launch
                 }
                 val actress = Actress.create(
@@ -108,7 +125,11 @@ class ActressDetailViewModel : ViewModel() {
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _uiState.value = ActressDetailUiState.Success(ActressProfile(fallback))
+                // 保留可用的本地信息，但不再静默吞错：记录日志并给用户一个提示。
+                Log.w(TAG, "failed to load profile for starId=$starId", e)
+                _uiState.value = ActressDetailUiState.Success(
+                    ActressProfile(fallback, warning = "资料加载失败，当前显示的是本地信息")
+                )
             }
         }
     }

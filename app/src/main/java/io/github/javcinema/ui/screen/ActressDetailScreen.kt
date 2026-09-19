@@ -117,6 +117,15 @@ fun ActressDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            // 资料降级时明确告知，避免用户以为看到的就是完整信息。
+                            profile.warning?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                             TextButton(onClick = { dialogActress = profile.actress }) {
                                 Text("收藏")
                             }

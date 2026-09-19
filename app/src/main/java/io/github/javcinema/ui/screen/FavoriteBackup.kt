@@ -16,6 +16,15 @@ internal const val FAVORITE_BACKUP_FORMAT = "javcinema-favorites"
 internal const val FAVORITE_BACKUP_VERSION = 1
 internal const val FAVORITE_BACKUP_FILE_NAME = "javcinema-favorites.json"
 
+/**
+ * 单次导入的条目上限（影片、女优各自计数）。
+ *
+ * 不加限制时，一个构造过的超大 JSON 会把海量条目灌进收藏：导入过程要在已有列表上
+ * 逐条线性查重，条目数一大就是 O(n²)，主线程外的解析也会长时间占用内存。
+ * 上限取 2000 —— 远超正常用户收藏量，同时把最坏情况约束在可控范围。
+ */
+internal const val MAX_IMPORT_ITEMS = 2000
+
 internal data class FavoriteImportItem(
     val codeOrName: String,
     val title: String? = null,
@@ -80,7 +89,15 @@ internal fun parseFavoriteExport(text: String): FavoriteImport {
     if (format != null && format != FAVORITE_BACKUP_FORMAT) {
         throw IllegalArgumentException("不是 JavCinema 收藏文件")
     }
-    val movies = root.array("movies").mapNotNull { item ->
+    // 先看数组长度再逐条解析：超大文件在进入映射逻辑前就被拒绝。
+    val moviesArray = root.array("movies")
+    val actressesArray = root.array("actresses")
+    if (moviesArray.size() > MAX_IMPORT_ITEMS || actressesArray.size() > MAX_IMPORT_ITEMS) {
+        throw IllegalArgumentException(
+            "条目过多（影片 ${moviesArray.size()}、女优 ${actressesArray.size()}），单次上限 $MAX_IMPORT_ITEMS"
+        )
+    }
+    val movies = moviesArray.mapNotNull { item ->
         if (!item.isJsonObject) return@mapNotNull null
         val obj = item.asJsonObject
         val code = obj.str("code") ?: return@mapNotNull null
@@ -93,7 +110,7 @@ internal fun parseFavoriteExport(text: String): FavoriteImport {
             date = obj.str("date")
         )
     }
-    val actresses = root.array("actresses").mapNotNull { item ->
+    val actresses = actressesArray.mapNotNull { item ->
         if (!item.isJsonObject) return@mapNotNull null
         val obj = item.asJsonObject
         val name = obj.str("name") ?: return@mapNotNull null

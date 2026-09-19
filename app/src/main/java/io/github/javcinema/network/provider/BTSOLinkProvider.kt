@@ -5,6 +5,7 @@ import io.github.javcinema.data.model.DownloadLink
 import io.github.javcinema.data.model.MagnetFile
 import io.github.javcinema.data.model.MagnetLink
 import io.github.javcinema.network.BTSO
+import io.github.javcinema.util.stripHtmlTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -28,7 +29,7 @@ class BTSOLinkProvider : DownloadLinkProvider() {
         response.data.map { item ->
             DownloadLink().apply {
                 link = item.hash
-                title = item.name.replace(Regex("<[^>]+>"), "")
+                title = stripHtmlTags(item.name)
                 size = formatSize(item.size)
                 date = formatTimestamp(item.lastUpdateTime)
                 magnetLink = MagnetLink.create("magnet:?xt=urn:btih:${item.hash}")
