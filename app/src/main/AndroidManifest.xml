@@ -24,10 +24,21 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!--
+            screenOrientation="portrait"：本应用全部界面都是竖屏设计（没有 layout-land /
+            values-land 资源，values-w820dp 也只剩一个空壳），唯一需要横屏的是播放页，
+            由 PlayerScreen 在运行时临时请求 SENSOR_LANDSCAPE。
+
+            这里显式声明而不是交给系统的 UNSPECIFIED，是因为：系统「自动旋转」关闭时，
+            UNSPECIFIED 会让应用跟随系统级 Settings.System.USER_ROTATION。一旦那个值
+            被别的应用/旧版本写成横屏，本应用启动就会是横屏且自己恢复不了。
+            声明成 portrait 后，无论系统锁定方向是什么，应用永远以竖屏启动。
+        -->
         <activity
             android:name=".activity.MainActivity"
             android:configChanges="keyboard|keyboardHidden|screenLayout|uiMode|orientation|screenSize|smallestScreenSize"
             android:label="@string/app_name"
+            android:screenOrientation="portrait"
             android:theme="@style/AppTheme.NoActionBar.TransparentStatusBar" />
 
         <activity
@@ -35,6 +46,7 @@
             android:configChanges="keyboard|keyboardHidden|screenLayout|uiMode|orientation|screenSize|smallestScreenSize"
             android:exported="true"
             android:label="@string/app_name"
+            android:screenOrientation="portrait"
             android:theme="@style/AppTheme.Start">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
