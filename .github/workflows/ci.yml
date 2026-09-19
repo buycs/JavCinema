@@ -3,7 +3,16 @@ name: CI
 on:
   push:
     branches: [master, main]
+    # 纯文档改动（README 等）不影响构建与单测，不必跑流水线。
+    paths-ignore:
+      - '**.md'
   pull_request:
+
+# 同一分支连续推送时，自动取消仍在排队/运行的旧任务，
+# 避免多次提交后 CI 互相排队、白等前面那几次。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
