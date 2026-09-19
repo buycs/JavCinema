@@ -169,7 +169,12 @@ fun JavCinemaNavHost(
                 movieCode = movieCode,
                 onBack = { navController.popBackStack() },
                 onPlayStream = { streamUrl, referer ->
-                    navController.navigate(NavRoutes.player(streamUrl, referer))
+                    navController.navigate(NavRoutes.player(streamUrl, referer)) {
+                        // 取流页只是自动接管的中间过程，交棒后必须移出回退栈：
+                        // 否则从播放器返回时它会重新解析并再次自动跳转，形成死循环。
+                        // 用 destination.id 而非路由字符串，避免带参数路由匹配不上。
+                        popUpTo(backStackEntry.destination.id) { inclusive = true }
+                    }
                 }
             )
         }

@@ -128,11 +128,34 @@ internal fun isMissavPlayUrl(url: String, code: String): Boolean {
     if ("/search/" in path || "/actresses" in path || "/genres" in path || "/makers" in path) {
         return false
     }
-    val slug = path.trimEnd('/').substringAfterLast('/')
+    val slug = urlSlug(path).orEmpty()
     if (slug.isEmpty() || slug == "en" || slug == needle) {
         return slug == needle
     }
     return slug == needle || slug.startsWith("$needle-")
+}
+
+/** URL 路径的最后一段（slug），统一小写；取不到或为空返回 null。 */
+internal fun missavSlug(url: String?): String? = urlSlug(urlPath(url))
+
+private fun urlSlug(path: String?): String? =
+    path?.lowercase()?.trimEnd('/')?.substringAfterLast('/')?.takeIf { it.isNotEmpty() }
+
+/**
+ * 从搜索结果里挑一条用于自动接管。
+ *
+ * 能走到这里的候选都已通过 [isMissavPlayUrl] 校验（slug 要么等于番号，要么以「番号-」开头），
+ * 所以只需在「精确命中」和「站点排序」之间取舍：
+ * 优先 slug 与番号完全一致的那条（番号本体，通常是正片），没有则取站点排序第一条。
+ */
+internal fun selectBestMissavResult(
+    results: List<MissavSearchResult>,
+    code: String
+): MissavSearchResult? {
+    if (results.isEmpty()) return null
+    val needle = normalizeMissavCode(code)
+    if (needle.isEmpty()) return results.first()
+    return results.firstOrNull { missavSlug(it.url) == needle } ?: results.first()
 }
 
 internal fun parseMissavSearchResults(html: String, code: String): List<MissavSearchResult> {

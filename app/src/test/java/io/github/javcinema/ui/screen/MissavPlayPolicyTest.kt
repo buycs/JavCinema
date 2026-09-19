@@ -72,4 +72,66 @@ class MissavPlayPolicyTest {
         assertTrue(isMissavChallengeUrl("https://missav.ws/en/search/PPPE-443?__cf_chl_tk=abc"))
         assertFalse(isMissavChallengeTitle("Search result of pppe-443 - MissAV"))
     }
+
+    @Test
+    fun slugIsLastPathSegmentLowercased() {
+        assertEquals("pppe-443", missavSlug("https://missav.ws/en/PPPE-443"))
+        assertEquals("pppe-443", missavSlug("https://missav.ws/en/PPPE-443/"))
+        assertEquals("pppe-443-uncensored-leak", missavSlug("https://missav.ws/en/pppe-443-uncensored-leak"))
+        assertEquals(null, missavSlug(null))
+        assertEquals(null, missavSlug(""))
+        assertEquals(null, missavSlug("https://missav.ws/"))
+    }
+
+    /**
+     * 站点会把「无码流出」等变体排在番号本体前面，自动接管必须挑番号本体，
+     * 否则默认播到的是变体版本。
+     */
+    @Test
+    fun autoSelectPrefersExactCodeOverSiteOrder() {
+        val html = """
+            <html><body>
+            <a href="https://missav.ws/en/pppe-443-uncensored-leak">
+              <img alt="Miyu Aizawa uncensored"/>Uncensored 2:00:49
+            </a>
+            <a href="/en/pppe-443">PPPE-443 Miyu Aizawa 2:00:49</a>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "PPPE-443")
+        assertEquals(2, results.size)
+        // 站点排序第一条是变体，精确命中在第二条
+        assertEquals("pppe-443-uncensored-leak", missavSlug(results[0].url))
+        assertEquals("pppe-443", missavSlug(results[1].url))
+        assertEquals("https://missav.ws/en/pppe-443", selectBestMissavResult(results, "PPPE-443")?.url)
+    }
+
+    @Test
+    fun autoSelectFallsBackToFirstWhenNoExactMatch() {
+        val onlyVariant = listOf(
+            MissavSearchResult(url = "https://missav.ws/en/pppe-443-uncensored-leak", title = "变体")
+        )
+        assertEquals(
+            "https://missav.ws/en/pppe-443-uncensored-leak",
+            selectBestMissavResult(onlyVariant, "PPPE-443")?.url
+        )
+        // 番号大小写与空格都应被归一化后再比对
+        assertEquals(
+            "https://missav.ws/en/pppe-443",
+            selectBestMissavResult(
+                listOf(
+                    MissavSearchResult("https://missav.ws/en/pppe-443-x", "变体"),
+                    MissavSearchResult("https://missav.ws/en/pppe-443", "本体")
+                ),
+                " pppe-443 "
+            )?.url
+        )
+    }
+
+    @Test
+    fun autoSelectHandlesEmptyInput() {
+        assertEquals(null, selectBestMissavResult(emptyList(), "PPPE-443"))
+        // 番号为空时不应崩，退回站点排序第一条
+        val results = listOf(MissavSearchResult("https://missav.ws/en/pppe-443", "本体"))
+        assertEquals("https://missav.ws/en/pppe-443", selectBestMissavResult(results, "  ")?.url)
+    }
 }
