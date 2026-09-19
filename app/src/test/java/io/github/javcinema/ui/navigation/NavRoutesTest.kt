@@ -134,4 +134,48 @@ class NavRoutesTest {
         assertEquals("搜索为首页", NavRoutes.homePageLabel(null))
         assertEquals("影片为首页", NavRoutes.homePageLabel(NavRoutes.HOME))
     }
+
+    // --- 全屏路由（隐藏底部导航栏）---
+
+    /**
+     * 回归：播放页当初漏登记，导致横屏播放时底部还挂着一条导航栏。
+     * 三个沉浸式页面一个都不能少。
+     */
+    @Test
+    fun fullscreenRoute_coversEveryImmersivePage() {
+        assertTrue(NavRoutes.isFullscreenRoute("movie_detail/SSIS-001"))
+        assertTrue(NavRoutes.isFullscreenRoute("missav_play/SSIS-001"))
+        assertTrue(NavRoutes.isFullscreenRoute("player"))
+        // 实际导航用的是带 query 的完整路径，也要判成全屏
+        assertTrue(
+            NavRoutes.isFullscreenRoute(
+                NavRoutes.player("https://surrit.com/a/playlist.m3u8", "https://missav.ws/en/x")
+            )
+        )
+        // 带参数的目的地，前缀必须取自 route 模板本身而不是硬编码
+        assertTrue(NavRoutes.isFullscreenRoute(NavRoutes.movieDetail("SSIS-001", link = "https://a/b")))
+    }
+
+    @Test
+    fun fullscreenRoute_leavesBottomBarPagesAlone() {
+        // 底部栏自己的五个页面绝不能被误判成全屏，否则导航栏会消失、用户被困住。
+        listOf(
+            NavRoutes.HOME,
+            NavRoutes.ACTRESSES,
+            NavRoutes.SEARCH,
+            NavRoutes.SEARCH_ROUTE,
+            NavRoutes.FAVOURITE,
+            NavRoutes.SETTINGS,
+            "actress_detail/123",
+            "movie_list/x/y",
+            "download/abc",
+            "gallery/0",
+            "webview/https%3A%2F%2Fa"
+        ).forEach { route ->
+            assertFalse("route=$route", NavRoutes.isFullscreenRoute(route))
+        }
+        // 导航图未就绪时不能崩
+        assertFalse(NavRoutes.isFullscreenRoute(null))
+        assertFalse(NavRoutes.isFullscreenRoute(""))
+    }
 }

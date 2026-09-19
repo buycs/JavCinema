@@ -94,4 +94,22 @@ object NavRoutes {
     fun missavPlay(movieCode: String) = "missav_play/${encodePath(movieCode)}"
     fun player(url: String, referer: String = "") =
         "player?url=${encodePath(url)}&referer=${encodePath(referer)}"
+
+    /**
+     * 注册为「全屏」的目的地：底部导航栏在这些页面上必须隐藏。
+     *
+     * 这些页面要么需要整块画面（详情页大图、取流页 WebView），要么是全屏横屏播放器 ——
+     * 底下挂一条导航栏既挡内容，横屏时还会被拉成奇怪的比例。
+     *
+     * **新增沉浸式页面时必须在这里登记。** 播放页当初就是因为漏登记，
+     * 导致横屏播放时底部仍挂着导航栏（`MainScreen.hideBottomBar` 只判了前两个）。
+     */
+    private val FULLSCREEN_ROUTES = listOf(MOVIE_DETAIL, MISSAV_PLAY, PLAYER)
+        .map { it.substringBefore("/{").substringBefore("?") }
+
+    /** 当前路由是否属于 [FULLSCREEN_ROUTES]。route 为 null（导航图未就绪）时返回 false。 */
+    fun isFullscreenRoute(route: String?): Boolean {
+        val value = route ?: return false
+        return FULLSCREEN_ROUTES.any { value.startsWith(it) }
+    }
 }

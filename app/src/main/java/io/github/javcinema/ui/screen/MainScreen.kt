@@ -64,9 +64,6 @@ private val bottomItems = listOf(
     BottomNavItem("设置", Icons.Default.Settings, NavRoutes.SETTINGS)
 )
 
-private val movieDetailBase = NavRoutes.MOVIE_DETAIL.substringBefore("/{").substringBefore("?")
-private val missavPlayBase = NavRoutes.MISSAV_PLAY.substringBefore("/{").substringBefore("?")
-
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
@@ -74,7 +71,8 @@ fun MainScreen() {
     val currentDestination = navBackStackEntry?.destination
 
     val currentRoute = currentDestination?.route ?: bottomItems[0].matchRoute
-    val hideBottomBar = currentRoute.startsWith(movieDetailBase) || currentRoute.startsWith(missavPlayBase)
+    // 规则集中在 NavRoutes.isFullscreenRoute，避免又漏掉某个沉浸式页面。
+    val hideBottomBar = NavRoutes.isFullscreenRoute(currentRoute)
 
     // 导航图未就绪时（currentDestination 为 null），高亮回退到「首页设置」选中的 tab，
     // 否则以搜索为首页启动的瞬间会错误高亮「影片」。
