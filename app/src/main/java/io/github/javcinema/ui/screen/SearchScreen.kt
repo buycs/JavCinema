@@ -478,7 +478,10 @@ private fun SearchHistorySection(
         }
 
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-            val chipStyle = MaterialTheme.typography.labelSmall
+            // 历史记录 chip 的字号：此前是 labelSmall（11sp），比上方「历史记录」标题
+            // （labelMedium）还小，读起来很吃力。改用 labelLarge（14sp），
+            // 与 Material 中 chip / 按钮的常规字号一致。
+            val chipStyle = MaterialTheme.typography.labelLarge
             val plusStyle = chipStyle.copy(fontWeight = FontWeight.Bold)
             val density = LocalDensity.current
             val visible = remember(textMeasurer, history, constraints.maxWidth) {

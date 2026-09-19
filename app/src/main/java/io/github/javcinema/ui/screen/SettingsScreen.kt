@@ -107,7 +107,10 @@ fun SettingsScreen(navController: NavController? = null) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            // 顶部不留边距：MainScreen 的 Scaffold 已经给了状态栏高度的 padding，
+            // 再叠一层 16dp 会让设置项离状态栏过远。其他 tab 页顶部有 38dp 顶栏，
+            // 设置页没有顶栏，所以这里不需要额外留白。
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
         SettingsItem(

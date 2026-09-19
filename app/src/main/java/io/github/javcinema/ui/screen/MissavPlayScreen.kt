@@ -20,8 +20,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -33,8 +37,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -46,9 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.javcinema.BuildConfig
+import io.github.javcinema.ui.components.TOP_BAR_HEIGHT
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.delay
 
@@ -257,25 +261,49 @@ fun MissavPlayScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("播放 $movieCode") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    if (phase == MissavPhase.SITE) {
-                        TextButton(onClick = { restartResolve() }) { Text("重试解析") }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+            // 不用 Material3 的 TopAppBar：它固定 64dp 高，且默认再叠一层状态栏 inset，
+            // 而外层 MainScreen 的 Scaffold 已经给了状态栏 padding → 实际顶栏变成
+            // 「状态栏 ×2 + 64dp」，明显过高。这里自绘成与项目其他页面一致的紧凑顶栏
+            // （高度取 AppTopTabRow 的 TOP_BAR_HEIGHT），只保留一层状态栏间距。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(TOP_BAR_HEIGHT)
+                    .background(MaterialTheme.colorScheme.primary),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.size(TOP_BAR_HEIGHT)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Text(
+                    text = "播放 $movieCode",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-            )
+                if (phase == MissavPhase.SITE) {
+                    TextButton(
+                        onClick = { restartResolve() },
+                        modifier = Modifier.height(TOP_BAR_HEIGHT)
+                    ) {
+                        Text(
+                            text = "重试解析",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+            }
         }
     ) { paddingValues ->
         Box(
