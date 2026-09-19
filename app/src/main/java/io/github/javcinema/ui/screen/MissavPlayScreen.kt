@@ -210,6 +210,11 @@ fun MissavPlayScreen(
         view.evaluateJavascript(MISSAV_CLEAN_PLAY_JS, null)
     }
 
+    /** 修掉站点「卡片点不动」的问题，见 [MISSAV_CLICK_FIX_JS]。 */
+    fun installClickFix(view: WebView) {
+        view.evaluateJavascript(MISSAV_CLICK_FIX_JS, null)
+    }
+
     /** 重新走一遍自动解析（回退后用户可主动重试）。 */
     fun restartResolve() {
         cancelPendingTasks()
@@ -376,6 +381,7 @@ fun MissavPlayScreen(
                                 if (view == null || url.isNullOrBlank()) return
                                 if (!isAllowedMissavNavigation(url)) return
                                 CookieManager.getInstance().flush()
+                                installClickFix(view)
 
                                 // 播放页两个阶段都探测：解析阶段命中即自动接管，
                                 // 已回退到站点时命中则降级为手动按钮。

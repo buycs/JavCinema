@@ -121,6 +121,39 @@ internal const val MISSAV_CLEAN_PLAY_JS = """
 })();
 """
 
+/**
+ * 让站点的结果卡片在触摸设备上能点开。
+ *
+ * 站点把整张卡片（**含标题链接**）包在
+ * `<div class="thumbnail group" @click="clickPreview(...)">` 里，这是给桌面 hover 写的：
+ * 触摸时 Alpine 的 `@click` 会把锚点的默认跳转 preventDefault 掉，而 `clickPreview`
+ * 依赖 `@mouseenter` 先设好的状态，在触摸设备上什么也不做 ——
+ * 表现就是「回退到站点页面后，点结果卡片毫无反应」。
+ *
+ * 这里在**捕获阶段**先接管站内链接：`stopPropagation` 让 Alpine 收不到事件，再自己跳转。
+ * 只接管站内 http(s) 链接，并跳过 `href="#"` 这类原地链接 ——
+ * 站点用它挂菜单/搜索开关，接管了反而会把菜单点坏。
+ */
+internal const val MISSAV_CLICK_FIX_JS = """
+(function(){
+  if (window.__javcinemaClickFix) return;
+  window.__javcinemaClickFix = true;
+  function base(u){ return String(u || '').split('#')[0]; }
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    var a = (t && t.closest) ? t.closest('a[href]') : null;
+    if (!a) return;
+    var href = a.href || '';
+    if (!/^https?:\/\//i.test(href)) return;
+    if (!/^https?:\/\/[^\/]*missav\./i.test(href)) return;
+    if (base(href) === base(location.href)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    location.href = href;
+  }, true);
+})();
+"""
+
 internal fun isAllowedMissavNavigation(url: String?, mainFrame: Boolean = true): Boolean {
     if (url.isNullOrBlank()) return false
     val lower = url.lowercase()
