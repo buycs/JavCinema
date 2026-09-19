@@ -167,4 +167,47 @@ class MissavStreamPolicyTest {
         """.trimIndent()
         assertNull(extractMissavStreamUrl(html))
     }
+
+    // --- 取流合并判据 ---
+
+    /**
+     * 回归：`ad_` 这个**裸**标记会误伤正常地址 —— `.../download_video.m3u8`、
+     * `.../load_720p.m3u8` 都会被判成广告流。误判的代价是「真实流被拒 → 静默回退到站点页面」，
+     * 没有任何报错，极难排查。所以标记一律带路径分隔符前缀（`/ad_`）。
+     */
+    @Test
+    fun adMarkerDoesNotMatchOrdinaryPathWords() {
+        assertFalse(looksLikeAdStream("https://cdn.example.com/download_video.m3u8"))
+        assertFalse(looksLikeAdStream("https://cdn.example.com/load_720p.m3u8"))
+        assertFalse(looksLikeAdStream("https://cdn.example.com/upload_720p.m3u8"))
+        // 真正的广告路径仍要拦住
+        assertTrue(looksLikeAdStream("https://cdn.example.com/ad_break.m3u8"))
+        assertTrue(looksLikeAdStream("https://cdn.example.com/ads/banner.mp4"))
+    }
+
+    /**
+     * 取流三条过滤（能播 / 非广告 / 非预览片）合并后的判据。
+     *
+     * 用**实测抓到的真实地址**做锚点，防止将来收紧过滤时把真实流一起误杀。
+     */
+    @Test
+    fun acceptableStreamUrlAcceptsRealSurritStream() {
+        // 模拟器实测嗅到的真实 m3u8
+        assertTrue(
+            isAcceptableStreamUrl(
+                "https://surrit.com/e33c158d-87b1-49eb-8035-f5d6d020967a/playlist.m3u8"
+            )
+        )
+        // 真实播放页里的悬停预览片，属于**别的番号**，必须拒
+        assertFalse(
+            isAcceptableStreamUrl("https://fourhoi.com/ssni-879-uncensored-leak/preview.mp4")
+        )
+        // MSE 的 blob 地址对 Media3 无意义
+        assertFalse(
+            isAcceptableStreamUrl("blob:https://missav.ws/4c0e8c65-f98d-4a30-beb2-d53156db0bec")
+        )
+        assertFalse(isAcceptableStreamUrl("https://securepubads.g.doubleclick.net/preroll.m3u8"))
+        assertFalse(isAcceptableStreamUrl(null))
+        assertFalse(isAcceptableStreamUrl(""))
+    }
 }

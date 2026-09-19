@@ -124,16 +124,12 @@ fun MissavPlayScreen(
         phase = MissavPhase.SITE
     }
 
-    /** 候选直链是否可用：必须能播、不是广告、也不是悬停预览片。 */
-    fun acceptStream(url: String?): Boolean =
-        isPlayableStreamUrl(url) && !looksLikeAdStream(url.orEmpty()) && !looksLikePreviewClip(url)
-
     fun probeStream(view: WebView) {
         if (detectedStream != null) return
         view.evaluateJavascript(MISSAV_STREAM_PROBE_JS) { raw ->
             val found = unescapeJsString(raw)
             Log.i(TAG, "probe: ${if (found.isBlank()) "(未命中)" else found}")
-            if (acceptStream(found)) {
+            if (isAcceptableStreamUrl(found)) {
                 detectedStream = found
             }
         }
@@ -147,7 +143,7 @@ fun MissavPlayScreen(
      */
     fun onSniffedStream(streamUrl: String) {
         if (!onPlayPage.get()) return
-        if (!acceptStream(streamUrl)) return
+        if (!isAcceptableStreamUrl(streamUrl)) return
         mainHandler.post {
             if (detectedStream == null) {
                 Log.i(TAG, "sniff: $streamUrl")
@@ -168,7 +164,7 @@ fun MissavPlayScreen(
         view.evaluateJavascript("(function(){return document.documentElement.outerHTML;})()") { raw ->
             val found = extractMissavStreamUrl(unescapeJsString(raw))
             Log.i(TAG, "deepProbe: ${found ?: "(未命中)"}")
-            if (found != null && acceptStream(found)) {
+            if (found != null && isAcceptableStreamUrl(found)) {
                 detectedStream = found
             }
         }

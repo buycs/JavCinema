@@ -70,14 +70,20 @@ private val STREAM_KEY_REGEXES: List<Regex> = STREAM_KEYS.map { key ->
  */
 private val AD_STREAM_MARKERS = listOf(
     "doubleclick", "googlesyndication", "googleadservices", "googletag",
-    "adsystem", "adserver", "adservice", "/ads/", "/ad/", "ad_",
+    "adsystem", "adserver", "adservice", "/ads/", "/ad/", "/ad_",
     "analytics", "tracker", "tracking", "telemetry", "beacon",
     "preroll", "midroll", "postroll", "vast", "vmap",
     "popads", "propellerads", "exoclick", "juicyads", "trafficjunky",
     "adnxs", "criteo", "taboola", "outbrain"
 )
 
-/** 是否是广告/统计类的流地址（仅用于全页扫描时的候选过滤）。 */
+/**
+ * 是否是广告/统计类的流地址（仅用于全页扫描时的候选过滤）。
+ *
+ * 标记一律带路径分隔符前缀（`/ad_` 而不是 `ad_`）：裸 `ad_` 会误伤
+ * `.../download_video.m3u8`、`.../load_720p.m3u8` 这类正常地址，
+ * 而误判的代价是「真实流被拒 → 静默回退到站点页面」，很难排查。
+ */
 internal fun looksLikeAdStream(url: String): Boolean {
     if (url.isBlank()) return false
     val lower = url.lowercase()
@@ -106,6 +112,17 @@ internal fun isPlayableStreamUrl(url: String?): Boolean {
     val path = url.substringBefore('?').substringBefore('#').trim().lowercase()
     return path.endsWith(".m3u8") || path.endsWith(".mp4")
 }
+
+/**
+ * 候选直链是否可用 —— 取流的三条过滤合在一处，DOM 探测、网络嗅探、整页兜底共用。
+ *
+ * 三条缺一不可：只看「像不像流地址」会把推荐位的悬停预览片
+ * （`fourhoi.com/<**别的番号**>/preview.mp4`）和贴片广告都当正片交给播放器。
+ */
+internal fun isAcceptableStreamUrl(url: String?): Boolean =
+    isPlayableStreamUrl(url) &&
+        !looksLikeAdStream(url.orEmpty()) &&
+        !looksLikePreviewClip(url)
 
 /** 归一 JS 里常见的转义（`\/`）、HTML 实体与协议相对地址；非 http(s) 一律判为无效。 */
 internal fun normalizeStreamUrl(raw: String?): String? {
