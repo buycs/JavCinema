@@ -1,5 +1,6 @@
 package io.github.javcinema.ui.screen
 
+import com.google.gson.JsonParser
 import java.net.URI
 import java.net.URLEncoder
 import org.jsoup.Jsoup
@@ -26,13 +27,27 @@ internal fun isMissavSearchUrl(url: String?): Boolean {
     return path.contains("/search/")
 }
 
+/**
+ * 人机验证页的**强**特征。
+ *
+ * 判据只取验证插页自身独有的标记，不要用 "cdn-cgi/challenge" / "cf-challenge" /
+ * "challenges.cloudflare.com" 这类子串：Cloudflare 的 JS Detections 会把
+ * `/cdn-cgi/challenge-platform/scripts/jsd/main.js` 注入到**每一个正常页面**里，
+ * 拿它当判据会把已通过验证的正常搜索结果页误判成验证页，
+ * 于是自动接管被静默跳过、直接掉进回退分支（表现为「明明搜到了结果却不播」）。
+ */
+private val CHALLENGE_HTML_MARKERS = listOf(
+    "正在进行安全验证",
+    "just a moment",
+    "challenge-running",
+    "challenge-form",
+    "cf-turnstile",
+    "chl_page"
+)
+
 internal fun isMissavChallengeHtml(html: String): Boolean {
     val lower = html.lowercase()
-    return "正在进行安全验证" in html ||
-        "just a moment" in lower ||
-        "cf-challenge" in lower ||
-        "challenges.cloudflare.com" in lower ||
-        "cdn-cgi/challenge" in lower
+    return CHALLENGE_HTML_MARKERS.any { it in lower }
 }
 
 internal fun isMissavChallengeTitle(title: String?): Boolean {
@@ -158,8 +173,11 @@ internal fun selectBestMissavResult(
     return results.firstOrNull { missavSlug(it.url) == needle } ?: results.first()
 }
 
+/**
+ * 解析搜索结果页。只负责解析，不判人机验证 —— 是否验证页交给调用方在
+ * 「解析不出候选」之后判断。顺序反过来会把正常页面误判成验证页（见 [isMissavChallengeHtml]）。
+ */
 internal fun parseMissavSearchResults(html: String, code: String): List<MissavSearchResult> {
-    if (isMissavChallengeHtml(html)) return emptyList()
     val doc = Jsoup.parse(html, "https://missav.ws")
     val grouped = linkedMapOf<String, MutableList<org.jsoup.nodes.Element>>()
     for (anchor in doc.select("a[href]")) {
@@ -219,18 +237,26 @@ private fun isAdOrJunkTitle(title: String): Boolean {
 
 private val DURATION_RE = Regex("""\d+:\d{2}(?::\d{2})?""")
 
+/**
+ * 解开 `WebView.evaluateJavascript` 回传的 JSON 字符串字面量。
+ *
+ * ⚠️ 必须按 JSON 规范解**全部**转义，尤其是 `\uXXXX`：Android 会把结果里的
+ * `<` `>` `&` `=` `'` 转义成 `\u003C` 这类 Unicode 转义（防止页面内容夹带标签）。
+ * 只 replace `\n` / `\"` / `\/` 的话，拿到的 HTML 是满屏 `\u003Cdiv>` ——
+ * Jsoup 一个标签都认不出来，搜索页永远解析出 0 条候选，自动接管被静默跳过
+ * （现象是「明明搜到了结果却不播」，且直接掉进回退分支）。
+ *
+ * 交给 Gson 是因为它按规范处理全部转义（含 UTF-16 代理对），比手工 replace 链可靠。
+ */
 internal fun unescapeJsString(value: String?): String {
     if (value.isNullOrBlank() || value == "null") return ""
-    if (value.length >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
-        return value.substring(1, value.length - 1)
-            .replace("\\n", "\n")
-            .replace("\\r", "\r")
-            .replace("\\t", "\t")
-            .replace("\\\"", "\"")
-            .replace("\\/", "/")
-            .replace("\\\\", "\\")
+    return try {
+        val parsed = JsonParser.parseString(value)
+        if (parsed.isJsonPrimitive) parsed.asString else value
+    } catch (_: Exception) {
+        // evaluateJavascript 只会回传合法 JSON，走到这里说明是异常输入，原样返回。
+        value
     }
-    return value
 }
 
 private fun canonicalizeMissavUrl(raw: String): String? {

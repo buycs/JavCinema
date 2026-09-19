@@ -120,4 +120,51 @@ class MissavStreamPolicyTest {
         assertNull(extractMissavStreamUrl(""))
         assertNull(extractMissavStreamUrl("   "))
     }
+
+    // --- 悬停预览片过滤 ---
+
+    @Test
+    fun detectsPreviewClips() {
+        assertTrue(looksLikePreviewClip("https://fourhoi.com/ssni-879-uncensored-leak/preview.mp4"))
+        assertTrue(looksLikePreviewClip("https://cdn.example.com/x/trailer.mp4"))
+        assertTrue(looksLikePreviewClip("https://cdn.example.com/sample/720p.m3u8"))
+        assertTrue(looksLikePreviewClip("https://cdn.example.com/teaser.mp4"))
+        assertFalse(looksLikePreviewClip("https://surrit.com/abc-123/video.m3u8"))
+        assertFalse(looksLikePreviewClip(null))
+        assertFalse(looksLikePreviewClip(""))
+    }
+
+    /**
+     * 回归：实测在 missav 播放页上，整页扫第一个 `.mp4` 抓到的是推荐位的悬停预览片
+     * `fourhoi.com/ssni-879-uncensored-leak/preview.mp4` —— 搜索的番号是 SSIS-001，
+     * 抓到的却是 SSNI-879 的预览片，于是播放器放了几秒别人的片段。
+     */
+    @Test
+    fun rawScanSkipsPreviewClipAndPicksRealStream() {
+        val html = """
+            <html><body>
+            <div class="thumbnail">
+              <video class="preview hidden" data-src="https://fourhoi.com/ssni-879-uncensored-leak/preview.mp4"></video>
+              <img src="https://fourhoi.com/ssni-879-uncensored-leak/cover-t.jpg">
+            </div>
+            <script>var src = "https://surrit.com/f5d6d020967a-8035-49eb-87b1-e33c158d/1280x720/video.m3u8";</script>
+            </body></html>
+        """.trimIndent()
+        assertEquals(
+            "https://surrit.com/f5d6d020967a-8035-49eb-87b1-e33c158d/1280x720/video.m3u8",
+            extractMissavStreamUrl(html)
+        )
+    }
+
+    @Test
+    fun rawScanReturnsNullWhenOnlyPreviewClipsPresent() {
+        // 整页只有预览片时宁可返回 null（不自动接管），也不该把别人的预览片当正片播。
+        val html = """
+            <html><body>
+            <video data-src="https://fourhoi.com/ssni-879-uncensored-leak/preview.mp4"></video>
+            <div data-src="https://fourhoi.com/ssni-879-uncensored-leak/preview.mp4"></div>
+            </body></html>
+        """.trimIndent()
+        assertNull(extractMissavStreamUrl(html))
+    }
 }

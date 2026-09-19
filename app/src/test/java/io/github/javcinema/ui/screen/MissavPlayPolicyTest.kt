@@ -41,6 +41,74 @@ class MissavPlayPolicyTest {
         assertEquals("https://missav.ws/en/pppe-443", results[1].url)
     }
 
+    /**
+     * 回归：`evaluateJavascript` 回传的是 JSON 字符串字面量，Android 会把 `<` `>` `&` `=` `'`
+     * 转义成 `\u003C` 这类 Unicode 转义。早期版本只 replace 了 `\n` / `\"` / `\/`，
+     * 漏解 `\uXXXX`，于是 Jsoup 收到满屏 `\u003Cdiv>`，一个标签都认不出来。
+     */
+    @Test
+    fun unescapesAndroidUnicodeEscapesInJsResult() {
+        val raw = "\"\\u003Cdiv\\u003Ea\\u0026b\\u003Dc\\u0027d\\u003C/div\\u003E\""
+        assertEquals("<div>a&b=c'd</div>", unescapeJsString(raw))
+        // 常见的反斜杠转义仍要正常解
+        assertEquals("a\"b\nc", unescapeJsString("\"a\\\"b\\nc\""))
+        assertEquals("https://x/y.m3u8", unescapeJsString("\"https:\\/\\/x\\/y.m3u8\""))
+        assertEquals("", unescapeJsString(null))
+        assertEquals("", unescapeJsString("null"))
+    }
+
+    /**
+     * 端到端回归：真实搜索结果页的卡片长这样 —— `<a href>` 指向
+     * `/dm<id>/<lang>/<slug>`（missav 的镜像路径前缀），番号信息全在 slug 里。
+     *
+     * 片段取自 missav 真实搜索结果页（番号 SSIS-001）。
+     */
+    @Test
+    fun parsesRealMissavSearchCardAfterUnescaping() {
+        val realCard = """
+            <div x-data="" class="grid grid-cols-2 gap-5">
+              <div>
+                <div @mouseenter="setPreview('2f372120')" @click="clickPreview('2f372120')" class="thumbnail group">
+                  <div class="relative aspect-w-16 aspect-h-9 rounded overflow-hidden shadow-lg">
+                    <a href="https://missav.ws/dm52/en/ssis-001-uncensored-leak" alt="ssis-001-uncensored-leak">
+                      <video class="preview hidden" data-src="https://fourhoi.com/ssis-001-uncensored-leak/preview.mp4"></video>
+                      <img class="w-full" data-src="https://fourhoi.com/ssis-001-uncensored-leak/cover-t.jpg" alt="After Abstaining From Sex For A Month, I Lost My Mind Having Nothing But Infidelity Sex With My Girlfriend's 2 Roommates While She Was Away For 3 Days. Tsukasa Aoi Sayaka Otoshiro">
+                    </a>
+                    <a href="https://missav.ws/dm52/en/ssis-001-uncensored-leak" alt="ssis-001-uncensored-leak">
+                      <span class="absolute bottom-1 left-1">Uncensored</span>
+                    </a>
+                    <a href="https://missav.ws/dm52/en/ssis-001-uncensored-leak" alt="ssis-001-uncensored-leak">
+                      <span class="absolute bottom-1 right-1">2:27:06</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+        """.trimIndent()
+
+        // 模拟 Android 对 evaluateJavascript 结果的转义
+        val raw = "\"" + realCard
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("<", "\\u003C")
+            .replace(">", "\\u003E")
+            .replace("&", "\\u0026")
+            .replace("=", "\\u003D")
+            .replace("'", "\\u0027") + "\""
+
+        val results = parseMissavSearchResults(unescapeJsString(raw), "SSIS-001")
+        assertEquals(1, results.size)
+        assertEquals("https://missav.ws/dm52/en/ssis-001-uncensored-leak", results[0].url)
+        assertEquals("2:27:06", results[0].duration)
+        assertEquals("无码", results[0].badge)
+        assertEquals("https://fourhoi.com/ssis-001-uncensored-leak/cover-t.jpg", results[0].thumbnailUrl)
+        assertTrue(results[0].title.startsWith("After Abstaining From Sex For A Month"))
+        // /dm<id>/ 前缀不能影响番号识别，也不能被当成搜索页
+        assertTrue(isMissavPlayUrl(results[0].url, "SSIS-001"))
+        assertEquals("ssis-001-uncensored-leak", missavSlug(results[0].url))
+    }
+
     @Test
     fun blocksAdMainFrameButAllowsMissav() {
         assertTrue(isAllowedMissavNavigation("https://missav.ws/en/pppe-443"))
@@ -71,6 +139,41 @@ class MissavPlayPolicyTest {
         assertTrue(isMissavChallengeTitle("请稍候…"))
         assertTrue(isMissavChallengeUrl("https://missav.ws/en/search/PPPE-443?__cf_chl_tk=abc"))
         assertFalse(isMissavChallengeTitle("Search result of pppe-443 - MissAV"))
+    }
+
+    /**
+     * 回归：Cloudflare 的 JS Detections 会把 `/cdn-cgi/challenge-platform/scripts/jsd/main.js`
+     * 注入到**每一个正常页面**。早期版本拿 "cdn-cgi/challenge" 子串当验证页判据，
+     * 于是已通过验证的正常搜索结果页被误判成验证页 —— 表现为「明明搜到了结果却不播」，
+     * 且直接掉进回退分支，用户看到的是站点页面而不是播放器。
+     */
+    @Test
+    fun normalPageCarryingCloudflareJsDetectionIsNotChallenge() {
+        val html = """
+            <html><head>
+            <title>Search result of ssis-001 - MissAV | Watch HD JAV Online</title>
+            <script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>
+            </head><body>
+            <a href="/en/ssis-001">SSIS-001 After Abstaining From Sex 2:27:06</a>
+            </body></html>
+        """.trimIndent()
+        assertFalse(isMissavChallengeHtml(html))
+        // 关键：正常页面必须能解析出候选，不能被误判掐断
+        assertEquals(1, parseMissavSearchResults(html, "SSIS-001").size)
+    }
+
+    /** 真正的 Cloudflare 插页仍然要能识别出来，否则会对着验证页干等 20 秒。 */
+    @Test
+    fun realChallengeInterstitialIsStillDetected() {
+        val html = """
+            <html><head><title>Just a moment...</title></head>
+            <body>
+            <div id="challenge-running"></div>
+            <form id="challenge-form" action="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></form>
+            <script>window._cf_chl_opt = {cvId: '3'};</script>
+            </body></html>
+        """.trimIndent()
+        assertTrue(isMissavChallengeHtml(html))
     }
 
     @Test

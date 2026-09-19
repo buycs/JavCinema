@@ -5,11 +5,13 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -46,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import io.github.javcinema.BuildConfig
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.delay
 
 // 原生播放接管：
@@ -54,11 +58,16 @@ import kotlinx.coroutines.delay
 // 3. 播放页探测到 HLS/MP4 直链即自动交给 Media3 全屏播放。
 // 4. 任一环节失败（人机验证、解析超时、选不出片）回退到可见的站点播放页，用户可继续手动操作。
 
+private const val TAG = "MissavPlay"
+
 /** 解析总预算。超过后回退站点页面，避免用户对着转圈干等。 */
 private const val RESOLVE_TIMEOUT_MS = 20_000L
 
 /** 播放页探测直链的时间点：播放器常延迟注入 src，多点几次提高命中率。 */
 private val PROBE_DELAYS_MS = listOf(1_500L, 3_500L, 6_000L, 10_000L, 15_000L)
+
+/** 整页兜底探测的时间点，排在最后一轮 DOM 探测之后、解析超时之前。 */
+private const val DEEP_PROBE_DELAY_MS = 18_000L
 
 /** 搜索结果页解析出候选的延迟：等页面把列表渲染完。 */
 private const val EXTRACT_DELAY_MS = 800L
@@ -90,6 +99,9 @@ fun MissavPlayScreen(
     // 自己排的延时任务要能精确取消：不能用 removeCallbacksAndMessages(null)，
     // 那会把同一 Handler 上刚排好的探测任务一并清掉。
     val pendingTasks = remember { mutableListOf<Runnable>() }
+    // shouldInterceptRequest 在非 UI 线程回调，而 WebView 不是线程安全的 —— 不能在里面读
+    // view.url 判断「当前是不是播放页」。改为在主线程的 onPageStarted 里记下状态。
+    val onPlayPage = remember(movieCode) { AtomicBoolean(false) }
 
     fun schedule(delayMs: Long, action: () -> Unit) {
         val task = Runnable { action() }
@@ -112,11 +124,51 @@ fun MissavPlayScreen(
         phase = MissavPhase.SITE
     }
 
+    /** 候选直链是否可用：必须能播、不是广告、也不是悬停预览片。 */
+    fun acceptStream(url: String?): Boolean =
+        isPlayableStreamUrl(url) && !looksLikeAdStream(url.orEmpty()) && !looksLikePreviewClip(url)
+
     fun probeStream(view: WebView) {
         if (detectedStream != null) return
         view.evaluateJavascript(MISSAV_STREAM_PROBE_JS) { raw ->
             val found = unescapeJsString(raw)
-            if (isPlayableStreamUrl(found)) {
+            Log.i(TAG, "probe: ${if (found.isBlank()) "(未命中)" else found}")
+            if (acceptStream(found)) {
+                detectedStream = found
+            }
+        }
+    }
+
+    /**
+     * 网络层嗅到的 m3u8。**这是唯一稳的取流手段**，理由见 [shouldInterceptRequest] 的注释。
+     *
+     * 只在播放页采信：搜索页与推荐位同样会拉 m3u8，误采等于把广告交给播放器。
+     * 回调不在主线程，状态更新必须 post 回主线程。
+     */
+    fun onSniffedStream(streamUrl: String) {
+        if (!onPlayPage.get()) return
+        if (!acceptStream(streamUrl)) return
+        mainHandler.post {
+            if (detectedStream == null) {
+                Log.i(TAG, "sniff: $streamUrl")
+                detectedStream = streamUrl
+            }
+        }
+    }
+
+    /**
+     * 整页兜底：在 HTML 明文里找直链。
+     *
+     * 当前站点把 m3u8 打包混淆在 `eval(function(p,a,c,k,e,d){...})` 里，明文扫不到，
+     * 主力仍是 [onSniffedStream]；但页面模板回退到明文时这条路能救回来，
+     * 而且它是纯 Kotlin 的，能被单测覆盖。
+     */
+    fun deepProbe(view: WebView) {
+        if (detectedStream != null) return
+        view.evaluateJavascript("(function(){return document.documentElement.outerHTML;})()") { raw ->
+            val found = extractMissavStreamUrl(unescapeJsString(raw))
+            Log.i(TAG, "deepProbe: ${found ?: "(未命中)"}")
+            if (found != null && acceptStream(found)) {
                 detectedStream = found
             }
         }
@@ -124,12 +176,14 @@ fun MissavPlayScreen(
 
     fun scheduleProbes(view: WebView) {
         PROBE_DELAYS_MS.forEach { delayMs -> schedule(delayMs) { probeStream(view) } }
+        schedule(DEEP_PROBE_DELAY_MS) { deepProbe(view) }
     }
 
     fun extractResults(view: WebView) {
         if (phase != MissavPhase.RESOLVING) return
         val url = view.url
         if (isMissavChallengeUrl(url) || isMissavChallengeTitle(view.title)) {
+            Log.i(TAG, "resolve: 人机验证页 url=$url title=${view.title}")
             fallbackToSite()
             return
         }
@@ -137,16 +191,18 @@ fun MissavPlayScreen(
         view.evaluateJavascript("(function(){return document.documentElement.outerHTML;})()") { raw ->
             if (phase != MissavPhase.RESOLVING) return@evaluateJavascript
             val html = unescapeJsString(raw)
-            if (isMissavChallengeHtml(html)) {
-                fallbackToSite()
+            writePageDump(view, "missav_search.html", html)
+            val results = parseMissavSearchResults(html, movieCode)
+            val best = selectBestMissavResult(results, movieCode)
+            Log.i(TAG, "resolve: html=${html.length} candidates=${results.size} picked=${best?.url}")
+            if (best != null) {
+                webView?.loadUrl(best.url)
                 return@evaluateJavascript
             }
-            val best = selectBestMissavResult(parseMissavSearchResults(html, movieCode), movieCode)
-            if (best == null) {
-                fallbackToSite()
-                return@evaluateJavascript
-            }
-            webView?.loadUrl(best.url)
+            // 先解析、后判验证页：顺序反过来会把带 Cloudflare JS Detections 的
+            // 正常页面误判成验证页，静默跳过自动接管（见 isMissavChallengeHtml）。
+            Log.w(TAG, "resolve: 无可用候选，challenge=${isMissavChallengeHtml(html)}")
+            fallbackToSite()
         }
     }
 
@@ -257,6 +313,41 @@ fun MissavPlayScreen(
                             ): Boolean = false
                         }
                         webViewClient = object : WebViewClient() {
+                            /**
+                             * 旁路嗅探直链 —— **取流的主力手段**。
+                             *
+                             * 为什么非得在这一层拿：
+                             * - 播放器走 MSE，`<video>` 的 `currentSrc` 是 `blob:https://...`，
+                             *   对 Media3 毫无意义；
+                             * - 站点把真正的 m3u8 打包混淆在 `eval(function(p,a,c,k,e,d){...})` 里，
+                             *   整页 HTML 里根本没有明文 `.m3u8`（实测 `surrit.com/<uuid>/...`）；
+                             * - 所以唯一稳的线索是**播放器实际发出的那次请求**。
+                             *
+                             * 返回 null = 只旁听，不改写响应，页面照常加载。
+                             * 注意本回调不在 UI 线程，不能碰 WebView 的成员。
+                             */
+                            override fun shouldInterceptRequest(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): WebResourceResponse? {
+                                val target = request?.url?.toString().orEmpty()
+                                if (target.contains(".m3u8", ignoreCase = true)) {
+                                    onSniffedStream(target)
+                                }
+                                return null
+                            }
+
+                            override fun onPageStarted(
+                                view: WebView?,
+                                url: String?,
+                                favicon: android.graphics.Bitmap?
+                            ) {
+                                onPlayPage.set(
+                                    isMissavPlayUrl(url.orEmpty(), movieCode) &&
+                                        !isMissavSearchUrl(url)
+                                )
+                            }
+
                             override fun shouldOverrideUrlLoading(
                                 view: WebView?,
                                 request: WebResourceRequest?
@@ -289,6 +380,8 @@ fun MissavPlayScreen(
                                 // 播放页两个阶段都探测：解析阶段命中即自动接管，
                                 // 已回退到站点时命中则降级为手动按钮。
                                 if (isMissavPlayUrl(url, movieCode) && !isMissavSearchUrl(url)) {
+                                    Log.i(TAG, "onPageFinished: 命中播放页 $url，开始探测直链")
+                                    dumpCurrentPage(view, "missav_play.html")
                                     cleanPlayPage(view)
                                     scheduleProbes(view)
                                     return
@@ -366,5 +459,31 @@ private fun MissavResolvingOverlay(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * 把站点页面落盘到 cacheDir（系统会自动回收），仅 debug 包。
+ *
+ * 站点改版会让选择器**静默**失效 —— 没有报错，只是解析结果变空。定位这类问题只能靠
+ * 真实页面，所以留一个不用改代码就能看 HTML 的口子：
+ *
+ * ```
+ * adb exec-out run-as io.github.javcinema cat cache/missav_search.html > search.html
+ * adb exec-out run-as io.github.javcinema cat cache/missav_play.html   > play.html
+ * ```
+ */
+private fun writePageDump(view: WebView, name: String, html: String) {
+    if (!BuildConfig.DEBUG || html.isBlank()) return
+    runCatching {
+        java.io.File(view.context.cacheDir, name).writeText(html)
+    }
+}
+
+/** 取当前页面 HTML 后落盘，见 [writePageDump]。 */
+private fun dumpCurrentPage(view: WebView, name: String) {
+    if (!BuildConfig.DEBUG) return
+    view.evaluateJavascript("(function(){return document.documentElement.outerHTML;})()") { raw ->
+        writePageDump(view, name, unescapeJsString(raw))
     }
 }

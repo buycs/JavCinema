@@ -2,21 +2,46 @@ package io.github.javcinema.ui.screen
 
 import org.jsoup.Jsoup
 
-// 在「已验证会话」的 WebView 里探测当前可播流地址。返回裸字符串，空串表示未找到。
-// 优先取 <video> 的实时 src（播放器常通过 JS 赋值），退化到全页扫描。
+/**
+ * 在「已验证会话」的 WebView 里探测当前可播流地址。返回裸字符串，空串表示未找到。
+ *
+ * ⚠️ 三个坑都踩过，改动前先看这里：
+ *
+ * 1. **不能只查第一个 `<video>`**。播放页的推荐位/相关位也挂 `<video>`（悬停预览片），
+ *    而且它们排在播放器前面；`document.querySelector('video')` 拿到的是预览片。
+ *    所以这里遍历**全部** video/source，优先 `.m3u8`。
+ * 2. **`blob:` 要丢掉**。播放器走 MSE 时 `currentSrc` 是 `blob:https://...`，
+ *    对 Media3 毫无意义。只认 `http(s)://`。
+ * 3. **不做整页扫描**。整页扫第一个 `.mp4` 会抓到 `fourhoi.com/<番号>/preview.mp4`
+ *    这种悬停预览片（还常常是别的番号）。整页兜底交给 Kotlin 侧的
+ *    [extractMissavStreamUrl]，那边能用单测覆盖。
+ */
 internal const val MISSAV_STREAM_PROBE_JS = """
 (function(){
   try {
-    var v = document.querySelector('video');
-    if (v) {
-      if (v.currentSrc) return v.currentSrc;
-      if (v.src) return v.src;
-      var s = v.querySelector('source');
-      if (s && s.src) return s.src;
+    function ok(u){
+      if (!u) return '';
+      u = String(u).trim();
+      if (!/^https?:\/\//i.test(u)) return '';
+      if (!/\.(m3u8|mp4)(\?|#|$)/i.test(u)) return '';
+      if (/preview|\/sample|\/trailer|teaser/i.test(u)) return '';
+      return u;
     }
-    var html = document.documentElement.outerHTML;
-    var m = html.match(/https?:\/\/[^"'\s<>\\]+?\.(?:m3u8|mp4)[^"'\s<>\\]*/i);
-    return m ? m[0] : '';
+    var vids = document.querySelectorAll('video');
+    var mp4 = '';
+    for (var i = 0; i < vids.length; i++) {
+      var v = vids[i];
+      var cands = [v.currentSrc, v.getAttribute('src'), v.src];
+      var s = v.querySelector('source');
+      if (s) { cands.push(s.getAttribute('src')); cands.push(s.src); }
+      for (var j = 0; j < cands.length; j++) {
+        var u = ok(cands[j]);
+        if (!u) continue;
+        if (/\.m3u8(\?|#|$)/i.test(u)) return u;
+        if (!mp4) mp4 = u;
+      }
+    }
+    return mp4;
   } catch (e) { return ''; }
 })();
 """
@@ -59,6 +84,22 @@ internal fun looksLikeAdStream(url: String): Boolean {
     return AD_STREAM_MARKERS.any { lower.contains(it) }
 }
 
+/**
+ * 悬停预览片的特征。
+ *
+ * 播放页的推荐位/相关位挂着一堆 `<video data-src=".../preview.mp4">`：它们和正片一样是
+ * `.mp4`，但只有几秒，而且**常常属于别的番号**。实测整页扫第一个 `.mp4` 时抓到过
+ * `fourhoi.com/ssni-879-uncensored-leak/preview.mp4` —— 搜索的是 SSIS-001，
+ * 抓到的却是 SSNI-879 的预览片。这类地址必须整体排除。
+ */
+private val PREVIEW_CLIP_MARKERS = listOf("preview", "/sample", "/trailer", "teaser")
+
+internal fun looksLikePreviewClip(url: String?): Boolean {
+    if (url.isNullOrBlank()) return false
+    val lower = url.lowercase()
+    return PREVIEW_CLIP_MARKERS.any { lower.contains(it) }
+}
+
 /** 是否是可直接交给 Media3 的 HLS/MP4 地址（忽略 query / fragment）。 */
 internal fun isPlayableStreamUrl(url: String?): Boolean {
     if (url.isNullOrBlank()) return false
@@ -91,12 +132,16 @@ internal fun extractMissavStreamUrl(html: String): String? {
         ?: doc.select("video source[src]").firstOrNull()?.attr("src")
     normalizeStreamUrl(domSrc)?.takeIf { isPlayableStreamUrl(it) }?.let { return it }
 
+    // 配置字段这条路也要过预览片过滤：键名 `src` 会命中 `data-src=".../preview.mp4"`，
+    // 而播放页的悬停预览片正是这么写的（见 [looksLikePreviewClip]）。
     for (regex in STREAM_KEY_REGEXES) {
-        val match = regex.find(flat)
-        normalizeStreamUrl(match?.groupValues?.getOrNull(1))?.let { return it }
+        regex.findAll(flat)
+            .mapNotNull { normalizeStreamUrl(it.groupValues.getOrNull(1)) }
+            .firstOrNull { !looksLikePreviewClip(it) }
+            ?.let { return it }
     }
 
     return STREAM_URL_RE.findAll(flat)
         .mapNotNull { normalizeStreamUrl(it.value) }
-        .firstOrNull { !looksLikeAdStream(it) }
+        .firstOrNull { !looksLikeAdStream(it) && !looksLikePreviewClip(it) }
 }
