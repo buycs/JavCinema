@@ -24,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +41,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.javcinema.data.model.MagnetFile
+import io.github.javcinema.ui.components.AppTopTabRow
+import io.github.javcinema.ui.components.TopBarSelectedContentColor
+import io.github.javcinema.ui.components.TopBarUnselectedContentColor
 import io.github.javcinema.util.copyText
 import kotlinx.coroutines.launch
 
@@ -108,12 +110,14 @@ fun DownloadScreen(
             "无极磁链" to "cili",
             "BTSOW" to "btso"
         )
-        TabRow(selectedTabIndex = pagerState.currentPage) {
+        AppTopTabRow(selectedIndex = pagerState.currentPage) {
             magnetSources.forEachIndexed { index, (label, _) ->
                 Tab(
                     selected = pagerState.currentPage == index,
                     onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                    text = { Text(label) }
+                    text = { Text(label) },
+                    selectedContentColor = TopBarSelectedContentColor,
+                    unselectedContentColor = TopBarUnselectedContentColor
                 )
             }
         }

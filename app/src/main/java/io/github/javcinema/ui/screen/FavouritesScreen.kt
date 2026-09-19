@@ -24,7 +24,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,7 +52,10 @@ import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Movie
+import io.github.javcinema.ui.components.AppTopTabRow
 import io.github.javcinema.ui.components.MovieCard
+import io.github.javcinema.ui.components.TopBarSelectedContentColor
+import io.github.javcinema.ui.components.TopBarUnselectedContentColor
 import io.github.javcinema.ui.navigation.NavRoutes
 import io.github.javcinema.util.copyText
 
@@ -254,20 +256,24 @@ fun FavouritesScreen(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        TabRow(selectedTabIndex = pagerState.currentPage) {
+        AppTopTabRow(selectedIndex = pagerState.currentPage) {
             Tab(
                 selected = pagerState.currentPage == 0,
                 onClick = {
                     scope.launch { pagerState.animateScrollToPage(0) }
                 },
-                text = { Text("作品") }
+                text = { Text("作品") },
+                selectedContentColor = TopBarSelectedContentColor,
+                unselectedContentColor = TopBarUnselectedContentColor
             )
             Tab(
                 selected = pagerState.currentPage == 1,
                 onClick = {
                     scope.launch { pagerState.animateScrollToPage(1) }
                 },
-                text = { Text("女优") }
+                text = { Text("女优") },
+                selectedContentColor = TopBarSelectedContentColor,
+                unselectedContentColor = TopBarUnselectedContentColor
             )
         }
 

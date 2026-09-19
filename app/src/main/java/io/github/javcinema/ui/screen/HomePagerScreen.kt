@@ -14,9 +14,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +29,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
+import io.github.javcinema.ui.components.AppTopTabRow
+import io.github.javcinema.ui.components.TopBarSelectedContentColor
+import io.github.javcinema.ui.components.TopBarUnselectedContentColor
 import kotlinx.coroutines.launch
 
 @Composable
@@ -59,16 +60,11 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
     val viewModels = listOf(popularViewModel, homeViewModel, releasedViewModel)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
-            selectedTabIndex = pagerState.currentPage,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            divider = {},
-            modifier = Modifier.height(38.dp)
-        ) {
+        AppTopTabRow(selectedIndex = pagerState.currentPage) {
             tabs.forEachIndexed { index, tab ->
+                val selected = pagerState.currentPage == index
                 Tab(
-                    selected = pagerState.currentPage == index,
+                    selected = selected,
                     onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
                     text = {
                         Row(
@@ -79,14 +75,14 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
                                 tab.icon,
                                 contentDescription = null,
                                 modifier = Modifier
-                                    .alpha(if (pagerState.currentPage == index) 1f else 0.7f)
+                                    .alpha(if (selected) 1f else 0.7f)
                                     .height(16.dp)
                             )
                             Text(tab.label, fontSize = 15.sp)
                         }
                     },
-                    selectedContentColor = MaterialTheme.colorScheme.onPrimary,
-                    unselectedContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                    selectedContentColor = TopBarSelectedContentColor,
+                    unselectedContentColor = TopBarUnselectedContentColor
                 )
             }
         }
