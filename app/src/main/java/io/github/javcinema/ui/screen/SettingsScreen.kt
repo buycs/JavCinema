@@ -40,6 +40,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -300,7 +301,8 @@ private fun ThemeDialog(onDismiss: () -> Unit) {
 @Composable
 private fun GridColumnsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var selected by remember { mutableStateOf(Configurations.gridColumns.coerceIn(2, 4)) }
+    // mutableIntStateOf：Int 状态不必装箱。
+    var selected by remember { mutableIntStateOf(Configurations.gridColumns.coerceIn(2, 4)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("网格列数") },
@@ -762,7 +764,7 @@ private fun SourceConfigDialog(
     var checking by remember { mutableStateOf(false) }
     var pendingHttp by remember { mutableStateOf<List<String>>(emptyList()) }
     var selectedIndex by remember {
-        mutableStateOf(
+        mutableIntStateOf(
             if (selectable) {
                 items.indexOfFirst { it.label == (initialSelected as? io.github.javcinema.data.model.DataSource)?.name }
                     .coerceAtLeast(0)

@@ -9,7 +9,15 @@
         <item name="android:windowBackground">@drawable/pic_start</item>
     </style>
 
-    <style name="AppTheme.NoActionBar" parent="AppTheme" />
+    <!--
+        这两项来自原来的 res/values-v21/styles.xml。minSdk 已是 21，v21 限定符
+        没有意义（Lint: ObsoleteSdkInt），所以直接合并进 values 并删掉那个目录。
+        statusBarColor 需要 API 21，navigationBarColor 同样 —— 都在 minSdk 之内。
+    -->
+    <style name="AppTheme.NoActionBar" parent="AppTheme">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/colorPrimary</item>
+    </style>
 
     <style name="AppTheme.NoActionBar.TransparentStatusBar" parent="AppTheme.NoActionBar" />
 </resources>

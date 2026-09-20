@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -32,7 +32,8 @@ fun ScreenshotRow(
     fallbackUrl: String? = null,
     onFallbackClick: (() -> Unit)? = null
 ) {
-    var failedCount by remember(screenshots) { mutableStateOf(0) }
+    // mutableIntStateOf：Int 状态不必装箱，省掉每次读写的 box/unbox 分配。
+    var failedCount by remember(screenshots) { mutableIntStateOf(0) }
     val allFailed = fallbackUrl != null && screenshots.isNotEmpty() && failedCount >= screenshots.size
     Column(
         modifier = modifier,
