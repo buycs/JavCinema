@@ -3,12 +3,19 @@ package io.github.javcinema.player
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 
+// ⚠️ 注意这里用的是 androidx.annotation.OptIn，**不是** kotlin.OptIn。
+// Media3 的 UnstableApi 是 AndroidX 的 lint 注解（没有 @RequiresOptIn 元注解），
+// kotlin.OptIn 对它无效 —— 只会换来一条 "has no effect" 警告。
+// 本类用到的 DefaultHttpDataSource.Factory 的 setter、HlsMediaSource.Factory、
+// Player.setMediaSource 都属于 @UnstableApi，必须这样 opt-in 才能过 Lint。
+@androidx.annotation.OptIn(UnstableApi::class)
 class ExoPlayerImpl(context: Context) {
 
     val player: ExoPlayer = createPlayer(context)

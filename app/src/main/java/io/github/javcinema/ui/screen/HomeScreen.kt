@@ -26,14 +26,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Movie
+import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
 import io.github.javcinema.ui.navigation.NavRoutes
@@ -65,17 +68,16 @@ fun HomeScreen(
         }
     }
 
-    val dsVersionAtCreation = remember { JavCinema.dataSourceVersionFlow.value }
+    // 订阅数据源版本。组合期直接读 StateFlow.value 不会建立订阅（不产生快照读），
+    // 所以必须 collectAsStateWithLifecycle 才能在切换数据源时真正触发重组。
+    val dsVersion by JavCinema.dataSourceVersionFlow.collectAsStateWithLifecycle()
 
-    LaunchedEffect(section, JavCinema.dataSourceVersionFlow.value) {
+    LaunchedEffect(section, dsVersion) {
         viewModel.setSection(section)
     }
 
-    LaunchedEffect(JavCinema.dataSourceVersionFlow.value) {
-        if (JavCinema.dataSourceVersionFlow.value != dsVersionAtCreation) {
-            gridState.animateScrollToItem(0)
-        }
-    }
+    // 切换数据源后回到顶部（详见 DataSourceChangeEffect 的注释）。
+    DataSourceChangeEffect { gridState.animateScrollToItem(0) }
 
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -92,9 +94,16 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset) {
-        savedIndex = gridState.firstVisibleItemIndex
-        savedOffset = gridState.firstVisibleItemScrollOffset
+    // 持久化滚动位置。⚠️ 不能把 gridState.firstVisibleItemIndex / ScrollOffset 直接当
+    // LaunchedEffect 的 key —— 那属于「组合期读频繁变化的状态」，滚动时每一帧都会
+    // 触发整页重组，只为存两个 int（Lint: FrequentlyChangedStateReadInComposition）。
+    // 改用 snapshotFlow：在快照观察里读值，只驱动这个协程，不引起重组。
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                savedIndex = index
+                savedOffset = offset
+            }
     }
 
     PullToRefreshBox(

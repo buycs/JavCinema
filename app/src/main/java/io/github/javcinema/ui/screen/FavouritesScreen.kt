@@ -53,6 +53,7 @@ import io.github.javcinema.data.model.Actress
 import io.github.javcinema.data.model.Configurations
 import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.AppTopTabRow
+import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.TopBarSelectedContentColor
 import io.github.javcinema.ui.components.TopBarUnselectedContentColor
@@ -112,13 +113,10 @@ fun FavouritesScreen(
         }
     }
 
-    val dsVersionAtCreation = remember { JavCinema.dataSourceVersionFlow.value }
-
-    LaunchedEffect(JavCinema.dataSourceVersionFlow.value) {
-        if (JavCinema.dataSourceVersionFlow.value != dsVersionAtCreation) {
-            moviesGridState.animateScrollToItem(0)
-            actressesListState.animateScrollToItem(0)
-        }
+    // 切换数据源后两个列表都回到顶部（详见 DataSourceChangeEffect 的注释）。
+    DataSourceChangeEffect {
+        moviesGridState.animateScrollToItem(0)
+        actressesListState.animateScrollToItem(0)
     }
 
     fun removeItem(item: Any) {

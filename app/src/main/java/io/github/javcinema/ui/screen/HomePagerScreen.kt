@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import io.github.javcinema.JavCinema
 import io.github.javcinema.ui.components.AppTopTabRow
+import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.TopBarSelectedContentColor
 import io.github.javcinema.ui.components.TopBarUnselectedContentColor
 import kotlinx.coroutines.launch
@@ -46,13 +47,8 @@ fun HomePagerScreen(navController: NavController, scrollToTopTrigger: Long = 0L)
     val pagerState = rememberPagerState(pageCount = { 3 }, initialPage = 1)
     val scope = rememberCoroutineScope()
 
-    val dsVersionAtCreation = remember { JavCinema.dataSourceVersionFlow.value }
-
-    LaunchedEffect(JavCinema.dataSourceVersionFlow.value) {
-        if (JavCinema.dataSourceVersionFlow.value != dsVersionAtCreation) {
-            pagerState.animateScrollToPage(1)
-        }
-    }
+    // 切换数据源后回到中间那页（详见 DataSourceChangeEffect 的注释）。
+    DataSourceChangeEffect { pagerState.animateScrollToPage(1) }
 
     val popularViewModel: HomeViewModel = viewModel(key = "popular")
     val homeViewModel: HomeViewModel = viewModel(key = "home")

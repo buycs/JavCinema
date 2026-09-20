@@ -16,13 +16,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
+import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
 class DownloadViewModel : ViewModel() {
     private val btsoProvider = BTSOLinkProvider()
     private val ciliProvider = CiliInfoLinkProvider()
     private val btSearchProvider = BtSearchLinkProvider()
-    private val loadingFiles = ConcurrentHashMap.newKeySet<String>()
+    // ⚠️ 不能用 ConcurrentHashMap.newKeySet()：它需要 API 24，而本应用 minSdk 21，
+    // 在 API 21~23 的设备上会抛 NoSuchMethodError（Lint: NewApi）。
+    // Collections.newSetFromMap 自 API 9 起可用，语义完全一致 ——
+    // 一个由 ConcurrentHashMap 支撑的并发 Set。
+    private val loadingFiles: MutableSet<String> =
+        Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
 
     private val _btsoState = MutableStateFlow<MagnetSourceUi>(MagnetSourceUi.Idle)
     val btsoState: StateFlow<MagnetSourceUi> = _btsoState.asStateFlow()

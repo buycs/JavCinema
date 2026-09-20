@@ -29,8 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 fun ActressRow(
     actresses: List<Actress>,
     onActressClick: (Actress) -> Unit,
-    onActressLongClick: ((Actress) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onActressLongClick: ((Actress) -> Unit)? = null,
     imageLoader: ImageLoader = LocalContext.current.imageLoader
 ) {
     Column(modifier = modifier) {

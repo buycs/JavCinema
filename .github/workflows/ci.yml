@@ -25,5 +25,10 @@ jobs:
           java-version: 17
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest --no-daemon
+      # 只卡 error 不卡 warning：lint 的 warning 里混杂着大量风格建议，
+      # 而 error 才是真问题（NewApi 低版本崩溃、Compose 组合期读状态等）。
+      # 加上这一步是为了防止刚清理干净的 24 个 error 又悄悄长回来。
+      - name: Lint (errors fail the build)
+        run: ./gradlew :app:lintDebug --no-daemon
       - name: Assemble debug
         run: ./gradlew :app:assembleDebug --no-daemon

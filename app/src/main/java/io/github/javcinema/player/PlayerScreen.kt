@@ -60,14 +60,21 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import kotlinx.coroutines.delay
 
+// ⚠️ 注意这里用的是 androidx.annotation.OptIn，**不是** kotlin.OptIn。
+// Media3 的 UnstableApi 是 AndroidX 的 lint 注解（没有 @RequiresOptIn 元注解），
+// kotlin.OptIn 对它无效 —— 只会换来一条 "has no effect" 警告。
+// 本页用到的 AspectRatioFrameLayout / RESIZE_MODE_FIT / setVideoSurfaceView
+// 都属于 @UnstableApi，必须这样 opt-in 才能过 Lint。
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
     url: String,
-    referer: String = "",
     modifier: Modifier = Modifier,
+    referer: String = "",
     onBackClick: () -> Unit = {}
 ) {
     val context = LocalContext.current

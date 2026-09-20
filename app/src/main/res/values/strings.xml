@@ -1,25 +1,16 @@
 <resources>
+    <!--
+        只保留真正被引用的字符串（app_name 用于 AndroidManifest 的 application / activity 标签）。
+
+        此前这里还堆着上游 JAViewer 留下的 17 条死字符串，已全部删除（Lint: UnusedResources）：
+        - navigation_drawer_open / close ：「抽屉导航」已被底部导航栏取代，抽屉早就不存在了
+        - hello_blank_fragment            ：模板占位符（原文还带着 TODO 注释）
+        - customactivityoncrash_* (10 条) ：CustomActivityOnCrash 崩溃兜底库已移除，依赖都不在了
+        - title_activity_scrolling / action_settings /
+          title_activity_web_view / search_hint ：对应页面 / 菜单均已重写或删除
+
+        注意：本应用是 Compose 项目，界面文案绝大多数直接写在 Kotlin 里，不经过 strings.xml。
+        只有需要随系统语言切换、或被 XML / Manifest 引用的文案才需要放这里。
+    -->
     <string name="app_name">JavCinema</string>
-
-    <string name="navigation_drawer_open">打开抽屉</string>
-    <string name="navigation_drawer_close">关闭抽屉</string>
-
-    <!-- TODO: Remove or change this placeholder text -->
-    <string name="hello_blank_fragment">Hello blank fragment</string>
-
-    <string name="customactivityoncrash_error_activity_error_occurred_explanation">发生了一个错误 :(\n我们深感抱歉</string>
-    <string name="customactivityoncrash_error_activity_unknown_exception">未知异常</string>
-    <string name="customactivityoncrash_error_activity_restart_app">重启</string>
-    <string name="customactivityoncrash_error_activity_close_app">关闭</string>
-    <string name="customactivityoncrash_error_activity_error_details">错误信息</string>
-    <string name="customactivityoncrash_error_activity_error_details_title">错误信息</string>
-    <string name="customactivityoncrash_error_activity_error_details_close">关闭</string>
-    <string name="customactivityoncrash_error_activity_error_details_copy">复制到剪贴板</string>
-    <string name="customactivityoncrash_error_activity_error_details_copied">已复制到剪贴板</string>
-    <string name="customactivityoncrash_error_activity_error_details_clipboard_label">错误信息</string>
-    <string name="title_activity_scrolling">ScrollingActivity</string>
-    <string name="action_settings">Settings</string>
-    <string name="title_activity_web_view">WebViewActivity</string>
-    <string name="search_hint">Search</string>
-
 </resources>

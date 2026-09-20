@@ -98,14 +98,16 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.5.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
     implementation 'androidx.media3:media3-ui:1.5.1'
-    implementation 'androidx.media3:media3-session:1.5.1'
+    // 注意：media3-session 曾在这里，但全项目没有任何 MediaSession / MediaController 用法，
+    // 属于上游遗留，已删除。以后要做后台播放 / 通知栏控制再加回来。
 
     // Lifecycle
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
 
-    // Splash Screen
-    implementation 'androidx.core:core-splashscreen:1.0.1'
+    // 注意：androidx.core:core-splashscreen 曾在这里，但全项目既没有 installSplashScreen()，
+    // 也没有 Theme.SplashScreen —— 启动页是 AppTheme.Start 用 android:windowBackground
+    // 指向 @drawable/pic_start 自己实现的，所以该依赖已删除。
 
     // Testing
     testImplementation 'junit:junit:4.13.2'

@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,8 +32,8 @@ import io.github.javcinema.player.PlayerScreen
 @Composable
 fun JavCinemaNavHost(
     navController: NavHostController,
-    scrollToTopTrigger: Long = 0L,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    scrollToTopTrigger: Long = 0L
 ) {
     // 「首页设置」决定底部导航默认落在哪个 tab：HOME=影片，SEARCH_ROUTE=搜索。
     //
@@ -76,7 +76,12 @@ fun JavCinemaNavHost(
             val movieCode = backStackEntry.arguments?.getString("movieCode") ?: ""
             val movieLink = backStackEntry.arguments?.getString("link")
             val thumbnailUrl = backStackEntry.arguments?.getString("coverUrl")
-            remember {
+            // 把封面先塞进图片内存缓存，让详情页打开时不用等网络。
+            // ⚠️ 这里必须用 LaunchedEffect，不能用 remember：remember 的 lambda 会在
+            // **组合期**执行，等于在组合里做副作用（Lint: RememberReturnType，
+            // 因为块尾的 runCatching 返回 Unit 而被当成缓存值）。LaunchedEffect 才是
+            // 正确工具，且以 thumbnailUrl 为 key —— 换了影片会重新预加载。
+            LaunchedEffect(thumbnailUrl) {
                 if (!thumbnailUrl.isNullOrBlank()) {
                     runCatching {
                         JavCinema.instance.imageLoader.enqueue(

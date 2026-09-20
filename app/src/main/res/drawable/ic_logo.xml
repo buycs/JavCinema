@@ -7,6 +7,10 @@
   - 笔画统一 11 单位宽，圆角收笔；
   - 字母高度 y=76..102，间距均匀；
   - 三字母整体居中：J x=30..48、A x=58..86、V x=96..120。
+
+  ⚠️ 颜色一律写成字面值，不要用 @color/... 或 @android:color/... 引用：
+  矢量图在 API < 24 上被系统栅格化时无法解析资源引用，Lint 会报 VectorRaster，
+  低版本上还可能渲染出错。这里的 #ff9800 就是 colors.xml 里的 colorPrimary。
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="200dp"
@@ -24,7 +28,7 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
 
     <!-- ===== 播放键（原设计）===== -->
     <path
-        android:fillColor="@color/colorPrimary"
+        android:fillColor="#ff9800"
         android:pathData="M58,21 L86,34 L58,47 z" />
 
     <!-- ===== JAV 字标 ===== -->
@@ -35,7 +39,7 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
         android:strokeWidth="12"
         android:strokeLineCap="butt"
         android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
+        android:fillColor="#00000000"
         android:pathData="M50,78 L50,96 A7,7 0 0 1 43,103 L38,103" />
 
     <!-- A：左右斜撑，顶点圆角 -->
@@ -44,14 +48,14 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
         android:strokeWidth="12"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
+        android:fillColor="#00000000"
         android:pathData="M62,103 L72,79 L82,103" />
     <!-- A：横杠上移至视觉中线 -->
     <path
         android:strokeColor="#ffffff"
         android:strokeWidth="11"
         android:strokeLineCap="round"
-        android:fillColor="@android:color/transparent"
+        android:fillColor="#00000000"
         android:pathData="M66,91 L78,91" />
 
     <!-- V：两斜撑交汇于底，顶点圆角 -->
@@ -60,6 +64,6 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
         android:strokeWidth="12"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
+        android:fillColor="#00000000"
         android:pathData="M94,79 L104,103 L114,79" />
 </vector>

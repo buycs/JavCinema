@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 
 private const val TAG = "RecentsControl"
 
@@ -40,7 +41,14 @@ internal fun Activity.applyRecentsExclusion(excluded: Boolean) {
     }
 }
 
-/** API 30+ 的官方途径：直接设置本 Activity 所属 task 的 excludeFromRecents。 */
+/**
+ * API 30+ 的官方途径：直接设置本 Activity 所属 task 的 excludeFromRecents。
+ *
+ * 标注 [RequiresApi] 是为了让 Lint 知道本函数只会在 API 30+ 上被调用
+ * （调用点 [applyRecentsExclusion] 已用 `SDK_INT >= R` 把关）——
+ * 否则 `TaskInfo.taskId`（API 29 起）会被报成 NewApi 误报。
+ */
+@RequiresApi(Build.VERSION_CODES.R)
 private fun Activity.applyViaAppTask(excluded: Boolean) {
     try {
         val manager = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return

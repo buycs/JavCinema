@@ -35,8 +35,8 @@ import io.github.javcinema.data.model.Movie
 fun MovieCard(
     movie: Movie,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     prefetchCover: Boolean = true
 ) {
     Card(

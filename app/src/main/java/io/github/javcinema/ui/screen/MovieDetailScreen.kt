@@ -515,10 +515,10 @@ private fun MovieDetailContent(
     relatedMovies: List<Movie>,
     movieCode: String,
     navController: NavController,
+    modifier: Modifier = Modifier,
     onScreenshotClick: ((List<String>, Int) -> Unit)? = null,
     onMovieLongClick: ((Movie) -> Unit)? = null,
-    onActressLongClick: ((Actress) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onActressLongClick: ((Actress) -> Unit)? = null
 ) {
     Column(modifier = modifier) {
         Column(
