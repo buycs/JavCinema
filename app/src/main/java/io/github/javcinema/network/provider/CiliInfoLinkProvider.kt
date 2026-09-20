@@ -74,7 +74,17 @@ class CiliInfoLinkProvider : DownloadLinkProvider() {
                 val cells = row.select("td")
                 if (cells.isEmpty()) return@mapNotNull null
                 MagnetFile().apply {
-                    filename = cells[0].text().trim()
+                    // ⚠️ cili.info 挂在 Cloudflare 后面，**长得像邮箱的文件名**会被邮件保护
+                    // 整段替换成 `[email protected]` 占位文本，连扩展名一起吃掉
+                    // （真实案例：`4k2.me@roe-556.mp4` → `[email protected]`，6.13 GB 的正片）。
+                    // Jsoup 不执行 JS，只能读到占位文本 → 该文件会被 visibleMagnetFiles()
+                    // 判为非媒体而隐藏，界面上只剩旁边 19 MB 的赠品片段。这里用
+                    // data-cfemail 还原真实文件名。
+                    val nameCell = cells[0]
+                    nameCell.select("a.__cf_email__[data-cfemail]").forEach { anchor ->
+                        decodeCfEmail(anchor.attr("data-cfemail"))?.let { anchor.text(it) }
+                    }
+                    filename = nameCell.text().trim()
                     val lastCell = cells.last() ?: return@mapNotNull null
                     size = parseSize(lastCell.text())
                 }
