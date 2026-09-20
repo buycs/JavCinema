@@ -2,8 +2,6 @@
 
 基于 [SplashCodes/JAViewer](https://github.com/SplashCodes/JAViewer) 二次开发的 JAV 影片浏览应用。
 
-当前版本 **0.3.0 (5)** ｜ Kotlin · Jetpack Compose · Material 3 · Retrofit/OkHttp · Coil · Media3
-
 ## 特性
 
 - 多数据源切换，数据源与磁力源地址均可自定义
@@ -23,10 +21,6 @@
 ./gradlew assembleRelease         # Release（R8 混淆，沿用 debug 签名）
 ./gradlew :app:testDebugUnitTest  # 单元测试
 ```
-
-## 已知限制
-
-详情页「播放」仍走 MissAV WebView（搜番号 → 过人机 → 选片 → 站点播放器），站点页广告较多。计划改为原生选片页，并在已验证会话中取流交给本地 Media3 播放。
 
 ## 致谢与免责
 
