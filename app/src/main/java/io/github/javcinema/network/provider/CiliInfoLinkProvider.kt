@@ -15,28 +15,34 @@ class CiliInfoLinkProvider : DownloadLinkProvider() {
         return CiliInfo.INSTANCE.search(keyword)
     }
 
-    override suspend fun parseDownloadLinks(htmlContent: String): List<DownloadLink> = withContext(Dispatchers.IO) {
+    override suspend fun parseDownloadLinks(htmlContent: String): List<DownloadLink> =
+        withContext(Dispatchers.IO) { parseSearchResults(htmlContent) }
+
+    /**
+     * 搜索结果解析的纯逻辑（不切线程），便于单测直接调用。
+     *
+     * ⚠️ 无极的搜索结果行**只有 2 个 `<td>`**：标题 + 一个 meta 单元格，
+     * 体积和日期都在 meta 里（见 [parseMagnetMeta]）。所以不能按
+     * 「第 2 列体积、第 3 列日期」取值 —— 那样 `size` 会拿到
+     * `"2.02GB 2025-10-28"` 这样一串粘连文本，而 `date` 恒为空串。
+     * 这里把第 2 列起的文本合并后统一解析，2 列 / 3 列结构都能正确处理。
+     */
+    internal fun parseSearchResults(htmlContent: String): List<DownloadLink> {
         val document = Jsoup.parse(htmlContent)
         val rows = document.select("table.table-hover.file-list tbody tr")
-        rows.mapNotNull { row ->
+        return rows.mapNotNull { row ->
             try {
                 val cells = row.select("td")
                 if (cells.size < 2) return@mapNotNull null
 
-                val titleCell = cells[0].select("a").first()
-                val title = titleCell?.text() ?: return@mapNotNull null
-                val href = titleCell?.attr("href") ?: return@mapNotNull null
+                val titleCell = cells[0].select("a").first() ?: return@mapNotNull null
+                val title = titleCell.text()
+                val href = titleCell.attr("href")
+                if (title.isBlank() || href.isBlank()) return@mapNotNull null
 
-                val size = cells[1].text()
-                val date = if (cells.size >= 3) cells[2].text() else ""
+                val meta = parseMagnetMeta(cells.drop(1).joinToString(" ") { it.text() })
 
-                DownloadLink.create(
-                    title,
-                    size,
-                    date,
-                    href,
-                    null
-                )
+                DownloadLink.create(title, meta.size, meta.date, href, null)
             } catch (_: Exception) {
                 null
             }
@@ -58,11 +64,6 @@ class CiliInfoLinkProvider : DownloadLinkProvider() {
         val magnetInput = document.getElementById("input-magnet")
         val magnetText = magnetInput?.attr("value") ?: magnetInput?.text() ?: ""
         MagnetLink.create(magnetText)
-    }
-
-    suspend fun parseDate(htmlContent: String): String = withContext(Dispatchers.IO) {
-        val document = Jsoup.parse(htmlContent)
-        document.select("dt:contains(\"发布日期\")").first()?.nextElementSibling()?.text() ?: ""
     }
 
     suspend fun parseFiles(htmlContent: String): List<MagnetFile> = withContext(Dispatchers.IO) {

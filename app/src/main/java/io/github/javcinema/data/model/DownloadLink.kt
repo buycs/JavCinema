@@ -36,8 +36,7 @@ class DownloadLink : Linkable() {
     fun copy(
         files: List<MagnetFile>? = this.files,
         filesError: String? = this.filesError,
-        magnetLink: MagnetLink? = this.magnetLink,
-        date: String? = this.date
+        magnetLink: MagnetLink? = this.magnetLink
     ): DownloadLink {
         return DownloadLink().also { copy ->
             copy.title = title

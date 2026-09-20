@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jsoup.Jsoup
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 
@@ -97,19 +96,16 @@ class DownloadViewModel : ViewModel() {
                             val detailResponse = ciliProvider.get(detailUrl)
                             val detailHtml = detailResponse.string()
                             val magnet = ciliProvider.parseMagnetLink(detailHtml)
-                            val dateEl = Jsoup.parse(detailHtml)
-                                .select("dt:contains(发布日期)")
-                                .first()
-                                ?.nextElementSibling()
-                            val date = dateEl?.text()?.trim().orEmpty()
+                            // 不再从详情页取「发布日期」回填：详情页那份带时分秒，
+                            // 而且和列表页的日期会差一天；另外两个源（BTSO / BTSEARCH）
+                            // 展开时都只补文件列表和磁力链接、不动日期。保持三者行为一致。
                             LoadedFiles(
                                 files = ciliProvider.parseFiles(detailHtml).ifEmpty {
                                     listOf(MagnetFile().apply {
                                         filename = link.title ?: magnet.magnetLink ?: ""
                                     })
                                 },
-                                magnetLink = magnet,
-                                date = date.takeIf { it.isNotEmpty() }
+                                magnetLink = magnet
                             )
                         }
                         else -> throw IllegalStateException("未知磁力源")
@@ -119,8 +115,7 @@ class DownloadViewModel : ViewModel() {
                     item.copy(
                         files = loaded.files,
                         filesError = null,
-                        magnetLink = loaded.magnetLink ?: item.magnetLink,
-                        date = loaded.date ?: item.date
+                        magnetLink = loaded.magnetLink ?: item.magnetLink
                     )
                 }
             } catch (e: Exception) {
@@ -195,8 +190,7 @@ class DownloadViewModel : ViewModel() {
 
     private data class LoadedFiles(
         val files: List<MagnetFile>,
-        val magnetLink: MagnetLink? = null,
-        val date: String? = null
+        val magnetLink: MagnetLink? = null
     )
 
     private fun getProvider(name: String): DownloadLinkProvider {
