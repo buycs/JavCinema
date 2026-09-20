@@ -74,6 +74,17 @@ data class AvmooMovieDetail(
     val btsSearchUrl: String?
 )
 
+/**
+ * 女优资料。字段按接口 `getStar` / `getStars` 的实际返回对齐。
+ *
+ * ⚠️ 接口返回的字段比这里多，但**很多是不可用的**，不要见字段就往界面上加：
+ * - `starName_cn` / `starName_tw`：实测 60/60 全为空串（中/繁名根本没数据）
+ * - `blog`：实测 60/60 全为 null
+ * - `constellation`（星座）：实测 59/60 是 `0`，只有个别记录有值 → 基本是废数据
+ * - `weight`（体重）：虽然有值，但**同一批数据里单位不统一** ——
+ *   163cm/108 像「斤」，158cm/58、164cm/50 又像 kg。带单位显示必然有一半是错的。
+ * 新增字段前先跑一遍真实接口统计非空率，别照着字段名猜。
+ */
 data class AvmooStar(
     val starId: String?,
     val starDmmId: Int?,
@@ -87,7 +98,12 @@ data class AvmooStar(
     val movieCount: Int?,
     val weight: Int?,
     val birthday: String?,
-    val size: JsonElement?
+    val size: JsonElement?,
+    // 以下几项是后补的（有默认值，避免影响既有构造调用）
+    val bloodType: String? = null,
+    val hometown: String? = null,
+    val hobby: String? = null,
+    val lastReleaseDate: String? = null
 )
 
 data class AvmooGenre(

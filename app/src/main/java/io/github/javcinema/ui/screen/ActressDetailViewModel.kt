@@ -5,7 +5,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Actress
-import io.github.javcinema.data.model.AvmooStar
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +21,9 @@ private const val TAG = "ActressDetail"
 /**
  * 女优资料。
  *
+ * 除 [actress] 外的字段一律可空，且**没取到时保持 null**（不要把空串塞进来）——
+ * 顶部信息行由 [buildActressInfoRows] 按可用性组装，空值不产生行。
+ *
  * @param warning 详情未能完整获取时的提示。此时 [actress] 是从导航参数拼出的本地信息，
  *   仍然可用（能显示名字与头像），但用户应当知道这不是完整资料 —— 原先这种降级是
  *   静默发生的，用户与开发者都无从察觉。
@@ -29,7 +31,12 @@ private const val TAG = "ActressDetail"
 data class ActressProfile(
     val actress: Actress,
     val birthday: String? = null,
-    val size: String? = null,
+    val size: ActressSize? = null,
+    /** 最近一部作品的发布日期（`yyyy-MM-dd`）。 */
+    val lastReleaseDate: String? = null,
+    val hometown: String? = null,
+    val hobby: String? = null,
+    val bloodType: String? = null,
     val warning: String? = null
 )
 
@@ -37,21 +44,6 @@ sealed class ActressDetailUiState {
     data object Loading : ActressDetailUiState()
     data class Success(val profile: ActressProfile) : ActressDetailUiState()
     data class Error(val message: String) : ActressDetailUiState()
-}
-
-internal fun starDisplayName(star: AvmooStar): String {
-    return star.starName
-        ?: star.starName_ja
-        ?: star.starName_en
-        ?: star.starName_cn
-        ?: star.starName_tw
-        ?: ""
-}
-
-internal fun starSizeText(size: com.google.gson.JsonElement?): String? {
-    if (size == null || size.isJsonNull) return null
-    if (size.isJsonPrimitive) return size.asString.takeIf { it.isNotBlank() }
-    return size.toString().takeIf { it.isNotBlank() && it != "null" }
 }
 
 class ActressDetailViewModel : ViewModel() {
@@ -120,7 +112,11 @@ class ActressDetailViewModel : ViewModel() {
                     ActressProfile(
                         actress = actress,
                         birthday = star.birthday,
-                        size = starSizeText(star.size)
+                        size = parseActressSize(star.size),
+                        lastReleaseDate = star.lastReleaseDate,
+                        hometown = star.hometown,
+                        hobby = star.hobby,
+                        bloodType = star.bloodType
                     )
                 )
             } catch (e: Exception) {

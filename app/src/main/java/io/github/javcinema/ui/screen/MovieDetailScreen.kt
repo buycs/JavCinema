@@ -64,9 +64,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
+import io.github.javcinema.ui.components.InfoRow
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.HorizontalPager
@@ -405,35 +403,6 @@ private fun InfoRowClickableMagnet(label: String, value: String, onClick: () -> 
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun InfoRow(label: String, value: String) {
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier.combinedClickable(
-            onClick = {},
-            onLongClick = {
-                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
-                Toast.makeText(context, "已复制: $value", Toast.LENGTH_SHORT).show()
-            }
-        )
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(80.dp).alignByBaseline()
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.alignByBaseline()
-        )
-    }
-}
-
-@Composable
 private fun SectionWithIcon(icon: ImageVector, content: @Composable () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Icon(
