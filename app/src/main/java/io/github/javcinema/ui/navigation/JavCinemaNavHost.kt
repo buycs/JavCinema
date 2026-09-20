@@ -4,12 +4,8 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import io.github.javcinema.JavCinema
 import io.github.javcinema.data.model.Configurations
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
@@ -181,15 +177,5 @@ fun JavCinemaNavHost(
                 onBackClick = { navController.popBackStack() }
             )
         }
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(text: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = text)
     }
 }

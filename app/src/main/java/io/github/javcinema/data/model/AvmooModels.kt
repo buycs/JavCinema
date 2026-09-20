@@ -140,11 +140,3 @@ data class AvmooSeries(
     val seriesName_tw: String?,
     val seriesName: String?
 )
-
-data class FilterMoviesRequest(
-    val filter: String? = null,
-    val filterType: String? = null,
-    val filterId: String? = null,
-    val lang: String = "cn",
-    val page: Int = 1
-)
