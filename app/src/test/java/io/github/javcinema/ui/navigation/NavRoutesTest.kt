@@ -2,6 +2,7 @@ package io.github.javcinema.ui.navigation
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -125,6 +126,45 @@ class NavRoutesTest {
         assertEquals(NavRoutes.SEARCH_ROUTE, NavRoutes.HOME_PAGE_OPTIONS.first().first)
         assertEquals(NavRoutes.DEFAULT_HOME_PAGE, NavRoutes.HOME_PAGE_OPTIONS.first().first)
         assertEquals(2, NavRoutes.HOME_PAGE_OPTIONS.size)
+    }
+
+    @Test
+    fun navigateTarget_neverContainsPlaceholders() {
+        // 回归：设置页保存后要 navigate 回首页，曾经把 normalizeHomePage 的结果
+        // （"search?query={query}"）直接传进 navigate()，`{query}` 被当成字面量填进
+        // query 参数 —— 搜索框里出现 "{query}" 并真的拿它去搜。
+        // 可导航的路径绝不能带 "{...}" 占位符。
+        listOf(null, "", NavRoutes.HOME, NavRoutes.SEARCH, NavRoutes.SEARCH_ROUTE, "garbage")
+            .forEach { input ->
+                val target = NavRoutes.navigateTarget(input)
+                assertFalse("input=$input target=$target", target.contains("{"))
+                assertFalse("input=$input target=$target", target.contains("}"))
+            }
+    }
+
+    @Test
+    fun navigateTarget_mapsSearchToBareName() {
+        // navigate() 由 NavController 自己拼 android-app://... URI，可选参数可省略，
+        // 所以这里必须是裸名 "search"，而不是注册原值。
+        assertEquals(NavRoutes.SEARCH, NavRoutes.navigateTarget(NavRoutes.SEARCH_ROUTE))
+        assertEquals(NavRoutes.SEARCH, NavRoutes.navigateTarget(NavRoutes.SEARCH))
+        assertEquals(NavRoutes.SEARCH, NavRoutes.navigateTarget(null))
+        assertEquals(NavRoutes.HOME, NavRoutes.navigateTarget(NavRoutes.HOME))
+    }
+
+    @Test
+    fun navigateTarget_differsFromNormalizeHomePageForSearch() {
+        // 两者对搜索页必须给出**不同**结果：一个给模板（startDestination 用），
+        // 一个给具体路径（navigate 用）。若哪天有人「统一」成一个函数，这条会红。
+        assertNotEquals(
+            NavRoutes.normalizeHomePage(NavRoutes.SEARCH_ROUTE),
+            NavRoutes.navigateTarget(NavRoutes.SEARCH_ROUTE)
+        )
+        // 影片页没有参数，两者可以相同。
+        assertEquals(
+            NavRoutes.normalizeHomePage(NavRoutes.HOME),
+            NavRoutes.navigateTarget(NavRoutes.HOME)
+        )
     }
 
     @Test

@@ -4,8 +4,6 @@ import java.net.URLEncoder
 
 object NavRoutes {
     const val HOME = "home"
-    const val POPULAR = "popular"
-    const val RELEASED = "released"
     const val ACTRESSES = "actresses"
     const val FAVOURITE = "favourite"
     const val MOVIE_DETAIL = "movie_detail/{movieCode}?link={link}&coverUrl={coverUrl}"
@@ -40,10 +38,11 @@ object NavRoutes {
     const val DEFAULT_HOME_PAGE = SEARCH_ROUTE
 
     /**
-     * 把持久化的「首页设置」值归一化成导航图里注册的 route。
+     * 把持久化的「首页设置」值归一化成导航图里注册的 route **原值**。
      *
-     * ⚠️ 这个函数的返回值会直接传给 `NavHost(startDestination = ...)` 和
-     * `navController.navigate(...)`，必须与 `composable(route = ...)` 逐字一致。
+     * ⚠️ 这个返回值**只能给 `NavHost(startDestination = ...)` 用**，不能传给
+     * `navController.navigate(...)` —— 需要 navigate 时请用 [navigateTarget]。
+     * 两者不能混用，这里踩过坑，详见 [navigateTarget] 的注释。
      *
      * 为什么要归一化：历史版本曾把 "search"（[SEARCH]）存进偏好设置，
      * 而搜索页注册的 route 是 [SEARCH_ROUTE]（"search?query={query}"）。
@@ -55,6 +54,31 @@ object NavRoutes {
         HOME -> HOME
         SEARCH, SEARCH_ROUTE -> SEARCH_ROUTE
         else -> DEFAULT_HOME_PAGE
+    }
+
+    /**
+     * 把「首页设置」的值转成**可以安全传给 `navController.navigate(...)` 的具体路径**。
+     *
+     * ## 为什么不能直接用 [normalizeHomePage] 的返回值去 navigate
+     *
+     * 搜索页注册的 route 是带**可选参数**的 [SEARCH_ROUTE]（`"search?query={query}"`）。
+     * 把这一整串传给 `navigate()` 时，`{query}` 会被当成**字面量**塞进 `query` 参数 ——
+     * 表现为「保存设置回到首页后，搜索框里赫然写着 `{query}`，并且真的拿它去搜」。
+     *
+     * ## 为什么 startDestination 反而必须用带占位符的原值
+     *
+     * `NavHost` 解析 `startDestination` 时内部走的是 `Uri.parse(startDestination)` 再匹配
+     * 深链，`"search"` 这种没有 scheme/authority 的裸字符串匹配不上（会静默回落到
+     * 第一个 composable）；而 `NavController.navigate()` 会自己拼出
+     * `android-app://androidx.navigation/search` 再匹配，可选参数（`query` 有默认值）
+     * 可以省略，所以 `"search"` 能正常命中。
+     *
+     * 一句话：**startDestination 要模板，navigate 要具体路径。**
+     * 底部导航栏的 `BottomNavItem.navigateRoute` / `matchRoute` 分两个字段，也是同一个道理。
+     */
+    fun navigateTarget(stored: String?): String = when (normalizeHomePage(stored)) {
+        SEARCH_ROUTE -> SEARCH
+        else -> HOME
     }
 
     /** 首页设置值对应的中文说明，用于设置页 summary。 */

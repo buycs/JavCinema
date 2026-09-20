@@ -984,10 +984,13 @@ private suspend fun persistSourceUrls(
 /**
  * 数据源切换后需要重建导航图（[JavCinema.recreateService]），因此要重新导航到首页。
  *
- * ⚠️ 返回的必须是导航图里 `composable(route = ...)` 注册的原值：
- * 搜索页注册的是 [NavRoutes.SEARCH_ROUTE]（"search?query={query}"），
- * 传 "search" 会匹配不到目的地，NavHost 静默回落到第一个 composable。
+ * ⚠️ 这里必须用 [NavRoutes.navigateTarget]（返回具体路径 "search" / "home"），
+ * **不能**用 [NavRoutes.normalizeHomePage]（返回注册原值 "search?query={query}"）。
+ *
+ * 曾经就是后者：`navigate("search?query={query}")` 会把 `{query}` 当成字面量填进
+ * `query` 参数，表现为「保存设置回到首页后，搜索框里写着 `{query}`，并且真的拿它去搜」。
+ * 带占位符的原值只有 `NavHost(startDestination = ...)` 才能用。
  */
-private fun homeDestination(): String = NavRoutes.normalizeHomePage(Configurations.homePage)
+private fun homeDestination(): String = NavRoutes.navigateTarget(Configurations.homePage)
 
 
