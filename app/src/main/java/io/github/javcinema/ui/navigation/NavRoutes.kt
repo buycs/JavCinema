@@ -11,7 +11,6 @@ object NavRoutes {
     const val MOVIE_DETAIL = "movie_detail/{movieCode}?link={link}&coverUrl={coverUrl}"
     const val MOVIE_LIST = "movie_list/{title}/{url}"
     const val ACTRESS_DETAIL = "actress_detail/{starId}?name={name}&imageUrl={imageUrl}"
-    const val GALLERY = "gallery/{index}"
     const val DOWNLOAD = "download/{keyword}"
     const val SEARCH = "search"
 
@@ -65,7 +64,6 @@ object NavRoutes {
             ?: HOME_PAGE_OPTIONS.first().second
     }
     const val SETTINGS = "settings"
-    const val WEBVIEW = "webview/{url}"
     const val MISSAV_PLAY = "missav_play/{movieCode}"
     const val PLAYER = "player?url={url}&referer={referer}"
 
@@ -88,9 +86,7 @@ object NavRoutes {
         if (!imageUrl.isNullOrBlank()) parts.add("imageUrl=${encodePath(imageUrl)}")
         return if (parts.isEmpty()) base else "$base?${parts.joinToString("&")}"
     }
-    fun gallery(index: Int) = "gallery/$index"
     fun download(keyword: String) = "download/${encodePath(keyword)}"
-    fun webview(url: String) = "webview/${encodePath(url)}"
     fun missavPlay(movieCode: String) = "missav_play/${encodePath(movieCode)}"
     fun player(url: String, referer: String = "") =
         "player?url=${encodePath(url)}&referer=${encodePath(referer)}"

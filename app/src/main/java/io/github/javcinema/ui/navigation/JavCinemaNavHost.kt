@@ -21,14 +21,12 @@ import io.github.javcinema.ui.screen.ActressDetailScreen
 import io.github.javcinema.ui.screen.ActressGenrePagerScreen
 import io.github.javcinema.ui.screen.DownloadScreen
 import io.github.javcinema.ui.screen.FavouritesScreen
-import io.github.javcinema.ui.screen.GalleryScreen
 import io.github.javcinema.ui.screen.HomePagerScreen
 import io.github.javcinema.ui.screen.MovieDetailScreen
 import io.github.javcinema.ui.screen.MovieListScreen
 import io.github.javcinema.ui.screen.SearchScreen
 import io.github.javcinema.ui.screen.SettingsScreen
 import io.github.javcinema.ui.screen.MissavPlayScreen
-import io.github.javcinema.ui.screen.WebViewScreen
 import io.github.javcinema.player.PlayerScreen
 
 @Composable
@@ -139,25 +137,6 @@ fun JavCinemaNavHost(
         ) { backStackEntry ->
             val keyword = backStackEntry.arguments?.getString("keyword") ?: ""
             DownloadScreen(keyword = keyword)
-        }
-
-        composable(
-            route = NavRoutes.GALLERY,
-            arguments = listOf(navArgument("index") { type = NavType.IntType })
-        ) { backStackEntry ->
-            val index = backStackEntry.arguments?.getInt("index") ?: 0
-            GalleryScreen(initialIndex = index, onClose = { navController.popBackStack() })
-        }
-
-        composable(
-            route = NavRoutes.WEBVIEW,
-            arguments = listOf(navArgument("url") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val url = backStackEntry.arguments?.getString("url") ?: ""
-            WebViewScreen(
-                url = url,
-                onBack = { navController.popBackStack() }
-            )
         }
 
         composable(

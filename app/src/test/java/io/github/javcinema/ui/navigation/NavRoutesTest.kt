@@ -168,9 +168,7 @@ class NavRoutesTest {
             NavRoutes.SETTINGS,
             "actress_detail/123",
             "movie_list/x/y",
-            "download/abc",
-            "gallery/0",
-            "webview/https%3A%2F%2Fa"
+            "download/abc"
         ).forEach { route ->
             assertFalse("route=$route", NavRoutes.isFullscreenRoute(route))
         }
