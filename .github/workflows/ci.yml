@@ -32,3 +32,19 @@ jobs:
         run: ./gradlew :app:lintDebug --no-daemon
       - name: Assemble debug
         run: ./gradlew :app:assembleDebug --no-daemon
+      # release 与 debug 是两条不同的代码路径：release 会跑 R8 混淆 + 资源压缩。
+      # 本项目踩过的具体风险：R8 可能把 Gson 反射用到的 model 字段名混淆掉，
+      # 导致运行时反序列化静默失败 —— debug 包**完全测不出来**。
+      # 这一步同时会跑 lintVitalRelease（比 lintDebug 更严，fatal 级直接中断构建）。
+      - name: Assemble release (R8 + resource shrinking)
+        run: ./gradlew :app:assembleRelease --no-daemon
+      # 把 APK 挂到 workflow run 上，省得为了试一个包在本地跑一遍构建。
+      # ⚠️ release 用的是 AGP 自动生成的 debug keystore（~/.android/debug.keystore），
+      # CI 上会新建一把随机密钥 → 与本地构建的包**签名不同**。
+      # 所以覆盖安装前要先卸载：adb uninstall io.github.javcinema
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: JavCinema-apks
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
