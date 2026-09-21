@@ -36,6 +36,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import io.github.javcinema.data.model.Actress
 import io.github.javcinema.ui.components.ActressFavoriteDialog
+import io.github.javcinema.ui.components.ScrollToTopEffect
 import io.github.javcinema.ui.navigation.NavRoutes
 
 @Composable
@@ -50,11 +51,7 @@ fun ActressListScreen(
     val listState = rememberLazyListState()
     var dialogActress by remember { mutableStateOf<Actress?>(null) }
 
-    LaunchedEffect(scrollToTopTrigger) {
-        if (scrollToTopTrigger > 0) {
-            listState.animateScrollToItem(0)
-        }
-    }
+    ScrollToTopEffect(scrollToTopTrigger) { listState.animateScrollToItem(0) }
 
     val shouldLoadMore by remember {
         derivedStateOf {

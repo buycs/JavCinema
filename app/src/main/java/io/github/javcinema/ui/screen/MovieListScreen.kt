@@ -2,12 +2,12 @@ package io.github.javcinema.ui.screen
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -36,6 +36,7 @@ import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
+import io.github.javcinema.ui.components.ScrollToTopEffect
 import io.github.javcinema.ui.components.SwipeBackContainer
 import io.github.javcinema.ui.navigation.NavRoutes
 
@@ -46,7 +47,12 @@ fun MovieListScreen(
     url: String,
     viewModel: MovieListViewModel = viewModel(),
     scrollToTopTrigger: Long = 0L,
-    enableSwipeBack: Boolean = true
+    enableSwipeBack: Boolean = true,
+    /**
+     * 网格顶部的整行槽位（如女优详情页的名片信息栏）。
+     * 传了它就会成为列表的第 0 项，**跟网格一起滚动**，不是固定在列表上方。
+     */
+    headerContent: (@Composable () -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val movies by viewModel.movies.collectAsState()
@@ -61,11 +67,7 @@ fun MovieListScreen(
     )
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
 
-    LaunchedEffect(scrollToTopTrigger) {
-        if (scrollToTopTrigger > 0) {
-            gridState.animateScrollToItem(0)
-        }
-    }
+    ScrollToTopEffect(scrollToTopTrigger) { gridState.animateScrollToItem(0) }
 
     LaunchedEffect(url) {
         viewModel.load(url)
@@ -101,47 +103,24 @@ fun MovieListScreen(
             }
     }
 
-    val listContent = @Composable {
-        when (uiState) {
-            is MovieListUiState.Loading -> {
-                if (movies.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-            }
-            is MovieListUiState.Error -> {
-                if (movies.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = (uiState as MovieListUiState.Error).message,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-            }
-            is MovieListUiState.Success -> {
-                if (movies.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "暂无数据")
-                    }
-                }
-            }
+    val statePlaceholder = @Composable {
+        when (val state = uiState) {
+            is MovieListUiState.Loading -> CircularProgressIndicator()
+            is MovieListUiState.Error -> Text(
+                text = state.message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+            is MovieListUiState.Success -> Text(text = "暂无数据")
         }
+    }
 
-        if (movies.isNotEmpty()) {
+    val listContent = @Composable {
+        // 有顶部槽位时网格必须一直存在（槽位是网格的第 0 项），影片还没到位就把整页占位
+        // 渲染成网格里的一整行；没有槽位时保持原样，占位居中占满整屏。
+        val showGrid = movies.isNotEmpty() || headerContent != null
+
+        if (showGrid) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(gridColumns),
                 state = gridState,
@@ -150,6 +129,25 @@ fun MovieListScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                if (headerContent != null) {
+                    item(key = "header", span = { GridItemSpan(maxLineSpan) }) {
+                        headerContent()
+                    }
+                }
+
+                if (movies.isEmpty()) {
+                    item(key = "placeholder", span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            statePlaceholder()
+                        }
+                    }
+                }
+
                 items(
                     items = movies,
                     key = { it.code?.let { c -> it.link?.let { l -> "$c-$l" } ?: c } ?: it.hashCode().toString() }
@@ -175,6 +173,13 @@ fun MovieListScreen(
                         }
                     }
                 }
+            }
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                statePlaceholder()
             }
         }
     }

@@ -103,7 +103,9 @@ data class AvmooStar(
     val bloodType: String? = null,
     val hometown: String? = null,
     val hobby: String? = null,
-    val lastReleaseDate: String? = null
+    val lastReleaseDate: String? = null,
+    /** 其中可下载（有磁力源）的部数，恒 <= [movieCount]；三个源实测均 60/60 有值。 */
+    val downloadMovieCount: Int? = null
 )
 
 data class AvmooGenre(

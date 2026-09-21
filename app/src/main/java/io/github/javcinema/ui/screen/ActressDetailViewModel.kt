@@ -37,6 +37,8 @@ data class ActressProfile(
     val hometown: String? = null,
     val hobby: String? = null,
     val bloodType: String? = null,
+    /** 其中可下载的部数；站点三源实测都有值，取不到时信息栏退化成只显示总数。 */
+    val downloadMovieCount: Int? = null,
     val warning: String? = null
 )
 
@@ -116,7 +118,8 @@ class ActressDetailViewModel : ViewModel() {
                         lastReleaseDate = star.lastReleaseDate,
                         hometown = star.hometown,
                         hobby = star.hobby,
-                        bloodType = star.bloodType
+                        bloodType = star.bloodType,
+                        downloadMovieCount = star.downloadMovieCount
                     )
                 )
             } catch (e: Exception) {

@@ -692,9 +692,8 @@ private fun MovieDetailContent(
                         genres = detail.genres,
                         onGenreClick = { genre ->
                             val name = genre.name ?: return@GenreFlow
-                            val link = genre.link ?: return@GenreFlow
-                            val rawUrl = if (link.contains("/")) link else "genre/$link"
-                            navController.navigate(NavRoutes.movieList(name, rawUrl))
+                            val url = genreFilterUrl(genre.link) ?: return@GenreFlow
+                            navController.navigate(NavRoutes.movieList(name, url))
                         }
                     )
                 }

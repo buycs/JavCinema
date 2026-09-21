@@ -86,6 +86,7 @@ import io.github.javcinema.ui.components.ActressFavoriteDialog
 import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
+import io.github.javcinema.ui.components.ScrollToTopEffect
 import io.github.javcinema.ui.navigation.NavRoutes
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -129,11 +130,7 @@ fun SearchScreen(
         history = SearchHistoryStore.load(context, searchScope).take(HISTORY_MAX)
     }
 
-    LaunchedEffect(scrollToTopTrigger) {
-        if (scrollToTopTrigger > 0) {
-            gridState.animateScrollToItem(0)
-        }
-    }
+    ScrollToTopEffect(scrollToTopTrigger) { gridState.animateScrollToItem(0) }
 
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) {

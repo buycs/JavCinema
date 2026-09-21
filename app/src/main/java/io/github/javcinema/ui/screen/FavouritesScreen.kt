@@ -55,6 +55,7 @@ import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.AppTopTabRow
 import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.MovieCard
+import io.github.javcinema.ui.components.ScrollToTopEffect
 import io.github.javcinema.ui.components.TopBarSelectedContentColor
 import io.github.javcinema.ui.components.TopBarUnselectedContentColor
 import io.github.javcinema.ui.navigation.NavRoutes
@@ -104,12 +105,10 @@ fun FavouritesScreen(
         }
     }
 
-    LaunchedEffect(scrollToTopTrigger) {
-        if (scrollToTopTrigger > 0) {
-            when (pagerState.currentPage) {
-                0 -> moviesGridState.animateScrollToItem(0)
-                1 -> actressesListState.animateScrollToItem(0)
-            }
+    ScrollToTopEffect(scrollToTopTrigger) {
+        when (pagerState.currentPage) {
+            0 -> moviesGridState.animateScrollToItem(0)
+            1 -> actressesListState.animateScrollToItem(0)
         }
     }
 

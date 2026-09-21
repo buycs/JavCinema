@@ -39,6 +39,7 @@ import io.github.javcinema.data.model.Movie
 import io.github.javcinema.ui.components.DataSourceChangeEffect
 import io.github.javcinema.ui.components.MovieCard
 import io.github.javcinema.ui.components.MovieFavoriteDialog
+import io.github.javcinema.ui.components.ScrollToTopEffect
 import io.github.javcinema.ui.navigation.NavRoutes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,11 +63,7 @@ fun HomeScreen(
     )
     var dialogMovie by remember { mutableStateOf<Movie?>(null) }
 
-    LaunchedEffect(scrollToTopTrigger) {
-        if (scrollToTopTrigger > 0) {
-            gridState.animateScrollToItem(0)
-        }
-    }
+    ScrollToTopEffect(scrollToTopTrigger) { gridState.animateScrollToItem(0) }
 
     // 订阅数据源版本。组合期直接读 StateFlow.value 不会建立订阅（不产生快照读），
     // 所以必须 collectAsStateWithLifecycle 才能在切换数据源时真正触发重组。
