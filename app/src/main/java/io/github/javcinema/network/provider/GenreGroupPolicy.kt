@@ -5,15 +5,18 @@ package io.github.javcinema.network.provider
  *
  * 站点把类别按 `type` 分成若干组，分组名由站点前端 i18n 的 `genreTypes.*` 定义，
  * 语义依次为 theme / character / costume / body / sexActs / sexPlays / genre / other。
- * 应用请求类别时站点按自己的语言返回类别名：骑兵与步兵是日文，欧美没有日文名、回退英文，
- * 因此**分组标签也跟随同样的语言**，避免出现「中文 tab + 日文类别名」的割裂。
+ *
+ * 标签**直接取站点自己的 cn 字典**（主题 / 角色 / 服装 / 身体 / 性行为 / 玩法 / 类别 / 其他）：
+ * 类别页请求的语言就是 `cn`（见 `GenreListViewModel.loadGenresFromApi`），
+ * 分组名与组内类别名出自同一套字典，tab 名不会和里面的 chip 语言割裂。
+ * 三个源共用同一套前端，所以步兵与欧美的标签完全相同。
  *
  * ⚠️ 骑兵的 `type 7` 是个例外：实测该组 27 条**整组都是 AV OPEN 2016 各部门**
  * （站点自己给它标「其他」）。单独成组并叫「AV OPEN」比出现两个同名「其他」可读。
- * 步兵与欧美的 `type 7` 是普通类别（場所 / 节日），仍按站点语义叫「その他」/「Other」。
+ * 步兵与欧美的 `type 7` 是普通类别（场所 / 节日），仍叫「其他」。
  *
  * ⚠️ 骑兵还会出现 `-1`（64 条：パラダイスTV、促销精选、AV OPEN 2014/2015 等），
- * 它不在 0~7 里，落到兜底标签「その他」，并且**排在最后一组**。
+ * 它不在 0~7 里，落到兜底标签「其他」，并且**排在最后一组**。
  */
 data class GenreGroupLabels(
     private val byType: List<String>,
@@ -31,23 +34,20 @@ data class GenreGroupLabels(
         if (type == null || type < 0 || type >= byType.size) fallback else byType[type]
 
     companion object {
-        /** 骑兵（jav）：第 8 段整组都是 AV OPEN 专题。 */
+        /** 站点 cn 字典给出的分组名，下标即 `type`；三源共用这一份。 */
+        private val CN = listOf("主题", "角色", "服装", "身体", "性行为", "玩法", "类别", "其他")
+
+        /** 骑兵（jav）：第 8 段整组都是 AV OPEN 专题，与「其他」分开。 */
         val JAV = GenreGroupLabels(
-            listOf("テーマ", "キャラクター", "コスチューム", "身体", "性行為", "プレイ", "ジャンル", "AV OPEN"),
-            "その他"
+            CN.dropLast(1) + "AV OPEN",
+            "其他"
         )
 
-        /** 步兵（javu）：没有 `-1` 组，`type 7` 就是普通的「その他」。 */
-        val JAVU = GenreGroupLabels(
-            listOf("テーマ", "キャラクター", "コスチューム", "身体", "性行為", "プレイ", "ジャンル", "その他"),
-            "その他"
-        )
+        /** 步兵（javu）：没有 `-1` 组，`type 7` 就是普通的「其他」。 */
+        val JAVU = GenreGroupLabels(CN, "其他")
 
-        /** 欧美（wav）：站点没有日文类别名、回退英文，标签也跟随英文。 */
-        val WAV = GenreGroupLabels(
-            listOf("Theme", "Character", "Costume", "Body", "Sex Acts", "Sex Plays", "Genre", "Other"),
-            "Other"
-        )
+        /** 欧美（wav）：与 [JAVU] 同标签；仍单独保留一个常量，按 `apiPath` 分支更清楚。 */
+        val WAV = GenreGroupLabels(CN, "其他")
 
         /**
          * 按数据源的 `apiPath` 选分组标签。
@@ -70,6 +70,31 @@ data class GenreGroupLabels(
         }
     }
 }
+
+/**
+ * 类别的显示名：**优先简体中文**，没有中文才回退。
+ *
+ * 接口每条类别自带四种语言：
+ * ```
+ * {"genreName_ja":"セクシー","genreName_en":"Sexy",
+ *  "genreName_cn":"性感的","genreName_tw":"性感的","genreName":"性感的"}
+ * ```
+ * `genreName` 是站点按**请求语言**填好的名字：类别页传 `cn`，它给的就是中文
+ * （实测骑兵 235/366 条与 `genreName_cn` 相同、步兵与欧美 100% 相同），
+ * 缺中文的那 131 条站点自己回退成日文。
+ *
+ * ⚠️ 但仍要判 `isBlank()`：`genreName_cn` 这个字段缺中文时给的是**空串而不是 null**，
+ * 只写 `?:` 回退会拿到空串、类别名直接消失。这里显式再兜一层，
+ * 万一将来某个调用点忘了传 `cn`，界面也不会整页变日文。
+ */
+internal fun preferredGenreName(
+    cn: String?,
+    siteDefault: String?,
+    ja: String?
+): String = listOf(cn, siteDefault, ja)
+    .firstOrNull { !it.isNullOrBlank() }
+    ?.trim()
+    .orEmpty()
 
 /**
  * 把「(type, 该组类别)」列表按标签归并成类别页要显示的 `标签 -> 类别` 有序表。

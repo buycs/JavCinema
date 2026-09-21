@@ -10,6 +10,7 @@ import io.github.javcinema.data.model.Genre
 import io.github.javcinema.network.provider.AVMOProvider
 import io.github.javcinema.network.provider.GenreGroupLabels
 import io.github.javcinema.network.provider.groupGenresByLabel
+import io.github.javcinema.network.provider.preferredGenreName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -74,12 +75,14 @@ class GenreListViewModel : ViewModel() {
             return
         }
 
+        // 语言参数与详情页 / 女优 / 筛选保持一致：传 cn，站点返回的 genreName 即中文名。
+        // 实测 lang=cn：骑兵 235/366 条为中文、缺的 131 条站点回退日文；步兵与欧美 100% 中文。
         val response = withContext(Dispatchers.IO) {
-            api.getGenres(listOf("types", 60))
+            api.getGenres(listOf("cn"))
         }
 
         val rawData = response.data
-        // 分组标签跟随数据源语言：骑兵 / 步兵日文，欧美英文（详见 GenreGroupPolicy）。
+        // 分组标签取站点自己的 cn 字典，只有骑兵的 type 7 单独标成 AV OPEN（详见 GenreGroupPolicy）。
         val labels = GenreGroupLabels.forApiPath(JavCinema.getDataSource().apiPath)
 
         // 接口有两种形状，统一成「(type, 该组类别)」列表后交给纯函数归并：
@@ -128,7 +131,8 @@ class GenreListViewModel : ViewModel() {
         parseApiGenres(element).map { toGenre(it) }
 
     private fun toGenre(g: AvmooGenre) = Genre.create(
-        g.genreName ?: g.genreName_ja ?: g.genreName_cn ?: "",
+        // 请求已传 cn，站点的 genreName 就是中文名；这里再按 cn -> genreName -> ja 兜一层。
+        preferredGenreName(g.genreName_cn, g.genreName, g.genreName_ja),
         g.genreId ?: ""
     )
 
