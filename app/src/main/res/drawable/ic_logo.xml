@@ -3,10 +3,18 @@
   启动页标志：胶片框 + 播放键 + JAV 字标。
   画布 144x144。胶片框与播放键保持原设计，仅重绘下方字标。
 
-  字标规格（修正原版笔画过细、间距不匀的问题）：
-  - 笔画统一 11 单位宽，圆角收笔；
-  - 字母高度 y=76..102，间距均匀；
-  - 三字母整体居中：J x=30..48、A x=58..86、V x=96..120。
+  ⚠️ 对齐约束（改字标坐标前必须先读这一段，否则很容易把文字改歪）：
+  - 胶片框墨迹占 x=28..116，水平中心 x=72。
+  - 字标墨迹必须占 x=31..113，中心同样落在 x=72，左右各留 3 单位空白。
+    即：字标最左（J 钩尾 x=31）与最右（V 右脚外沿 x=113）关于 x=72 对称。
+  - 三字母墨迹顶端统一在 y=73、底端统一在 y=109（大写字母等高）。
+    J 用 butt 端帽，端点不外扩，所以竖笔直接画到 y=73；
+    A/V 用 round 端帽，端点会外扩 strokeWidth/2 = 6，所以顶点路径画在 y=79。
+  - 胶片框底边 y=58，到字标顶端 y=73 的间隙固定 15 单位，不要改动。
+
+  字标规格：
+  - 笔画 12 单位宽（A 的横杠 11），圆角收笔；
+  - 三字母水平基准：J 竖笔 x=43、A 顶点 x=65、V 谷底 x=97。
 
   ⚠️ 颜色一律写成字面值，不要用 @color/... 或 @android:color/... 引用：
   矢量图在 API < 24 上被系统栅格化时无法解析资源引用，Lint 会报 VectorRaster，
@@ -40,7 +48,7 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
         android:strokeLineCap="butt"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M50,78 L50,96 A7,7 0 0 1 43,103 L38,103" />
+        android:pathData="M43,73 L43,96 A7,7 0 0 1 36,103 L31,103" />
 
     <!-- A：左右斜撑，顶点圆角 -->
     <path
@@ -49,14 +57,14 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M62,103 L72,79 L82,103" />
+        android:pathData="M55,103 L65,79 L75,103" />
     <!-- A：横杠上移至视觉中线 -->
     <path
         android:strokeColor="#ffffff"
         android:strokeWidth="11"
         android:strokeLineCap="round"
         android:fillColor="#00000000"
-        android:pathData="M66,91 L78,91" />
+        android:pathData="M59,91 L71,91" />
 
     <!-- V：两斜撑交汇于底，顶点圆角 -->
     <path
@@ -65,5 +73,5 @@ M110,14h6v5h-6z M110,22h6v5h-6z M110,30h6v5h-6z M110,38h6v5h-6z M110,46h6v5h-6z"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000"
-        android:pathData="M94,79 L104,103 L114,79" />
+        android:pathData="M87,79 L97,103 L107,79" />
 </vector>
