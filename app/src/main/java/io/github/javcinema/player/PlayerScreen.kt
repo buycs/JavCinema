@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.SurfaceView
 import android.view.ViewGroup
@@ -45,6 +46,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -83,6 +85,41 @@ fun PlayerScreen(
     val playerController = remember { SimpleVideoPlayer(context) }
     var progress by remember { mutableFloatStateOf(0f) }
 
+    // 退出分两步走：按返回 → 先把方向还回去 → 等窗口真的转回竖屏 → 再 pop。
+    // 反过来（先 pop 再转）上一页会在横屏窗口里被渲染约 0.7s，看起来就是画面撕裂。
+    // 完整原因见 PlayerExitPolicy 的注释。
+    var exiting by remember { mutableStateOf(false) }
+
+    // 方向恢复要用的两个「进入时快照」。必须在组合期取：下面的 DisposableEffect
+    // 一执行就把方向改成横屏了，之后再去读 `requestedOrientation` 就拿不到原值。
+    val activity = remember(context) { context.findActivity() }
+    val previousOrientation = remember(activity) {
+        activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+    val orientationAtEntry = remember(activity) {
+        activity?.resources?.configuration?.orientation ?: Configuration.ORIENTATION_UNDEFINED
+    }
+
+    /**
+     * 把屏幕方向还给进入播放器前的状态。
+     *
+     * 退出路径（[requestExit]）与 `onDispose` 兜底都走这一份实现，避免两处逻辑漂移。
+     */
+    fun restoreOrientation() {
+        activity?.requestedOrientation = PlayerOrientationPolicy.restoreOrientation(
+            previousRequested = previousOrientation,
+            autoRotateEnabled = context.isAutoRotateEnabled(),
+            orientationAtEntry = orientationAtEntry
+        )
+    }
+
+    /** 请求退出：先还方向，等窗口转回竖屏后由下面的 LaunchedEffect 真正 pop。 */
+    fun requestExit() {
+        if (exiting) return
+        exiting = true
+        restoreOrientation()
+    }
+
     // 视频显示宽高比（宽/高），0 = 还不知道，按铺满处理。
     var videoAspectRatio by remember { mutableFloatStateOf(VideoLayoutPolicy.UNKNOWN_ASPECT_RATIO) }
     // 在组合期读一次，让本 Composable 订阅这个 state。
@@ -103,6 +140,9 @@ fun PlayerScreen(
     // 2) 退出时怎么还回去**必须**走 PlayerOrientationPolicy，不能直接还原成
     //    UNSPECIFIED —— 自动旋转关闭时那样会「保持横屏」，还会把横屏写进系统级
     //    的 USER_ROTATION，导致退出播放器后整个应用都是横的。原因详见该文件注释。
+    //    **还方向的时机也很关键**：必须先把方向还回去、等窗口真的转回竖屏、再 pop。
+    //    原来的顺序（先 pop 再由 onDispose 还方向）会让上一页在横屏窗口里被渲染
+    //    约 0.7s，看起来就是画面撕裂。详见 PlayerExitPolicy。
     //
     // 3) 全屏：把状态栏和导航栏一起藏掉。这不只是为了好看 —— Scaffold 的
     //    contentWindowInsets 取自 systemBars，系统栏一旦隐藏，insets 归零，
@@ -114,11 +154,6 @@ fun PlayerScreen(
     //    本页是全屏沉浸式，flag 挂在 Activity 窗口上，不受视图树重组/替换影响。
     //    退出时只在「进来之前本来没设」的情况下清掉，避免误伤别人的设置。
     DisposableEffect(Unit) {
-        val activity = context.findActivity()
-        val previousOrientation = activity?.requestedOrientation
-        // 进入本页那一刻的物理朝向，退出时用它决定还回竖还是横。
-        val orientationAtEntry = activity?.resources?.configuration?.orientation
-            ?: Configuration.ORIENTATION_UNDEFINED
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         val window = activity?.window
@@ -134,12 +169,9 @@ fun PlayerScreen(
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         onDispose {
-            activity?.requestedOrientation = PlayerOrientationPolicy.restoreOrientation(
-                previousRequested = previousOrientation
-                    ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED,
-                autoRotateEnabled = context.isAutoRotateEnabled(),
-                orientationAtEntry = orientationAtEntry
-            )
+            // 正常退出时 requestExit() 已经把方向还回去了；这里是「没走退出路径就被
+            // 移出组合」的兜底。幂等，重复设置没有副作用。
+            restoreOrientation()
             if (!keepScreenOnAlreadySet) {
                 window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
@@ -164,7 +196,33 @@ fun PlayerScreen(
         }
     }
 
-    BackHandler { onBackClick() }
+    // 退出过程中禁掉 BackHandler：否则连按两次返回时，第二次会绕过「等转屏」直接 pop，
+    // 等于把刚修好的顺序又破坏掉。
+    BackHandler(enabled = !exiting) { requestExit() }
+
+    // 等窗口真的转回竖屏再 pop。用轮询而不是靠配置变化触发重组：判据抽成了纯函数
+    // decidePlayerExit（有单测覆盖），而 50ms 一次的轮询对一次性的退出流程可以忽略。
+    LaunchedEffect(exiting) {
+        if (!exiting) return@LaunchedEffect
+        val host = activity
+        if (host == null) {
+            onBackClick()
+            return@LaunchedEffect
+        }
+        val startMs = SystemClock.elapsedRealtime()
+        while (true) {
+            val orientation = host.resources.configuration.orientation
+            val waitedMs = SystemClock.elapsedRealtime() - startMs
+            if (decidePlayerExit(orientation, waitedMs) == PlayerExitDecision.POP) break
+            delay(PLAYER_EXIT_POLL_INTERVAL_MS)
+        }
+        onBackClick()
+        // 兜底：万一 popBackStack() 没成功（回退栈空等），本 Composable 会继续活着。
+        // 此时必须把 exiting 复位，否则 BackHandler 一直禁着，用户会被困在播放页。
+        // 正常退出时本页已被移出组合、协程被取消，这行不会执行。
+        delay(PLAYER_EXIT_POP_CONFIRM_MS)
+        exiting = false
+    }
 
     DisposableEffect(Unit) {
         val listener = object : Player.Listener {
@@ -332,7 +390,7 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.TopStart)
         ) {
             IconButton(
-                onClick = onBackClick,
+                onClick = { requestExit() },
                 modifier = Modifier.padding(8.dp)
             ) {
                 Icon(
