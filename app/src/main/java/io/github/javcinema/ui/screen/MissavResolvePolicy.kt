@@ -5,7 +5,7 @@ internal enum class MissavResolveAction {
     /** 选出了可用资源，直接跳过去。 */
     PLAY,
 
-    /** 页面是人机验证插页 —— 交给用户过一次验证，通过后自动回到 [RETRY] 之外的正常流程。 */
+    /** 页面是人机验证插页 —— 交给用户过一次验证，通过后重走整个解析流程（见 [decideChallengeOutcome]）。 */
     CHALLENGE,
 
     /** 候选还是 0，但列表可能是异步渲染还没出来 —— 再等一轮。 */
@@ -69,3 +69,44 @@ internal fun decideSearchOutcome(
  */
 internal fun isChallengePassed(url: String?, title: String?): Boolean =
     !isMissavChallengeUrl(url) && !isMissavChallengeTitle(title)
+
+/** 验证通过后最多自动重走几遍解析，防止「误判成已通过」时空转。 */
+internal const val MISSAV_CHALLENGE_MAX_RESTARTS = 2
+
+/** 停在验证页时的下一步。 */
+internal enum class MissavChallengeOutcome {
+    /** 还在验证页上 —— 继续等用户亲手过验证。 */
+    WAIT,
+
+    /** 验证已过 —— 重走一遍完整解析流程。 */
+    RESTART,
+
+    /** 反复验证后仍然拿不到正常页面 —— 回退站点，不再空转。 */
+    GIVE_UP
+}
+
+/**
+ * 人机验证通过之后要不要「重走」解析流程。
+ *
+ * 为什么是重走、而不是在原地续跑：
+ * 验证通过后站点把我们带到哪一页是**不确定的** —— 搜索页、站点自己的播放页、
+ * 首页、带参数的重定向都有可能。原地续跑就必须把每一种落点都处理对，
+ * 漏掉一种就是**静默卡死**：界面停在「正在解析播放地址…」，
+ * 最后被解析超时兜底甩回站点页面 —— 而那时站点播放器往往已经自己播起来了，
+ * 用户看到的就是「验证完却跳去了网页」。
+ *
+ * 重走一遍则只有一条路：重新加载搜索页 → 解析 → 选片 → 播放页探测。
+ * 这条路和「已认证后再次播放」走的是**同一段代码**，所以两种体验天然一致。
+ *
+ * [restarts] 是已经重走过的次数：验证判据是「当前页不像验证页」这种**否定式**判断，
+ * 万一被误判成已通过，重走会再次撞上验证页；给个上限，超了就老老实实回退站点。
+ */
+internal fun decideChallengeOutcome(
+    passed: Boolean,
+    restarts: Int,
+    maxRestarts: Int = MISSAV_CHALLENGE_MAX_RESTARTS
+): MissavChallengeOutcome = when {
+    !passed -> MissavChallengeOutcome.WAIT
+    restarts < maxRestarts -> MissavChallengeOutcome.RESTART
+    else -> MissavChallengeOutcome.GIVE_UP
+}

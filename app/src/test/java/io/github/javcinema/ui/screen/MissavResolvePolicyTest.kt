@@ -126,4 +126,70 @@ class MissavResolvePolicyTest {
         assertFalse(isChallengePassed("https://missav.ws/en/search/ssis-001", "请稍候…"))
         assertFalse(isChallengePassed("https://missav.ws/en/search/ssis-001", "Just a moment..."))
     }
+
+    /** 还在验证页上就继续等 —— 验证得用户亲手点，程序不该替他决定「已经过了」。 */
+    @Test
+    fun stillOnChallengePageKeepsWaiting() {
+        assertEquals(
+            MissavChallengeOutcome.WAIT,
+            decideChallengeOutcome(passed = false, restarts = 0)
+        )
+        assertEquals(
+            MissavChallengeOutcome.WAIT,
+            decideChallengeOutcome(passed = false, restarts = MISSAV_CHALLENGE_MAX_RESTARTS)
+        )
+    }
+
+    /** 验证通过就重走整个解析流程 —— 这是「首次验证后播放」与「再次播放」体验一致的关键。 */
+    @Test
+    fun passedChallengeRestartsResolve() {
+        assertEquals(
+            MissavChallengeOutcome.RESTART,
+            decideChallengeOutcome(passed = true, restarts = 0)
+        )
+    }
+
+    /** 边界：预算还没用完（用掉 max-1 次）时仍要重走，别提前放弃。 */
+    @Test
+    fun restartAllowedUntilBudgetIsExhausted() {
+        assertEquals(
+            MissavChallengeOutcome.RESTART,
+            decideChallengeOutcome(passed = true, restarts = MISSAV_CHALLENGE_MAX_RESTARTS - 1)
+        )
+        assertEquals(
+            MissavChallengeOutcome.GIVE_UP,
+            decideChallengeOutcome(passed = true, restarts = MISSAV_CHALLENGE_MAX_RESTARTS)
+        )
+    }
+
+    /**
+     * 验证判据是否定式的（「当前页不像验证页」），万一被误判成已通过，
+     * 重走会再次撞上验证页 —— 所以必须有上限，超了就回退站点而不是无限空转。
+     */
+    @Test
+    fun repeatedFalsePassEventuallyGivesUp() {
+        assertEquals(
+            MissavChallengeOutcome.GIVE_UP,
+            decideChallengeOutcome(passed = true, restarts = MISSAV_CHALLENGE_MAX_RESTARTS + 5)
+        )
+    }
+
+    /** 预算上限可注入，便于以后调参时不必改测试。 */
+    @Test
+    fun maxRestartsIsConfigurable() {
+        assertEquals(
+            MissavChallengeOutcome.RESTART,
+            decideChallengeOutcome(passed = true, restarts = 0, maxRestarts = 1)
+        )
+        assertEquals(
+            MissavChallengeOutcome.GIVE_UP,
+            decideChallengeOutcome(passed = true, restarts = 1, maxRestarts = 1)
+        )
+    }
+
+    /** 上限必须是个正数，否则「通过即放弃」，等于验证功能白做。 */
+    @Test
+    fun challengeRestartBudgetIsPositive() {
+        assertTrue(MISSAV_CHALLENGE_MAX_RESTARTS > 0)
+    }
 }

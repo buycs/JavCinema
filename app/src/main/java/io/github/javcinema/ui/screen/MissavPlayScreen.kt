@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,7 +60,10 @@ import kotlinx.coroutines.delay
 // 1. 站点页面（搜索页 / 播放页）全程在后台加载，用户看不到站点广告与控件。
 // 2. 搜索页解析出候选后由 MissavPlayPolicy.selectBestMissavResult 自动选片，无需用户介入。
 // 3. 播放页探测到 HLS/MP4 直链即自动交给 Media3 全屏播放。
-// 4. 任一环节失败（人机验证、解析超时、选不出片）回退到可见的站点播放页，用户可继续手动操作。
+// 4. 人机验证是**独立的前置步骤**：撞上就把页面露出来让用户过验证，过了之后从搜索页
+//    重走一遍上面的 2→3（见 decideChallengeOutcome），不试图从验证页的落点续跑 ——
+//    这样「首次验证后播放」与「已认证后再次播放」走的是同一段代码，体验一致。
+// 5. 其余失败（解析超时、选不出片）才回退到可见的站点播放页，用户可继续手动操作。
 
 private const val TAG = "MissavPlay"
 
@@ -103,6 +107,9 @@ fun MissavPlayScreen(
     // 不至于再自动跳一次形成无限跳转。这是对 popUpTo 的兜底，不是主机制。
     var phase by rememberSaveable(movieCode) { mutableStateOf(MissavPhase.RESOLVING) }
     var detectedStream by remember(movieCode) { mutableStateOf<String?>(null) }
+    // 验证通过后自动重走过的次数。只用于给「重走」封顶：验证判据是否定式的，
+    // 万一被误判成已通过，没有上限就会一直重走。
+    var challengeRestarts by remember(movieCode) { mutableIntStateOf(0) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
     // 自己排的延时任务要能精确取消：不能用 removeCallbacksAndMessages(null)，
     // 那会把同一 Handler 上刚排好的探测任务一并清掉。
@@ -136,7 +143,7 @@ fun MissavPlayScreen(
      * 撞上人机验证：把站点页面交还给用户亲手过验证。
      *
      * 与 [fallbackToSite] 的关键区别是**还会自动收回来** —— 用户过完验证后
-     * `onPageFinished` 会发现已离开验证页，把 phase 切回 RESOLVING 重走一遍解析，
+     * `onPageFinished` 会发现已离开验证页，直接 [restartResolve] 从搜索页重走一遍解析，
      * 用户不用自己再搜一次、也不用再点「重试解析」。
      * 用户已经主动打开过站点页面（SITE）时不再抢占。
      */
@@ -247,8 +254,19 @@ fun MissavPlayScreen(
         view.evaluateJavascript(MISSAV_CLICK_FIX_JS, null)
     }
 
-    /** 重新走一遍自动解析（回退后用户可主动重试）。 */
-    fun restartResolve() {
+    /**
+     * 重走一遍完整的自动解析：取消已排的任务 → 清掉已嗅到的直链 → 回到 [MissavPhase.RESOLVING]
+     * → 重新加载搜索页。
+     *
+     * 这是**唯一**的「开始解析」入口：用户点「重试解析」走它，人机验证通过后也走它。
+     * 两者共用同一条路，所以「首次验证后播放」与「已认证后再次播放」的体验天然一致 ——
+     * 认证只是一次独立的前置步骤，过了就重新走一遍，不试图从验证页的落点续跑。
+     *
+     * [resetChallengeBudget] 只给用户主动重试用：亲手点的重试应该把验证预算还回去，
+     * 而自动重走要累计，否则验证判据一旦误判就会无限重走。
+     */
+    fun restartResolve(resetChallengeBudget: Boolean = false) {
+        if (resetChallengeBudget) challengeRestarts = 0
         cancelPendingTasks()
         detectedStream = null
         phase = MissavPhase.RESOLVING
@@ -326,7 +344,7 @@ fun MissavPlayScreen(
                 )
                 if (phase == MissavPhase.SITE || phase == MissavPhase.NOT_FOUND) {
                     TextButton(
-                        onClick = { restartResolve() },
+                        onClick = { restartResolve(resetChallengeBudget = true) },
                         modifier = Modifier.height(TOP_BAR_HEIGHT)
                     ) {
                         Text(
@@ -444,18 +462,27 @@ fun MissavPlayScreen(
                                     isMissavPlayUrl(url, movieCode) && !isMissavSearchUrl(url)
 
                                 // 人机验证阶段：站点页面露在外面等用户亲手过验证，这里只盯
-                                // 「已经离开验证页」这一个信号 —— 一旦离开就把流程交回自动解析，
-                                // 用户不必自己再搜一次。之前是直接掉进站点页面就撒手不管了。
+                                // 「已经离开验证页」这一个信号。验证一旦过了就**重走整个解析流程**，
+                                // 而不是从当前落点续跑 —— 落点是不确定的（搜索页 / 站点自己的播放页 /
+                                // 首页 / 带参数的重定向），续跑就得把每种落点都处理对，漏一种就是静默
+                                // 卡死：界面停在「正在解析播放地址…」，直到解析超时把用户甩回站点页面，
+                                // 而那时站点播放器往往已经自己播起来了 —— 表现为「验证完却跳去了网页」。
                                 if (phase == MissavPhase.CHALLENGE) {
-                                    if (!isChallengePassed(url, view.title)) return
-                                    Log.i(TAG, "challenge: 验证已通过，自动继续解析 url=$url")
-                                    detectedStream = null
-                                    phase = MissavPhase.RESOLVING
-                                    if (onPlayPage) {
-                                        cleanPlayPage(view)
-                                        scheduleProbes(view)
-                                    } else if (isMissavSearchUrl(url)) {
-                                        schedule(EXTRACT_DELAY_MS) { extractResults(view) }
+                                    val outcome = decideChallengeOutcome(
+                                        passed = isChallengePassed(url, view.title),
+                                        restarts = challengeRestarts
+                                    )
+                                    when (outcome) {
+                                        MissavChallengeOutcome.WAIT -> Unit
+                                        MissavChallengeOutcome.RESTART -> {
+                                            challengeRestarts += 1
+                                            Log.i(TAG, "challenge: 验证已通过，重走解析（第 $challengeRestarts 次）")
+                                            restartResolve()
+                                        }
+                                        MissavChallengeOutcome.GIVE_UP -> {
+                                            Log.w(TAG, "challenge: 已重走 $challengeRestarts 次仍在验证页，回退站点")
+                                            fallbackToSite()
+                                        }
                                     }
                                     return
                                 }
@@ -498,7 +525,7 @@ fun MissavPlayScreen(
             if (phase == MissavPhase.NOT_FOUND) {
                 MissavNotFoundOverlay(
                     movieCode = movieCode,
-                    onRetry = { restartResolve() },
+                    onRetry = { restartResolve(resetChallengeBudget = true) },
                     onOpenSite = { fallbackToSite() },
                     onBack = onBack,
                     modifier = Modifier.fillMaxSize()
