@@ -75,13 +75,19 @@ private const val DEEP_PROBE_DELAY_MS = 18_000L
 /** 搜索结果页解析出候选的延迟：等页面把列表渲染完。 */
 private const val EXTRACT_DELAY_MS = 800L
 
+/** 第一轮没解析出候选时的补抓延迟：列表异步渲染，再给一次机会才敢判「未收录」。 */
+private const val RETRY_EXTRACT_DELAY_MS = 1_800L
+
 /**
  * 取流阶段。
  *
  * [RESOLVING] 站点页面在后台跑，界面盖着遮罩，探测到直链会自动跳原生播放器。
+ * [CHALLENGE] 撞上人机验证 —— 站点页面**必须露出来**（用户得亲手过验证），
+ *   只叠一条不挡操作的提示；验证一通过就自动切回 [RESOLVING] 重走解析，用户不必自己再搜一次。
+ * [NOT_FOUND] 站点确实没有这部片 —— 明确告知，不再假装还在解析。
  * [SITE] 自动接管失败或用户主动接管失败后，站点页面直接露出来给用户手动操作。
  */
-private enum class MissavPhase { RESOLVING, SITE }
+private enum class MissavPhase { RESOLVING, CHALLENGE, NOT_FOUND, SITE }
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -124,6 +130,26 @@ fun MissavPlayScreen(
      */
     fun fallbackToSite() {
         phase = MissavPhase.SITE
+    }
+
+    /**
+     * 撞上人机验证：把站点页面交还给用户亲手过验证。
+     *
+     * 与 [fallbackToSite] 的关键区别是**还会自动收回来** —— 用户过完验证后
+     * `onPageFinished` 会发现已离开验证页，把 phase 切回 RESOLVING 重走一遍解析，
+     * 用户不用自己再搜一次、也不用再点「重试解析」。
+     * 用户已经主动打开过站点页面（SITE）时不再抢占。
+     */
+    fun enterChallenge() {
+        if (phase == MissavPhase.SITE) return
+        Log.i(TAG, "challenge: 需要人工过验证，验证通过后会自动继续")
+        phase = MissavPhase.CHALLENGE
+    }
+
+    /** 站点确实没有这部片 —— 明确告知，不再假装还在解析。 */
+    fun markNotFound() {
+        Log.w(TAG, "resolve: 站点没有该番号的资源")
+        phase = MissavPhase.NOT_FOUND
     }
 
     fun probeStream(view: WebView) {
@@ -177,12 +203,18 @@ fun MissavPlayScreen(
         schedule(DEEP_PROBE_DELAY_MS) { deepProbe(view) }
     }
 
-    fun extractResults(view: WebView) {
+    /**
+     * 解析搜索结果页并决定下一步。
+     *
+     * [attempt] 从 0 起 —— 列表是异步渲染的，第一轮可能只拿到空壳，
+     * 所以「解析不出候选」要再给一次机会才敢判「资源库未收录」。
+     */
+    fun extractResults(view: WebView, attempt: Int = 0) {
         if (phase != MissavPhase.RESOLVING) return
         val url = view.url
-        if (isMissavChallengeUrl(url) || isMissavChallengeTitle(view.title)) {
+        if (!isChallengePassed(url, view.title)) {
             Log.i(TAG, "resolve: 人机验证页 url=$url title=${view.title}")
-            fallbackToSite()
+            enterChallenge()
             return
         }
         if (!isMissavSearchUrl(url)) return
@@ -190,17 +222,19 @@ fun MissavPlayScreen(
             if (phase != MissavPhase.RESOLVING) return@evaluateJavascript
             val html = unescapeJsString(raw)
             writePageDump(view, "missav_search.html", html)
-            val results = parseMissavSearchResults(html, movieCode)
-            val best = selectBestMissavResult(results, movieCode)
-            Log.i(TAG, "resolve: html=${html.length} candidates=${results.size} picked=${best?.url}")
-            if (best != null) {
-                webView?.loadUrl(best.url)
-                return@evaluateJavascript
+            val decision = decideSearchOutcome(html, movieCode, attempt)
+            Log.i(
+                TAG,
+                "resolve: html=${html.length} candidates=${decision.candidates} " +
+                    "action=${decision.action} url=${decision.url}"
+            )
+            when (decision.action) {
+                MissavResolveAction.PLAY -> webView?.loadUrl(decision.url.orEmpty())
+                MissavResolveAction.CHALLENGE -> enterChallenge()
+                MissavResolveAction.RETRY ->
+                    schedule(RETRY_EXTRACT_DELAY_MS) { extractResults(view, attempt + 1) }
+                MissavResolveAction.NOT_FOUND -> markNotFound()
             }
-            // 先解析、后判验证页：顺序反过来会把带 Cloudflare JS Detections 的
-            // 正常页面误判成验证页，静默跳过自动接管（见 isMissavChallengeHtml）。
-            Log.w(TAG, "resolve: 无可用候选，challenge=${isMissavChallengeHtml(html)}")
-            fallbackToSite()
         }
     }
 
@@ -224,8 +258,9 @@ fun MissavPlayScreen(
     BackHandler {
         val current = webView
         when {
-            // 后台解析时返回 = 直接退出，站点历史不该暴露给用户。
-            phase == MissavPhase.RESOLVING -> onBack()
+            // 后台解析 / 未收录时返回 = 直接退出，站点历史不该暴露给用户。
+            // 人机验证阶段不在此列：那时站点页面是露出来的，返回应先回退站点历史。
+            phase == MissavPhase.RESOLVING || phase == MissavPhase.NOT_FOUND -> onBack()
             current?.canGoBack() == true -> current.goBack()
             else -> onBack()
         }
@@ -289,7 +324,7 @@ fun MissavPlayScreen(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                if (phase == MissavPhase.SITE) {
+                if (phase == MissavPhase.SITE || phase == MissavPhase.NOT_FOUND) {
                     TextButton(
                         onClick = { restartResolve() },
                         modifier = Modifier.height(TOP_BAR_HEIGHT)
@@ -405,9 +440,29 @@ fun MissavPlayScreen(
                                 CookieManager.getInstance().flush()
                                 installClickFix(view)
 
+                                val onPlayPage =
+                                    isMissavPlayUrl(url, movieCode) && !isMissavSearchUrl(url)
+
+                                // 人机验证阶段：站点页面露在外面等用户亲手过验证，这里只盯
+                                // 「已经离开验证页」这一个信号 —— 一旦离开就把流程交回自动解析，
+                                // 用户不必自己再搜一次。之前是直接掉进站点页面就撒手不管了。
+                                if (phase == MissavPhase.CHALLENGE) {
+                                    if (!isChallengePassed(url, view.title)) return
+                                    Log.i(TAG, "challenge: 验证已通过，自动继续解析 url=$url")
+                                    detectedStream = null
+                                    phase = MissavPhase.RESOLVING
+                                    if (onPlayPage) {
+                                        cleanPlayPage(view)
+                                        scheduleProbes(view)
+                                    } else if (isMissavSearchUrl(url)) {
+                                        schedule(EXTRACT_DELAY_MS) { extractResults(view) }
+                                    }
+                                    return
+                                }
+
                                 // 播放页两个阶段都探测：解析阶段命中即自动接管，
                                 // 已回退到站点时命中则降级为手动按钮。
-                                if (isMissavPlayUrl(url, movieCode) && !isMissavSearchUrl(url)) {
+                                if (onPlayPage) {
                                     Log.i(TAG, "onPageFinished: 命中播放页 $url，开始探测直链")
                                     dumpCurrentPage(view, "missav_play.html")
                                     cleanPlayPage(view)
@@ -416,8 +471,8 @@ fun MissavPlayScreen(
                                 }
                                 // 站点阶段由用户自己操作，不再自动解析（否则会反复把人弹回播放器）。
                                 if (phase != MissavPhase.RESOLVING) return
-                                if (isMissavChallengeUrl(url) || isMissavChallengeTitle(view.title)) {
-                                    fallbackToSite()
+                                if (!isChallengePassed(url, view.title)) {
+                                    enterChallenge()
                                     return
                                 }
                                 if (isMissavSearchUrl(url)) {
@@ -437,6 +492,24 @@ fun MissavPlayScreen(
                     movieCode = movieCode,
                     onOpenSite = { fallbackToSite() },
                     modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            if (phase == MissavPhase.NOT_FOUND) {
+                MissavNotFoundOverlay(
+                    movieCode = movieCode,
+                    onRetry = { restartResolve() },
+                    onOpenSite = { fallbackToSite() },
+                    onBack = onBack,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // 验证阶段站点页面必须可交互，所以这里只叠一条不挡操作的顶部提示。
+            if (phase == MissavPhase.CHALLENGE) {
+                MissavChallengeBanner(
+                    onSkip = { fallbackToSite() },
+                    modifier = Modifier.align(Alignment.TopCenter)
                 )
             }
 
@@ -486,6 +559,80 @@ private fun MissavResolvingOverlay(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * 「站点确实没有这部片」的收口提示。
+ *
+ * 单独做成一个终态，而不是像以前那样悄悄回退到站点页面：回退后用户看到的是一张
+ * 空白搜索结果页，分不清是「站点没有」还是「解析挂了」，只能反复点重试。
+ */
+@Composable
+private fun MissavNotFoundOverlay(
+    movieCode: String,
+    onRetry: () -> Unit,
+    onOpenSite: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.background)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = MISSAV_NOT_FOUND_MESSAGE,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "站点搜索「$movieCode」没有任何结果",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRetry) { Text("重试解析") }
+                TextButton(onClick = onOpenSite) { Text("打开站点页面") }
+            }
+            TextButton(onClick = onBack) { Text("返回") }
+        }
+    }
+}
+
+/**
+ * 人机验证期间贴在顶部的提示条。
+ *
+ * 刻意不做成整屏遮罩：验证要用户亲手点，站点页面必须保持可交互。
+ */
+@Composable
+private fun MissavChallengeBanner(
+    onSkip: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "请在页面中完成人机验证，通过后会自动继续播放",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onSkip) {
+            Text("跳过", style = MaterialTheme.typography.labelLarge)
         }
     }
 }

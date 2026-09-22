@@ -187,11 +187,13 @@ class MissavPlayPolicyTest {
     }
 
     /**
-     * 站点会把「无码流出」等变体排在番号本体前面，自动接管必须挑番号本体，
-     * 否则默认播到的是变体版本。
+     * 行为**反转**（按需求调整）：多个候选时优先播无码。
+     *
+     * 旧实现刻意挑番号本体、避开「无码流出」变体；现在反过来 —— 同一部片有无码版就播无码版。
+     * 站点把无码变体排在番号本体前面，正好与新的优先级一致。
      */
     @Test
-    fun autoSelectPrefersExactCodeOverSiteOrder() {
+    fun autoSelectPrefersUncensoredOverExactCode() {
         val html = """
             <html><body>
             <a href="https://missav.ws/en/pppe-443-uncensored-leak">
@@ -202,10 +204,70 @@ class MissavPlayPolicyTest {
         """.trimIndent()
         val results = parseMissavSearchResults(html, "PPPE-443")
         assertEquals(2, results.size)
-        // 站点排序第一条是变体，精确命中在第二条
-        assertEquals("pppe-443-uncensored-leak", missavSlug(results[0].url))
-        assertEquals("pppe-443", missavSlug(results[1].url))
-        assertEquals("https://missav.ws/en/pppe-443", selectBestMissavResult(results, "PPPE-443")?.url)
+        assertTrue("无码变体应被标记", results[0].uncensored)
+        assertFalse("番号本体不是无码", results[1].uncensored)
+        assertEquals(
+            "https://missav.ws/en/pppe-443-uncensored-leak",
+            selectBestMissavResult(results, "PPPE-443")?.url
+        )
+    }
+
+    /** 无码优先与站点排序无关：无码排在最后也要把它挑出来。 */
+    @Test
+    fun autoSelectFindsUncensoredEvenWhenSiteRanksItLast() {
+        val results = listOf(
+            MissavSearchResult("https://missav.ws/en/pppe-443", "本体"),
+            MissavSearchResult("https://missav.ws/en/pppe-443-x", "别的变体"),
+            MissavSearchResult(
+                "https://missav.ws/en/pppe-443-uncensored-leak", "无码", uncensored = true
+            )
+        )
+        assertEquals(
+            "https://missav.ws/en/pppe-443-uncensored-leak",
+            selectBestMissavResult(results, "PPPE-443")?.url
+        )
+    }
+
+    /** 多个无码候选时，仍先取 slug 精确命中。 */
+    @Test
+    fun autoSelectPrefersExactCodeAmongUncensored() {
+        val results = listOf(
+            MissavSearchResult("https://missav.ws/en/pppe-443-leak", "无码变体", uncensored = true),
+            MissavSearchResult("https://missav.ws/en/pppe-443", "无码本体", uncensored = true)
+        )
+        assertEquals(
+            "https://missav.ws/en/pppe-443",
+            selectBestMissavResult(results, "PPPE-443")?.url
+        )
+    }
+
+    /** 没有无码候选时，回退到原来的「精确命中 → 站点排序第一条」。 */
+    @Test
+    fun autoSelectFallsBackToExactCodeWhenNoUncensored() {
+        val results = listOf(
+            MissavSearchResult("https://missav.ws/en/pppe-443-chinese-subtitle", "中字变体"),
+            MissavSearchResult("https://missav.ws/en/pppe-443", "本体")
+        )
+        assertEquals(
+            "https://missav.ws/en/pppe-443",
+            selectBestMissavResult(results, "PPPE-443")?.url
+        )
+    }
+
+    /** 卡片文案里出现 Uncensored 也要标记成无码，不能只看 URL。 */
+    @Test
+    fun marksUncensoredFromCardTextNotOnlyUrl() {
+        val html = """
+            <html><body>
+            <a href="https://missav.ws/en/pppe-443">
+              <img alt="PPPE-443 Miyu Aizawa"/><span>Uncensored</span> 2:00:49
+            </a>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "PPPE-443")
+        assertEquals(1, results.size)
+        assertTrue(results[0].uncensored)
+        assertEquals("无码", results[0].badge)
     }
 
     @Test

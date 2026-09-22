@@ -10,7 +10,14 @@ internal data class MissavSearchResult(
     val title: String,
     val duration: String? = null,
     val badge: String? = null,
-    val thumbnailUrl: String? = null
+    val thumbnailUrl: String? = null,
+    /**
+     * 是否无码（站点挂了「无码流出」变体，或卡片上标了 `Uncensored`）。
+     *
+     * 单独存一个布尔值而不是靠 [badge] 反推：badge 是展示文案（还可能被「中字」挤掉），
+     * 而选片逻辑要的是一个稳定的语义标记。
+     */
+    val uncensored: Boolean = false
 )
 
 internal fun normalizeMissavCode(code: String): String =
@@ -192,9 +199,12 @@ private fun urlSlug(path: String?): String? =
 /**
  * 从搜索结果里挑一条用于自动接管。
  *
+ * **无码优先**：同一部片站点常同时挂「无码流出」变体和原版，多个候选时优先播无码。
+ * 无码候选内部仍先取 slug 精确命中（番号本体）、再退站点排序第一条；
+ * 没有无码候选时才回到「精确命中 → 站点排序第一条」。
+ *
  * 能走到这里的候选都已通过 [isMissavPlayUrl] 校验（slug 要么等于番号，要么以「番号-」开头），
- * 所以只需在「精确命中」和「站点排序」之间取舍：
- * 优先 slug 与番号完全一致的那条（番号本体，通常是正片），没有则取站点排序第一条。
+ * 所以候选之间只差版本，不会串到别的番号。
  */
 internal fun selectBestMissavResult(
     results: List<MissavSearchResult>,
@@ -203,7 +213,12 @@ internal fun selectBestMissavResult(
     if (results.isEmpty()) return null
     val needle = normalizeMissavCode(code)
     if (needle.isEmpty()) return results.first()
-    return results.firstOrNull { missavSlug(it.url) == needle } ?: results.first()
+    fun exactHit(list: List<MissavSearchResult>) = list.firstOrNull { missavSlug(it.url) == needle }
+    val uncensored = results.filter { it.uncensored }
+    if (uncensored.isNotEmpty()) {
+        return exactHit(uncensored) ?: uncensored.first()
+    }
+    return exactHit(results) ?: results.first()
 }
 
 /**
@@ -243,9 +258,10 @@ private fun toMovieResult(url: String, anchors: List<org.jsoup.nodes.Element>): 
     }).firstOrNull { !it.isNullOrBlank() } ?: url.substringAfterLast('/')
     if (isAdOrJunkTitle(title)) return null
     val joined = texts.joinToString(" ")
+    val uncensored = url.contains("uncensored-leak", ignoreCase = true) ||
+        joined.contains("Uncensored", ignoreCase = true)
     val badge = when {
-        url.contains("uncensored-leak", ignoreCase = true) ||
-            joined.contains("Uncensored", ignoreCase = true) -> "无码"
+        uncensored -> "无码"
         url.contains("chinese-subtitle", ignoreCase = true) ||
             joined.contains("Chinese", ignoreCase = true) -> "中字"
         else -> null
@@ -255,7 +271,8 @@ private fun toMovieResult(url: String, anchors: List<org.jsoup.nodes.Element>): 
         title = title,
         duration = duration,
         badge = badge,
-        thumbnailUrl = thumbnail
+        thumbnailUrl = thumbnail,
+        uncensored = uncensored
     )
 }
 

@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.provider.Settings
 import android.view.SurfaceView
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.CookieManager
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
@@ -108,6 +109,10 @@ fun PlayerScreen(
     //    播放页拿到的顶部内边距也就变成 0，画面才真的铺满整块屏幕。
     //    用 WindowInsetsControllerCompat 而非老的 systemUiVisibility：Activity 已经
     //    enableEdgeToEdge()，老 flag 在部分 ROM 上会被忽略。
+    //
+    // 4) 屏幕常亮：播放中不该被系统息屏打断。用 Window flag 而不是 View.keepScreenOn ——
+    //    本页是全屏沉浸式，flag 挂在 Activity 窗口上，不受视图树重组/替换影响。
+    //    退出时只在「进来之前本来没设」的情况下清掉，避免误伤别人的设置。
     DisposableEffect(Unit) {
         val activity = context.findActivity()
         val previousOrientation = activity?.requestedOrientation
@@ -117,6 +122,11 @@ fun PlayerScreen(
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         val window = activity?.window
+        val keepScreenOnAlreadySet =
+            window?.attributes?.flags?.and(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) != 0
+        if (!keepScreenOnAlreadySet) {
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         val insetsController = window?.let { WindowCompat.getInsetsController(it, it.decorView) }
         val previousBarsBehavior = insetsController?.systemBarsBehavior
         insetsController?.hide(WindowInsetsCompat.Type.systemBars())
@@ -130,6 +140,9 @@ fun PlayerScreen(
                 autoRotateEnabled = context.isAutoRotateEnabled(),
                 orientationAtEntry = orientationAtEntry
             )
+            if (!keepScreenOnAlreadySet) {
+                window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
             insetsController?.show(WindowInsetsCompat.Type.systemBars())
             if (previousBarsBehavior != null) {
                 insetsController.systemBarsBehavior = previousBarsBehavior
