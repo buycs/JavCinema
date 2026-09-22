@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    系统启动闪屏专用的 logo 包装。
+
+    为什么需要这一层：API 31+ 会把 windowSplashScreenAnimatedIcon **重新缩放**，
+    缩放结果和 drawable 的固有尺寸有关，实测（emulator-5554 / API 35 / 420dpi）：
+
+        drawable 固有尺寸        屏幕上的墨迹宽
+        200dp（直接挂 ic_logo）    459px   ← 比 pic_start 大 1.43 倍
+        288dp（四周留 44dp）       211px   ← 比 pic_start 小 0.66 倍
+        248dp（四周留 24dp）       321px   ← ✅ 与 pic_start 一致（1px 内）
+        pic_start 里的 ic_logo     320px   ← 目标值
+
+    所以这里用 InsetDrawable 把 200dp 的 ic_logo 放进 248dp 的画布（四周各留 24dp），
+    实测系统闪屏的墨迹 321px、中心 x=540，与 pic_start 的 320px / x=539 重合 ——
+    两段启动画面交接时 logo 不跳大小、不跳位置。
+
+    改 ic_logo 的尺寸时这里要跟着重算：inset = (目标固有尺寸 - ic_logo 尺寸) / 2。
+    数值不是从公式推出来的，是按上面那张表实测标定的；换设备/换 API 版本要重新量。
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_logo"
+    android:insetLeft="24dp"
+    android:insetRight="24dp"
+    android:insetTop="24dp"
+    android:insetBottom="24dp" />

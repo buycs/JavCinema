@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        API 31+ 的启动闪屏由系统 SplashScreen API 接管，不再看 android:windowBackground。
+        它的默认图标是 android:icon（本应用的圆形图标），底色取自 windowBackground 的近似色 ——
+        冷启动实测（emulator-5554 / API 35）是「橙底 + 圆形图标」盖满整个 2.8s 启动过程，
+        pic_start 一次都没露面，于是用户看到的启动画面和真正的品牌标识（胶片框 + JAV 字标）
+        完全是两回事。
+
+        这里把系统闪屏显式对齐到品牌：
+        - windowSplashScreenBackground  = colorPrimary，与 pic_start 底色同色 → 切换无颜色跳变；
+        - windowSplashScreenAnimatedIcon = ic_splash_logo（ic_logo 套一层 248dp 画布），
+          与 pic_start 用的是同一个 logo、实测同一尺寸（墨迹 321px vs 320px，中心 x 540 vs 539）
+          → 图标既不换脸也不跳大小、不跳位置。画布尺寸为什么是 248dp 见该 drawable 的注释。
+
+        windowBackground 仍保留 pic_start：系统闪屏退场后到 StartActivity 首帧之间，
+        窗口背景就是它，两段画面同图同色，衔接是连续的。
+
+        另：实测系统闪屏不会把本 logo 裁掉（墨迹落在圆形安全区内），
+        所以不需要退化成「纯色底 + 透明图标」的方案。
+    -->
+    <style name="AppTheme.Start" parent="AppTheme">
+        <item name="android:windowBackground">@drawable/pic_start</item>
+        <item name="android:windowSplashScreenBackground">@color/colorPrimary</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+    </style>
+</resources>
