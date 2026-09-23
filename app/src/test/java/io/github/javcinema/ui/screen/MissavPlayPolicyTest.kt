@@ -299,4 +299,90 @@ class MissavPlayPolicyTest {
         val results = listOf(MissavSearchResult("https://missav.ws/en/pppe-443", "本体"))
         assertEquals("https://missav.ws/en/pppe-443", selectBestMissavResult(results, "  ")?.url)
     }
+
+    /**
+     * 回归（真实事故 UZU-040）：站点卡片的标题取自 `img[alt]`，而 missav 的英文长简介里
+     * 会出现 "She **lives** in the same apartment building"。
+     *
+     * 早期 `isAdOrJunkTitle` 用 `"live" in title` 做**子串**判断 → 唯一的候选被误杀 →
+     * 站点明明有这部片，用户看到的却是「资源库还未收录，播放失败」。
+     *
+     * 下面的卡片片段取自站点真实搜索结果页（只裁掉了图片/预览的无关属性）。
+     */
+    @Test
+    fun englishTitleContainingLivesIsNotTreatedAsAd() {
+        val html = """
+            <html><body>
+            <div class="grid grid-cols-2">
+              <div>
+                <div @click="clickPreview('4c55a5a3')" class="thumbnail group">
+                  <div class="relative aspect-w-16 aspect-h-9">
+                    <a href="https://missav.ws/en/uzu-040" alt="uzu-040">
+                      <img class="w-full" data-src="https://fourhoi.com/uzu-040/cover-t.jpg"
+                           src="https://fourhoi.com/uzu-040/cover-t.jpg"
+                           alt="Onan Girl, Plain and Lustful, She's introverted but actually has a strong sex drive (she doesn't make much of an impression at work) She lives in the same apartment building, works...">
+                    </a>
+                    <a href="https://missav.ws/en/uzu-040" alt="uzu-040"><span>1:45:46</span></a>
+                  </div>
+                  <div class="my-2 text-sm text-nord4 truncate">
+                    <a class="text-secondary" href="https://missav.ws/en/uzu-040" alt="uzu-040">UZU-040 Onan Girl, Plain and Lustful, She's introverted but actually has a strong sex drive (she doesn't make much of an impression at work) She lives in the same apartment building, works... - Sora Kamikawa</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "UZU-040")
+        assertEquals("唯一候选不能被广告规则误杀", 1, results.size)
+        assertEquals("https://missav.ws/en/uzu-040", results[0].url)
+        assertEquals(
+            "https://missav.ws/en/uzu-040",
+            selectBestMissavResult(results, "UZU-040")?.url
+        )
+    }
+
+    /** 侧栏导航链接（Korean/Chinese Live）仍然是广告，只是靠 slug 校验就已被排除。 */
+    @Test
+    fun liveSectionNavLinksAreNeverCandidates() {
+        val html = """
+            <html><body>
+            <a href="https://missav.ws/en/klive">Korean Live</a>
+            <a href="https://missav.ws/en/clive">Chinese Live</a>
+            <a href="https://missav.ws/en/uzu-040"><img alt="UZU-040 Sora Kamikawa"/>1:45:46</a>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "UZU-040")
+        assertEquals(1, results.size)
+        assertEquals("https://missav.ws/en/uzu-040", results[0].url)
+    }
+
+    /**
+     * 广告规则**只降级、不丢弃**：唯一的候选标题疑似广告时也要留着 ——
+     * 宁可让用户看到一条标题怪怪的候选，也不能再报一次「资源库还未收录」。
+     */
+    @Test
+    fun junkTitledCandidateIsKeptWhenItIsTheOnlyOne() {
+        val html = """
+            <html><body>
+            <a href="https://missav.ws/en/pppe-443"><img alt="Watch Live"/></a>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "PPPE-443")
+        assertEquals(1, results.size)
+        assertEquals("https://missav.ws/en/pppe-443", results[0].url)
+    }
+
+    /** 有干净候选时，疑似广告的那张卡片照旧丢掉。 */
+    @Test
+    fun junkTitledCandidateIsDroppedWhenACleanOneExists() {
+        val html = """
+            <html><body>
+            <a href="https://missav.ws/en/pppe-443"><img alt="Watch Live"/></a>
+            <a href="https://missav.ws/en/pppe-443-chinese-subtitle">PPPE-443 Miyu Aizawa Chinese Subtitle 2:00:49</a>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "PPPE-443")
+        assertEquals(1, results.size)
+        assertEquals("https://missav.ws/en/pppe-443-chinese-subtitle", results[0].url)
+    }
 }

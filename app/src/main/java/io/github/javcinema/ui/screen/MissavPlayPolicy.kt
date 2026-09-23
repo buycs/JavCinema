@@ -224,6 +224,13 @@ internal fun selectBestMissavResult(
 /**
  * 解析搜索结果页。只负责解析，不判人机验证 —— 是否验证页交给调用方在
  * 「解析不出候选」之后判断。顺序反过来会把正常页面误判成验证页（见 [isMissavChallengeHtml]）。
+ *
+ * ⚠️ **疑似广告的卡片只降级、不丢弃**：只有「除它之外一条候选都没有」时才回退用它。
+ * 真实事故（UZU-040）：站点的英文长简介里有一句
+ * "She **lives** in the same apartment building"，而 [isAdOrJunkTitle] 当时用
+ * `"live" in title` 做**子串**判断 → 唯一的候选被误杀 → 站点明明有这部片，
+ * 却给用户报「资源库还未收录，播放失败」。广告规则再准也可能误伤，
+ * 所以最后必须留一条「宁可带上疑似广告，也不清空结果」的兜底。
  */
 internal fun parseMissavSearchResults(html: String, code: String): List<MissavSearchResult> {
     val doc = Jsoup.parse(html, "https://missav.ws")
@@ -234,12 +241,15 @@ internal fun parseMissavSearchResults(html: String, code: String): List<MissavSe
         if (!isMissavPlayUrl(url, code)) continue
         grouped.getOrPut(url) { mutableListOf() }.add(anchor)
     }
-    return grouped.mapNotNull { (url, anchors) ->
-        toMovieResult(url, anchors)
-    }
+    val cards = grouped.map { (url, anchors) -> toCard(url, anchors) }
+    val clean = cards.filter { !it.junkTitle }
+    return clean.ifEmpty { cards }.map { it.result }
 }
 
-private fun toMovieResult(url: String, anchors: List<org.jsoup.nodes.Element>): MissavSearchResult? {
+/** 一条候选卡片，以及它的标题是否被广告规则命中（命中时仅作兜底用）。 */
+private data class MissavCard(val result: MissavSearchResult, val junkTitle: Boolean)
+
+private fun toCard(url: String, anchors: List<org.jsoup.nodes.Element>): MissavCard {
     val texts = anchors.map { it.text().trim() }.filter { it.isNotEmpty() }
     val img = anchors.mapNotNull { it.selectFirst("img") }.firstOrNull()
     val imgAlt = img?.attr("alt")?.trim().orEmpty()
@@ -256,7 +266,6 @@ private fun toMovieResult(url: String, anchors: List<org.jsoup.nodes.Element>): 
             !candidate.equals("HD", ignoreCase = true) &&
             candidate.length > 8
     }).firstOrNull { !it.isNullOrBlank() } ?: url.substringAfterLast('/')
-    if (isAdOrJunkTitle(title)) return null
     val joined = texts.joinToString(" ")
     val uncensored = url.contains("uncensored-leak", ignoreCase = true) ||
         joined.contains("Uncensored", ignoreCase = true)
@@ -266,24 +275,37 @@ private fun toMovieResult(url: String, anchors: List<org.jsoup.nodes.Element>): 
             joined.contains("Chinese", ignoreCase = true) -> "中字"
         else -> null
     }
-    return MissavSearchResult(
-        url = url,
-        title = title,
-        duration = duration,
-        badge = badge,
-        thumbnailUrl = thumbnail,
-        uncensored = uncensored
+    return MissavCard(
+        result = MissavSearchResult(
+            url = url,
+            title = title,
+            duration = duration,
+            badge = badge,
+            thumbnailUrl = thumbnail,
+            uncensored = uncensored
+        ),
+        junkTitle = isAdOrJunkTitle(title)
     )
 }
 
-private fun isAdOrJunkTitle(title: String): Boolean {
-    val lower = title.lowercase()
-    return "live" in lower ||
-        "webcam" in lower ||
-        "myavlive" in lower ||
-        lower == "uncensored" ||
+/**
+ * 卡片标题是否像广告 / 站点导航链接。
+ *
+ * ⚠️ **必须按词匹配，不能用 `"live" in title` 这类子串判断** —— 站点搜索页的侧栏挂着
+ * 两条导航链接 "Korean Live" / "Chinese Live"（指向 `/en/klive`、`/en/clive`），
+ * 子串判断确实能滤掉它们，但代价是把所有含 live 子串的**正常英文标题**一起杀掉：
+ * `lives` / `believe` / `delivered` / `alive` 全中招（真实事故见
+ * [parseMissavSearchResults] 的注释）。按词匹配两边都能顾上。
+ *
+ * 残留风险：真有片名里带独立单词 "Live" 的（如 "Live Streaming …"）仍会被判为广告，
+ * 但只要它是唯一候选，[parseMissavSearchResults] 的兜底会把它留下。
+ */
+private val JUNK_TITLE_RE = Regex("""\b(?:live|webcam|myavlive)\b""", RegexOption.IGNORE_CASE)
+
+private fun isAdOrJunkTitle(title: String): Boolean =
+    JUNK_TITLE_RE.containsMatchIn(title) ||
+        title.equals("Uncensored", ignoreCase = true) ||
         DURATION_RE.matches(title)
-}
 
 private val DURATION_RE = Regex("""\d+:\d{2}(?::\d{2})?""")
 
