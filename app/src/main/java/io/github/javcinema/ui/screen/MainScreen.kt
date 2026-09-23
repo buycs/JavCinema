@@ -92,6 +92,9 @@ fun MainScreen() {
 
     val scrollToTopTrigger = remember { mutableLongStateOf(0L) }
 
+    // 搜索 / 设置页没有顶部功能页 —— 上半屏的滑动要退化成切底栏（见 effectiveSwipeZone）。
+    val pageHasTopTabs = hasTopPages(currentRoute)
+
     /** 底部功能页之间跳转的统一入口：点底栏、左右滑动都走它，参数只有一处。 */
     fun openBottomItem(item: BottomNavItem) {
         navController.navigate(item.navigateRoute) {
@@ -112,6 +115,10 @@ fun MainScreen() {
     }
     val latestOnBottomSwipe = rememberUpdatedState(onBottomSwipe)
 
+    // 同上：这个值会随切页变化，但也不能进 pointerInput 的 key ——
+    // 否则从「影片」切到「搜索」时会重启手势检测，正好把刚开始的那次拖动丢掉。
+    val latestHasTopTabs = rememberUpdatedState(pageHasTopTabs)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -127,8 +134,14 @@ fun MainScreen() {
                             requireUnconsumed = false,
                             pass = PointerEventPass.Initial
                         )
-                        // 上半屏的滑动归顶部功能页，这里直接放行给子级。
-                        if (swipeZoneOf(down.position.y, size.height.toFloat()) != SwipeZone.LOWER) {
+                        // 上半屏的滑动归顶部功能页，这里直接放行给子级；
+                        // 但页面根本没有顶部功能页时（搜索/设置），上半屏也归切底栏。
+                        val zone = effectiveSwipeZone(
+                            y = down.position.y,
+                            height = size.height.toFloat(),
+                            hasTopPages = latestHasTopTabs.value
+                        )
+                        if (zone != SwipeZone.LOWER) {
                             continue
                         }
                         var dragX = 0f

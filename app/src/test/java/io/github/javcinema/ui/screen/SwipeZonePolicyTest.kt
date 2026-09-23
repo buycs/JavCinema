@@ -1,7 +1,9 @@
 package io.github.javcinema.ui.screen
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SwipeZonePolicyTest {
@@ -116,5 +118,70 @@ class SwipeZonePolicyTest {
         assertNull(swipeTargetIndex(current = 5, direction = SwipeDirection.NEXT, count = 5))
         assertNull(swipeTargetIndex(current = -1, direction = SwipeDirection.PREV, count = 5))
         assertNull(swipeTargetIndex(current = 0, direction = SwipeDirection.NEXT, count = 0))
+    }
+
+    // ---------- 没有顶部功能页的页面：上半屏退化成切底栏 ----------
+
+    /**
+     * 搜索页两种路由写法（裸名 `"search"` 与导航图注册的 `"search?query={query}"`）
+     * 都必须被认出来 —— 少认一个，搜索页的上半屏就划不动。
+     */
+    @Test
+    fun searchPageHasNoTopPages() {
+        assertFalse(hasTopPages("search"))
+        assertFalse(hasTopPages("search?query={query}"))
+    }
+
+    @Test
+    fun settingsPageHasNoTopPages() {
+        assertFalse(hasTopPages("settings"))
+    }
+
+    /** 影片 / 女优 / 收藏都有顶部功能页，上半屏必须继续留给它们。 */
+    @Test
+    fun pagerPagesKeepTheirTopPages() {
+        assertTrue(hasTopPages("home"))
+        assertTrue(hasTopPages("actresses"))
+        assertTrue(hasTopPages("favourite"))
+    }
+
+    /** 子页（详情 / 影片列表 / 磁力）保持「放行给子级」的原行为，不抢手势。 */
+    @Test
+    fun subPagesKeepPassingThrough() {
+        assertTrue(hasTopPages("movie_detail/{movieCode}?link={link}&coverUrl={coverUrl}"))
+        assertTrue(hasTopPages("movie_list/{title}/{url}"))
+        assertTrue(hasTopPages("actress_detail/{starId}?name={name}&imageUrl={imageUrl}"))
+        assertTrue(hasTopPages("download/{keyword}"))
+    }
+
+    /** 拿不准时（导航图未就绪 / 空路由）选择不抢 —— 抢错的后果比不抢更严重。 */
+    @Test
+    fun unknownRouteKeepsPassingThrough() {
+        assertTrue(hasTopPages(null))
+        assertTrue(hasTopPages(""))
+        assertTrue(hasTopPages("something_new"))
+    }
+
+    /** 没有顶部功能页时，上半屏也归切底栏 —— 否则上半屏划不动，用户会以为手势坏了。 */
+    @Test
+    fun upperHalfDegradesToBottomSwipeWhenNoTopPages() {
+        assertEquals(SwipeZone.LOWER, effectiveSwipeZone(y = 0f, height = height, hasTopPages = false))
+        assertEquals(SwipeZone.LOWER, effectiveSwipeZone(y = 1199f, height = height, hasTopPages = false))
+        assertEquals(SwipeZone.LOWER, effectiveSwipeZone(y = 1200f, height = height, hasTopPages = false))
+    }
+
+    /** 有顶部功能页时行为不变：上半屏仍然归顶部 pager。 */
+    @Test
+    fun upperHalfStillBelongsToTopPagerWhenItHasOne() {
+        assertEquals(SwipeZone.UPPER, effectiveSwipeZone(y = 0f, height = height, hasTopPages = true))
+        assertEquals(SwipeZone.UPPER, effectiveSwipeZone(y = 1199f, height = height, hasTopPages = true))
+        assertEquals(SwipeZone.LOWER, effectiveSwipeZone(y = 1200f, height = height, hasTopPages = true))
+    }
+
+    /** 下半屏两种情况下都是切底栏，不受这个开关影响。 */
+    @Test
+    fun lowerHalfIsAlwaysBottomSwipe() {
+        assertEquals(SwipeZone.LOWER, effectiveSwipeZone(y = 2399f, height = height, hasTopPages = true))
+        assertEquals(SwipeZone.LOWER, effectiveSwipeZone(y = 2399f, height = height, hasTopPages = false))
     }
 }
