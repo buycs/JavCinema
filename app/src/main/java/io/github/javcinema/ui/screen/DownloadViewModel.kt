@@ -87,7 +87,10 @@ class DownloadViewModel : ViewModel() {
                             // `{"count":499,"torrentfile":[]}` —— 有文件数却没有文件列表。
                             // 少了这一句就会走成 `files = 空列表`，界面显示「没有文件」，
                             // 把「站点没给文件列表」说成「这个种子没有文件」，误导用户。
-                            val torrentFiles = detail?.torrentfile.orEmpty()
+                            //
+                            // 注意「未获取到文件列表」只表示**站点没给**；网络故障由 provider
+                            // 直接抛异常、走下面的 catch 显示「加载失败」—— 两种失败必须分开报。
+                            val torrentFiles = detail.torrentfile.orEmpty()
                             if (torrentFiles.isEmpty()) throw IllegalStateException("未获取到文件列表")
                             LoadedFiles(btSearchProvider.parseFilesFromTorrentFiles(torrentFiles))
                         }

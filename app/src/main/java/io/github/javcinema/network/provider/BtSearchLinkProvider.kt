@@ -31,13 +31,16 @@ class BtSearchLinkProvider : DownloadLinkProvider() {
         }
     }
 
-    suspend fun getDetail(id: String, keyword: String): BtSearchDetailResponse? {
-        return try {
-            BtSearch.INSTANCE.getDetail(id, keyword)
-        } catch (_: Exception) {
-            null
-        }
-    }
+    /**
+     * 取种子详情。
+     *
+     * ⚠️ **不要**把异常吞成 `null`：调用方拿到 `null` 会走到「未获取到文件列表」，
+     * 那是把**网络故障**说成「站点没给文件列表」—— 与 missav 那边「把网络故障说成未收录」
+     * 属于同一类**错误结论**（用户看到「站点没给」会以为换个种子才行，实际重试就能好）。
+     * 异常应当一路抛到 `DownloadViewModel` 的 catch，那里会显示「加载失败」。
+     */
+    suspend fun getDetail(id: String, keyword: String): BtSearchDetailResponse =
+        BtSearch.INSTANCE.getDetail(id, keyword)
 
     fun parseFilesFromTorrentFiles(files: List<BtSearchTorrentFile>): List<MagnetFile> {
         return files.map { file ->

@@ -37,19 +37,24 @@ class BTSOLinkProvider : DownloadLinkProvider() {
         }
     }
 
+    /**
+     * 取种子的文件列表。
+     *
+     * ⚠️ **不要**把异常吞成 `emptyList()`：调用方会把空列表报成「未获取到文件列表」，
+     * 那是把**网络故障**说成「站点没给文件列表」—— 与 missav 那边「把网络故障说成未收录」
+     * 属于同一类**错误结论**。异常抛给 `DownloadViewModel` 的 catch → 「加载失败」。
+     *
+     * `data` 为 null 才是「站点确实没给列表」，那种情况保留 `?: emptyList()`。
+     */
     suspend fun getMagnetDetail(hash: String): List<MagnetFile> = withContext(Dispatchers.IO) {
-        try {
-            val body = Gson().toJson(listOf(hash)).toRequestBody("application/json".toMediaType())
-            val response = BTSO.INSTANCE.getMagnet(body)
-            response.data?.files?.map { file ->
-                MagnetFile().apply {
-                    filename = file.filename
-                    size = file.size
-                }
-            } ?: emptyList()
-        } catch (_: Exception) {
-            emptyList()
-        }
+        val body = Gson().toJson(listOf(hash)).toRequestBody("application/json".toMediaType())
+        val response = BTSO.INSTANCE.getMagnet(body)
+        response.data?.files?.map { file ->
+            MagnetFile().apply {
+                filename = file.filename
+                size = file.size
+            }
+        } ?: emptyList()
     }
 
     private fun formatSize(bytes: Long): String {
