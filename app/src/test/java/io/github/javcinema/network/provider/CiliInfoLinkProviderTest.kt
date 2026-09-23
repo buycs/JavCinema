@@ -50,13 +50,14 @@ class CiliInfoLinkProviderTest {
     /**
      * 修复前：占位文件名没有媒体扩展名 → 被 visibleMagnetFiles() 过滤掉，
      * 6.13 GB 的正片在界面上完全看不到，只剩 19 MB 的赠品片段被当成主文件。
+     *
+     * 现在展示**只看体积**（≥ 20 MB），正片必定在列表里且成为加粗的主文件；
+     * 175 B 的 `.url` 广告与 19.25 MB 的赠品片段都被体积规则挡掉。
      */
     @Test
     fun largestRealVideoSurvivesFilteringAndBecomesMainFile() {
         val visible = visibleMagnetFiles(parse())
-        assertEquals(2, visible.size)
-        assertTrue(visible.none { it.filename.endsWith(".url") })
-        val main = largestVideoIndex(visible)
-        assertEquals("roe-556/4k2.me@roe-556.mp4", visible[main!!].filename)
+        assertEquals(listOf("roe-556/4k2.me@roe-556.mp4"), visible.map { it.filename })
+        assertEquals(0, largestVideoIndex(visible))
     }
 }

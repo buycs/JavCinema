@@ -82,8 +82,13 @@ class DownloadViewModel : ViewModel() {
                             val id = link.link ?: throw IllegalStateException("缺少资源 id")
                             val keyword = link.title ?: throw IllegalStateException("缺少标题")
                             val detail = btSearchProvider.getDetail(id, keyword)
-                            val torrentFiles = detail?.torrentfile
-                                ?: throw IllegalStateException("未获取到文件列表")
+                            // ⚠️ `torrentfile` 可能是**空数组**而不是 null。实测站点对大种子
+                            // （SSIS 001-500，3.09 TB / 499 个文件）返回
+                            // `{"count":499,"torrentfile":[]}` —— 有文件数却没有文件列表。
+                            // 少了这一句就会走成 `files = 空列表`，界面显示「没有文件」，
+                            // 把「站点没给文件列表」说成「这个种子没有文件」，误导用户。
+                            val torrentFiles = detail?.torrentfile.orEmpty()
+                            if (torrentFiles.isEmpty()) throw IllegalStateException("未获取到文件列表")
                             LoadedFiles(btSearchProvider.parseFilesFromTorrentFiles(torrentFiles))
                         }
                         "btso" -> {

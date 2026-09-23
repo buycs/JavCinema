@@ -272,7 +272,7 @@ private fun DownloadLinkItem(
                         val mainIndex = largestVideoIndex(visible)
                         if (visible.isEmpty()) {
                             Text(
-                                text = "没有媒体文件",
+                                text = "没有文件",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
