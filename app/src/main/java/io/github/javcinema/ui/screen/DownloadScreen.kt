@@ -151,7 +151,7 @@ fun DownloadScreen(
                                 modifier = Modifier.align(Alignment.Center)
                             )
                         } else {
-                            val visibleItems = source.items.filter { !isAdText(it.title) }.ifEmpty { source.items }
+                            val visibleItems = visibleSearchResults(source.items)
                             LazyColumn(
                                 contentPadding = PaddingValues(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
