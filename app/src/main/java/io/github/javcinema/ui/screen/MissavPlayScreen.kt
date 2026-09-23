@@ -638,6 +638,11 @@ private fun MissavNotFoundOverlay(
  * 人机验证期间贴在顶部的提示条。
  *
  * 刻意不做成整屏遮罩：验证要用户亲手点，站点页面必须保持可交互。
+ *
+ * ⚠️ **文案必须单行显示**：这条提示本身就矮，一旦在窄屏 / 大字号下折成两行，
+ * 就会向下压住站点页面的验证框。所以既限制了 `maxLines = 1`（配 `softWrap = false`
+ * 才是真正的单行 + 省略号），文案也刻意取短 —— 别把「通过后会自动继续播放」加回来，
+ * 加了在 320dp 宽 + 大字号下必折行。
  */
 @Composable
 private fun MissavChallengeBanner(
@@ -648,14 +653,17 @@ private fun MissavChallengeBanner(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "请在页面中完成人机验证，通过后会自动继续播放",
+            text = "请在页面中完成人机验证",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
         TextButton(onClick = onSkip) {
