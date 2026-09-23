@@ -84,6 +84,9 @@ class ActressListViewModel : ViewModel() {
             api.getStars(listOf("stars", 60, page))
         }
 
+        // ⚠️ 接口永远回 HTTP 200，失败信号在 `code` 里（实测 404 + data:null）——
+        // 不看 code 就会把接口报错渲染成女优列表「暂无数据」。
+        requireAvmooSuccess(response.code)
         val apiStars = response.data ?: emptyList()
         if (apiStars.isNotEmpty()) {
             val s = apiStars[0]

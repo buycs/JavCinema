@@ -120,6 +120,9 @@ class HomeViewModel : ViewModel() {
             }
         }
 
+        // ⚠️ 这套接口**永远回 HTTP 200**，失败信号只在 JSON 的 `code` 里（实测 404 + data:null）。
+        // 不看 code 就会把接口报错渲染成首页「暂无数据」—— 失败被说成「站点没有」。
+        requireAvmooSuccess(response.code)
         val apiMovies = response.data ?: emptyList()
         Log.d("HomeViewModel", "API returned ${apiMovies.size} movies")
 

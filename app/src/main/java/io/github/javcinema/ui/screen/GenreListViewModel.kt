@@ -81,6 +81,9 @@ class GenreListViewModel : ViewModel() {
             api.getGenres(listOf("cn"))
         }
 
+        // ⚠️ 接口永远回 HTTP 200，失败信号在 `code` 里（实测 404 + data:null）——
+        // 不看 code 就会把接口报错渲染成「类别页为空」。
+        requireAvmooSuccess(response.code)
         val rawData = response.data
         // 分组标签取站点自己的 cn 字典，只有骑兵的 type 7 单独标成 AV OPEN（详见 GenreGroupPolicy）。
         val labels = GenreGroupLabels.forApiPath(JavCinema.getDataSource().apiPath)

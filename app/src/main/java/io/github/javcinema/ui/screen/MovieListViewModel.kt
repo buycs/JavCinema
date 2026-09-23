@@ -129,6 +129,9 @@ class MovieListViewModel : ViewModel() {
                 api.getFilterMovies(listOf(filterType, filterId, "cn", 60, page))
             }
 
+            // ⚠️ 接口永远回 HTTP 200，失败信号在 `code` 里（实测 404 + data:null）——
+            // 不看 code 就会把接口报错渲染成列表「暂无数据」。
+            requireAvmooSuccess(response.code)
             val apiMovies = response.data ?: emptyList()
             val parsed = withContext(Dispatchers.IO) { AVMOProvider.fromApiList(apiMovies) }
 

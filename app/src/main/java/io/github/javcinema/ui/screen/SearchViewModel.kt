@@ -192,6 +192,9 @@ class SearchViewModel : ViewModel() {
         val api = JavCinema.AVMOO_API_SERVICE ?: return emptyList()
         val body = listOf<Any>(mapOf("search" to currentQuery, "lang" to "cn"), 60, page)
         val response = withContext(Dispatchers.IO) { api.search(body) }
+        // ⚠️ 接口永远回 HTTP 200，失败信号在 `code` 里（实测 404 + data:null）——
+        // 不看 code 就会把接口报错渲染成「未找到结果」。
+        requireAvmooSuccess(response.code)
         val apiMovies = response.data ?: emptyList()
         return withContext(Dispatchers.IO) { AVMOProvider.fromApiList(apiMovies) }
     }
@@ -240,6 +243,8 @@ class SearchViewModel : ViewModel() {
         val response = withContext(Dispatchers.IO) {
             api.getStars(listOf("stars", 60, page))
         }
+        // ⚠️ 接口永远回 HTTP 200，失败信号在 `code` 里（实测 404 + data:null）。
+        requireAvmooSuccess(response.code)
         return (response.data ?: emptyList()).map { star ->
             val name = star.starName ?: star.starName_ja ?: star.starName_en ?: star.starName_cn ?: star.starName_tw ?: ""
             Actress.create(name, star.avatarUrl ?: star.avatar ?: "", star.starId ?: "").apply {
