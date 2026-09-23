@@ -13,11 +13,24 @@ class MissavResolvePolicyTest {
         </body></html>
     """.trimIndent()
 
-    private val emptySearchPage = """
-        <html><head><title>Search result of ssis-999 - MissAV</title></head><body>
-        <p>No results found.</p>
-        </body></html>
-    """.trimIndent()
+    /**
+     * 把合成页面撑到**真实量级**。
+     *
+     * 真实搜索结果页实测 **252,977 字节**（标定见 `looksLikeMissavPage`），而该判据要求页面达到
+     * [MISSAV_MIN_PAGE_LENGTH] 才算「真的加载出来了」—— 合成夹具若只有几百字节，判据校准就会
+     * 失真，把「正常但无结果」误判成「页面没加载出来」。这里补一段填充，只为把体积撑到真实量级。
+     */
+    private fun realisticPage(head: String, body: String): String = buildString {
+        append("<html><head>").append(head).append("</head><body>").append(body)
+        // 真实页面的导航 / 页脚 / 内联脚本占了绝大部分体积。
+        repeat(200) { append("<div class=\"nav\">missav.ws navigation footer</div>") }
+        append("</body></html>")
+    }
+
+    private val emptySearchPage = realisticPage(
+        head = "<title>Search result of ssis-999 - MissAV</title>",
+        body = "<p>No results found.</p>"
+    )
 
     private val challengePage = """
         <html><head><title>Just a moment...</title></head><body>
@@ -96,12 +109,11 @@ class MissavResolvePolicyTest {
     /** 正常页面解析不出候选时，只能判未收录，绝不能因为「长得像验证页」被判 CHALLENGE。 */
     @Test
     fun emptyNormalPageIsNotFoundNotChallenge() {
-        val html = """
-            <html><head>
-            <title>Search result of ssis-999 - MissAV</title>
-            <script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>
-            </head><body><p>No results.</p></body></html>
-        """.trimIndent()
+        val html = realisticPage(
+            head = "<title>Search result of ssis-999 - MissAV</title>" +
+                "<script src=\"/cdn-cgi/challenge-platform/scripts/jsd/main.js\"></script>",
+            body = "<p>No results.</p>"
+        )
         assertEquals(
             MissavResolveAction.NOT_FOUND,
             decideSearchOutcome(html, "SSIS-999", attempt = 1).action
@@ -191,5 +203,53 @@ class MissavResolvePolicyTest {
     @Test
     fun challengeRestartBudgetIsPositive() {
         assertTrue(MISSAV_CHALLENGE_MAX_RESTARTS > 0)
+    }
+
+    // ── 页面没加载出来 ≠ 站点没收录 ────────────────────────────────────────
+    // 用户可见症状与 UZU-040 相同（「有资源却提示没有资源」），但根因不同：
+    // 这里是网络故障 / Cloudflare 5xx 的错误页被当成了「没有结果的正常页」。
+
+    /** 站点自己的页面无论有没有搜索结果，都必然带着自己的域名，且体积很大。 */
+    @Test
+    fun looksLikeMissavPage_requiresSiteMarkerAndRealisticLength() {
+        assertTrue(looksLikeMissavPage(realisticPage("", "<p>No results.</p>")))
+        // 有域名但只是空壳 —— 页面没渲染出来
+        assertFalse(looksLikeMissavPage("<html><body>missav</body></html>"))
+        // 够长但没有站点标记 —— Chromium / Cloudflare 错误页
+        assertFalse(looksLikeMissavPage("<html><body>" + "x".repeat(20000) + "</body></html>"))
+        assertFalse(looksLikeMissavPage(""))
+    }
+
+    /** 空壳页面：最后一轮也不能报「未收录」，必须回退站点。 */
+    @Test
+    fun emptyShellPageFallsBackInsteadOfNotFound() {
+        assertEquals(
+            MissavResolveAction.RETRY,
+            decideSearchOutcome("", "SSIS-999", attempt = 0).action
+        )
+        assertEquals(
+            MissavResolveAction.FALLBACK,
+            decideSearchOutcome("", "SSIS-999", attempt = 1).action
+        )
+    }
+
+    /** Cloudflare 5xx 错误页：够长但不含站点标记 → 同样回退站点，不能报未收录。 */
+    @Test
+    fun cloudflareErrorPageFallsBackInsteadOfNotFound() {
+        val html = "<html><head><title>502 Bad Gateway</title></head><body>" +
+            "<h1>Error 502</h1><p>cloudflare</p>" + "x".repeat(20000) + "</body></html>"
+        assertEquals(
+            MissavResolveAction.FALLBACK,
+            decideSearchOutcome(html, "SSIS-999", attempt = 1).action
+        )
+    }
+
+    /** 反例守卫：真实的「无结果」页必须**仍然**报未收录，别为了兜底把正常结论也吞掉。 */
+    @Test
+    fun realNoResultPageStillReportsNotFound() {
+        assertEquals(
+            MissavResolveAction.NOT_FOUND,
+            decideSearchOutcome(emptySearchPage, "SSIS-999", attempt = 1).action
+        )
     }
 }

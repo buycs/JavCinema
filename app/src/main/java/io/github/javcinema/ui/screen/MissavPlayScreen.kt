@@ -241,6 +241,11 @@ fun MissavPlayScreen(
                 MissavResolveAction.RETRY ->
                     schedule(RETRY_EXTRACT_DELAY_MS) { extractResults(view, attempt + 1) }
                 MissavResolveAction.NOT_FOUND -> markNotFound()
+                // 页面根本没加载出来 —— 不能报「未收录」，回退站点让用户看到真实页面。
+                MissavResolveAction.FALLBACK -> {
+                    Log.w(TAG, "resolve: 搜索页没加载出来（html=${html.length}），回退站点")
+                    fallbackToSite()
+                }
             }
         }
     }

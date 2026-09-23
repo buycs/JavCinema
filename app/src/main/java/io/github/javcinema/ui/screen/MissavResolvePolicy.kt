@@ -12,8 +12,37 @@ internal enum class MissavResolveAction {
     RETRY,
 
     /** 站点确认没有这部片。 */
-    NOT_FOUND
+    NOT_FOUND,
+
+    /**
+     * 搜索页**根本没加载出来**（网络故障 / Cloudflare 5xx / 空壳页面）——
+     * 既不是验证页，也**不能**算「没收录」。回退到站点页面，让用户看到真实页面并自行重试。
+     */
+    FALLBACK
 }
+
+/**
+ * 判定「这看起来是一个真正的站点页面」的最小长度。
+ *
+ * 实测标定：站点**「无结果」**页也有 **252,977 字节**（title `Search result of ard-019ai - MissAV ...`）
+ * —— 真实页面无论有没有搜索结果，都带着完整导航 / 页脚 / 自己的域名。
+ * 而 Chromium 错误页、Cloudflare 5xx 错误页、`about:blank` 都远小于此。
+ */
+internal const val MISSAV_MIN_PAGE_LENGTH = 5000
+
+/**
+ * 页面看起来是不是**真正的站点页面**（而不是错误页 / 空壳）。
+ *
+ * 为什么需要它：`onReceivedError` 只覆盖**网络层**失败；Cloudflare 5xx 返回的是**正常响应**，
+ * 不触发任何错误回调。两种情况下 `onPageFinished` 都会照常回调、解析出的候选都是 0，
+ * 于是被判成 [MissavResolveAction.NOT_FOUND] —— 把「页面没加载出来」说成
+ * 「站点没收录这部片」，与 UZU-040 是同一个用户可见症状。
+ *
+ * 判据刻意**偏保守**（宁可误判成「没加载出来」而回退站点，也不误判成「未收录」）：
+ * 回退站点时用户看到的是站点的真实页面，比一句错误的「未收录」有用得多。
+ */
+internal fun looksLikeMissavPage(html: String): Boolean =
+    html.length >= MISSAV_MIN_PAGE_LENGTH && html.contains("missav", ignoreCase = true)
 
 internal data class MissavResolveDecision(
     val action: MissavResolveAction,
@@ -36,10 +65,12 @@ internal const val MISSAV_NOT_FOUND_MESSAGE = "资源库还未收录，播放失
  * 正常页面会被误判成验证页（判据说明见 [isMissavChallengeHtml]），
  * 于是明明搜到了结果却把人送去过验证。
  *
- * 「解析不出候选」有两种截然不同的原因，必须分开：
+ * 「解析不出候选」有三种截然不同的原因，必须分开：
  * - 页面是验证插页 → [MissavResolveAction.CHALLENGE]，过一次验证就能继续；
  * - 页面正常但确实没有 → 先 [MissavResolveAction.RETRY] 再 [MissavResolveAction.NOT_FOUND]，
- *   直接判未收录会把「列表还没渲染完」误报成「资源库未收录」。
+ *   直接判未收录会把「列表还没渲染完」误报成「资源库未收录」；
+ * - 页面**根本没加载出来** → 先 [MissavResolveAction.RETRY] 再 [MissavResolveAction.FALLBACK]，
+ *   判未收录等于把网络故障说成「站点没这部片」（判据见 [looksLikeMissavPage]）。
  */
 internal fun decideSearchOutcome(
     html: String,
@@ -55,8 +86,15 @@ internal fun decideSearchOutcome(
         return MissavResolveDecision(MissavResolveAction.CHALLENGE, candidates = results.size)
     }
     val retry = attempt + 1 < maxAttempts
+    // ⚠️ 页面没加载出来时**不能**判「未收录」：那是把网络故障 / Cloudflare 5xx
+    // 说成「站点没这部片」。重试完仍如此就回退站点，让用户看到真实页面。
+    val exhausted = if (looksLikeMissavPage(html)) {
+        MissavResolveAction.NOT_FOUND
+    } else {
+        MissavResolveAction.FALLBACK
+    }
     return MissavResolveDecision(
-        if (retry) MissavResolveAction.RETRY else MissavResolveAction.NOT_FOUND,
+        if (retry) MissavResolveAction.RETRY else exhausted,
         candidates = results.size
     )
 }
