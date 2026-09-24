@@ -14,6 +14,8 @@ import android.webkit.CookieManager
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
@@ -586,6 +588,7 @@ fun PlayerScreen(
                 bufferedMs = playerController.bufferedPosition,
                 durationMs = playerController.duration,
                 isPlaying = exoPlayer.isPlaying(),
+                isScrubbing = playerController.isScrubbing,
                 speedLabel = formatPlaybackSpeed(playerController.playbackSpeed),
                 resizeLabel = playerController.resizeMode.label,
                 onTogglePlay = { exoPlayer.togglePlay() },
@@ -736,6 +739,7 @@ private fun PlayerControls(
     bufferedMs: Long,
     durationMs: Long,
     isPlaying: Boolean,
+    isScrubbing: Boolean,
     speedLabel: String,
     resizeLabel: String,
     onTogglePlay: () -> Unit,
@@ -774,6 +778,7 @@ private fun PlayerControls(
             positionMs = positionMs,
             bufferedMs = bufferedMs,
             durationMs = durationMs,
+            isScrubbing = isScrubbing,
             onScrubStart = onScrubStart,
             onScrubMove = onScrubMove,
             onScrubEnd = onScrubEnd,
@@ -815,6 +820,7 @@ private fun ScrubBar(
     positionMs: Long,
     bufferedMs: Long,
     durationMs: Long,
+    isScrubbing: Boolean,
     onScrubStart: (Float, Float) -> Unit,
     onScrubMove: (Float, Float) -> Unit,
     onScrubEnd: () -> Unit,
@@ -823,6 +829,20 @@ private fun ScrubBar(
     val progress = progressFraction(positionMs, durationMs)
     // 已缓存不可能少于已播放，取 max 兜住「HLS 缓存位置偶尔落后于播放位置」的抖动。
     val buffered = progressFraction(bufferedMs, durationMs).coerceAtLeast(progress)
+
+    // 按下/拖动时条子变粗、圆点变大。
+    // ⚠️ 只动**粗细**，不动位置 —— 位置是手指 x 的线性换算，给它加动画
+    // 会让圆点落后于手指，跟手就没了。这两个值只影响观感，与「拖到哪」无关。
+    val barHeightDp by animateDpAsState(
+        targetValue = if (isScrubbing) SCRUB_BAR_HEIGHT_DRAGGING else SCRUB_BAR_HEIGHT,
+        animationSpec = tween(SCRUB_FEEDBACK_DURATION_MS),
+        label = "scrubBarHeight"
+    )
+    val thumbRadiusDp by animateDpAsState(
+        targetValue = if (isScrubbing) SCRUB_THUMB_RADIUS_DRAGGING else SCRUB_THUMB_RADIUS,
+        animationSpec = tween(SCRUB_FEEDBACK_DURATION_MS),
+        label = "scrubThumbRadius"
+    )
 
     Canvas(
         modifier = modifier
@@ -859,7 +879,7 @@ private fun ScrubBar(
                 }
             }
     ) {
-        val barHeight = SCRUB_BAR_HEIGHT.toPx()
+        val barHeight = barHeightDp.toPx()
         val centerY = size.height / 2f
         val radius = CornerRadius(barHeight / 2f)
         val top = centerY - barHeight / 2f
@@ -888,7 +908,7 @@ private fun ScrubBar(
         }
         drawCircle(
             color = SCRUB_PROGRESS_COLOR,
-            radius = SCRUB_THUMB_RADIUS.toPx(),
+            radius = thumbRadiusDp.toPx(),
             center = Offset(size.width * progress, centerY)
         )
     }
@@ -991,6 +1011,15 @@ private fun Context.isAutoRotateEnabled(): Boolean = runCatching {
 private val SCRUB_BAR_HEIGHT = 3.dp
 
 /**
+ * 拖动中的进度条高度。
+ *
+ * ⚠️ 只加**视觉反馈**，不动进度值本身 —— 进度值必须是手指 x 的线性换算（跟手），
+ * 给它加动画只会让圆点落后于手指。这里放大的是条子与圆点的**粗细**，
+ * 与「拖到哪」无关，所以不会破坏跟手。
+ */
+private val SCRUB_BAR_HEIGHT_DRAGGING = 6.dp
+
+/**
  * 进度条的**触摸区**高度。
  *
  * ⚠️ 不能跟可视高度一样细 —— 3dp 的条子在手指下根本按不住。
@@ -1000,6 +1029,17 @@ private val SCRUB_TOUCH_HEIGHT = 24.dp
 
 /** 进度条圆点的半径。比条子粗，让人一眼看出这里是可拖的。 */
 private val SCRUB_THUMB_RADIUS = 5.dp
+
+/** 按住/拖动时圆点放大到这么大 —— 「我抓住它了」的即时反馈。 */
+private val SCRUB_THUMB_RADIUS_DRAGGING = 8.dp
+
+/**
+ * 进度条按下反馈的动画时长。
+ *
+ * ⚠️ 必须**短**：这是对「手指已经按下去」的响应，超过 ~150ms 就会被感觉成「卡」，
+ * 反而不像跟手。120ms 是「看得见动画」和「不觉得延迟」之间的折中。
+ */
+private const val SCRUB_FEEDBACK_DURATION_MS = 120
 
 private val SCRUB_TRACK_COLOR = Color.White.copy(alpha = 0.3f)
 

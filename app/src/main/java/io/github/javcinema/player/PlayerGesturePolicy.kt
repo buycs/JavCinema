@@ -63,6 +63,24 @@ internal fun isDoubleTap(gapMs: Long): Boolean = gapMs in 0..DOUBLE_TAP_TIMEOUT_
 internal fun isLongPress(holdMs: Long): Boolean = holdMs >= LONG_PRESS_TIMEOUT_MS
 
 /**
+ * 长按快放该不该启动。
+ *
+ * ⚠️ [isScrubbing] 这一条**必须挡**：拖动进度条时手指本来就按着不动，
+ * 拖到一半停顿 0.5s 就会被当成「长按快放」，实际播放速度被切到 3x
+ * （实测复现：按住进度条 0.6s，顶部弹出「快放中 3.0x」）。
+ * 长按快放是给「盯着画面快速掠过」用的，和拖进度条是两回事。
+ *
+ * 其余两条来自「计时器和手指状态之间有竞态」：计时到点时手指可能已经抬起、
+ * 或者已经进入了某个手势模式，所以调用方必须在到点后**再自查一遍**。
+ */
+internal fun shouldStartLongPressSpeed(
+    isLocked: Boolean,
+    isTouching: Boolean,
+    isScrubbing: Boolean,
+    gestureMode: GestureMode
+): Boolean = !isLocked && isTouching && !isScrubbing && gestureMode == GestureMode.NONE
+
+/**
  * 把目标位置夹到合法区间。
  *
  * 时长未知（直播 / 还没拿到 metadata）时只保证非负 —— 此时**不能**夹成 0，

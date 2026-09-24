@@ -91,4 +91,26 @@ class PlayerGesturePolicyTest {
         assertEquals("+10秒", formatSeekFlash(10_000L))
         assertEquals("-10秒", formatSeekFlash(-10_000L))
     }
+
+    @Test
+    fun longPressSpeedNeedsAFingerOnTheVideo() {
+        assertTrue(shouldStartLongPressSpeed(false, true, false, GestureMode.NONE))
+        // 手指已抬起 / 已被锁定 / 已经进入某个手势（拖动、亮度、音量）都不该启动。
+        assertFalse(shouldStartLongPressSpeed(false, false, false, GestureMode.NONE))
+        assertFalse(shouldStartLongPressSpeed(true, true, false, GestureMode.NONE))
+        assertFalse(shouldStartLongPressSpeed(false, true, false, GestureMode.SEEK))
+    }
+
+    /**
+     * ⚠️ 回归：**拖进度条时按住不动，不能触发长按快放。**
+     *
+     * 拖进度条时手指本来就按着不动 —— 不加 [isScrubbing] 判断的话，拖到一半
+     * 停顿 0.5s 就会被当成「长按快放」，实际播放速度被切到 3x
+     * （实测复现：按住进度条 0.6s，顶部弹出「快放中 3.0x」）。
+     */
+    @Test
+    fun scrubbingSuppressesLongPressSpeed() {
+        assertFalse(shouldStartLongPressSpeed(false, true, true, GestureMode.NONE))
+        assertFalse(shouldStartLongPressSpeed(false, true, true, GestureMode.SEEK))
+    }
 }

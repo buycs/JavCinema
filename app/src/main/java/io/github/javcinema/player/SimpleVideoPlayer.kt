@@ -291,11 +291,12 @@ class SimpleVideoPlayer(private val context: Context) {
     /**
      * 长按计时到点时由 UI 调用。
      *
-     * ⚠️ 这里**必须**再自查一遍条件：计时器和手指状态之间存在竞态
-     * （比如刚够 500ms 就抬手了、或者已经开始拖动了），不能只信调用时机。
+     * ⚠️ 这里**必须**再自查一遍条件（见 [shouldStartLongPressSpeed]）：
+     * 计时器和手指状态之间存在竞态（比如刚够 500ms 就抬手了、或者已经开始拖进度条了），
+     * 不能只信调用时机。
      */
     fun onLongPressTick(exoPlayer: ExoPlayerImpl) {
-        if (isLocked || !isTouching || gestureMode != GestureMode.NONE) return
+        if (!shouldStartLongPressSpeed(isLocked, isTouching, isScrubbing, gestureMode)) return
         if (isLongPressSpeedActive) return
         speedBeforeLongPress = playbackSpeed
         isLongPressSpeedActive = true
