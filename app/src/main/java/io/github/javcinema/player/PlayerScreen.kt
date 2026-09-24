@@ -16,8 +16,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -39,7 +44,6 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -51,9 +55,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,7 +92,6 @@ fun PlayerScreen(
     val context = LocalContext.current
     val exoPlayer = remember { ExoPlayerImpl(context) }
     val playerController = remember { SimpleVideoPlayer(context) }
-    var progress by remember { mutableFloatStateOf(0f) }
 
     // 退出分两步走：按返回 → 先把方向还回去 → 等窗口真的转回竖屏 → 再 pop。
     // 反过来（先 pop 再转）上一页会在横屏窗口里被渲染约 0.7s，看起来就是画面撕裂。
@@ -127,6 +135,14 @@ fun PlayerScreen(
     // 不能只在下面 AndroidView 的 update 里读：update 是布局期回调，
     // 那时读 state 拿不到订阅，比例更新了也不会触发重组，画面会一直停在首次的比例上。
     val frameAspectRatio = videoAspectRatio
+
+    // 画面比例同理：也要在组合期读一次，update 是布局期回调，在那里读 state 拿不到订阅，
+    // 用户点了「适应 / 裁剪 / 拉伸」按钮画面不会变。
+    //
+    // ⚠️ 变量名**不能**叫 `resizeMode`：下面 `AspectRatioFrameLayout(...).apply { }` 里
+    // 要写 `resizeMode = RESIZE_MODE_*`，而 Kotlin 解析标识符时局部变量的优先级高于
+    // `apply` 的隐式接收者 —— 同名会被解析成这个 val，直接报「val 不能重新赋值」。
+    val videoResizeMode = playerController.resizeMode
 
     // 播放页的窗口设置：横屏 + 真·全屏。
     //
@@ -237,12 +253,21 @@ fun PlayerScreen(
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playerController.playbackState = if (isPlaying) {
-                    PlayerPlaybackState.PLAYING
-                } else if (playerController.playbackState == PlayerPlaybackState.BUFFERING) {
-                    PlayerPlaybackState.BUFFERING
-                } else {
-                    PlayerPlaybackState.PAUSED
+                playerController.playbackState = when {
+                    isPlaying -> PlayerPlaybackState.PLAYING
+                    playerController.playbackState == PlayerPlaybackState.BUFFERING ->
+                        PlayerPlaybackState.BUFFERING
+                    // ⚠️ 不能把 COMPLETED 降级成 PAUSED。
+                    //
+                    // ExoPlayer 播完时会**连着**发两个回调，顺序固定：
+                    // 先 `onPlaybackStateChanged(STATE_ENDED)`，再 `onIsPlayingChanged(false)`。
+                    // 这里若无条件写 PAUSED，就会把上一步刚设好的 COMPLETED 覆盖掉 ——
+                    // 结果是 `COMPLETED` 分支（画面正中的「重播」浮层）**永远不显示**，
+                    // 用户看到的是「播完了，进度条停在末尾，点什么都没反应」。
+                    // 这个分支以前是死的，实测才发现（进度条与总时长都显示 00:37 而浮层没出来）。
+                    playerController.playbackState == PlayerPlaybackState.COMPLETED ->
+                        PlayerPlaybackState.COMPLETED
+                    else -> PlayerPlaybackState.PAUSED
                 }
             }
 
@@ -273,9 +298,8 @@ fun PlayerScreen(
             val dur = exoPlayer.getDuration()
             playerController.currentPosition = pos
             playerController.duration = dur
-            if (dur > 0) {
-                progress = (pos.toFloat() / dur).coerceIn(0f, 1f)
-            }
+            // 进度条上的「已缓存」那一段。HLS 是分片拉取的，这个值会跳着涨。
+            playerController.bufferedPosition = exoPlayer.getBufferedPosition()
         }
     }
 
@@ -300,6 +324,36 @@ fun PlayerScreen(
         }
     }
 
+    // 单击切换控件要**等过了双击窗口**再执行。
+    //
+    // 不延后的话，双击的第一下会先把控件翻一下、第二下再翻回来，中间那一下就是
+    // 肉眼可见的闪烁；延后的代价是单击有 300ms 延迟 —— 这是「单击 + 双击共存」
+    // 绕不开的取舍。双击时 [SimpleVideoPlayer.consumePendingTap] 会返回 false，
+    // 这次排队就作废，改成执行快进/快退。
+    LaunchedEffect(playerController.pendingTapTick) {
+        if (playerController.pendingTapTick == 0L) return@LaunchedEffect
+        delay(DOUBLE_TAP_TIMEOUT_MS)
+        if (playerController.consumePendingTap()) {
+            playerController.toggleControls()
+        }
+    }
+
+    // 长按快放：按住不动满 500ms 就临时 3x。手指一离开 isTouching 变 false，本效果自动取消。
+    // 判定条件在 onLongPressTick 里会再自查一遍 —— 计时器和手指状态之间有竞态。
+    LaunchedEffect(playerController.isTouching) {
+        if (!playerController.isTouching) return@LaunchedEffect
+        delay(LONG_PRESS_TIMEOUT_MS)
+        playerController.onLongPressTick(exoPlayer)
+    }
+
+    // 双击快进/快退的浮层，1 秒后自动消失。用 tick 当 key 而不是文案本身 ——
+    // 连续两次「+10秒」文案没变，只按文案当 key 不会重新计时。
+    LaunchedEffect(playerController.seekFlashTick) {
+        if (playerController.seekFlashTick == 0L) return@LaunchedEffect
+        delay(SEEK_FLASH_DURATION_MS)
+        playerController.clearSeekFlash()
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -309,10 +363,70 @@ fun PlayerScreen(
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
+                .then(
+                    Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                ),
+            factory = { ctx ->
+                // 用 AspectRatioFrameLayout 包住 SurfaceView，而不是把 SurfaceView 直接铺满。
+                //
+                // 为什么必须包一层：Media3 默认的 codec 缩放模式是 SCALE_TO_FIT，语义是
+                // 「缩放到填满 surface」—— surface 是什么比例，画面就被拉成什么比例，
+                // 跟视频自己的比例无关。所以 SurfaceView 一旦 MATCH_PARENT，在 20:9 的手机
+                // 上放 16:9 的片子就会被横向拉扁。
+                //
+                // RESIZE_MODE_FIT 则是「保持比例缩到能完整放进父容器」：宁可上下（或左右）
+                // 留黑边，也不裁掉画面边缘、也不变形。这就是「全屏但不裁剪」。
+                // 用户可以在控制栏里切成 ZOOM（裁剪）/ FILL（拉伸），见 VideoResizeMode。
+                AspectRatioFrameLayout(ctx).apply {
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    val surfaceView = SurfaceView(ctx)
+                    addView(
+                        surfaceView,
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                    )
+                    exoPlayer.player.setVideoSurfaceView(surfaceView)
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
+            },
+            update = { frame ->
+                // 比例未知时传 0，AspectRatioFrameLayout 会退化成「铺满父容器」。
+                frame.setAspectRatio(frameAspectRatio)
+                frame.resizeMode = videoResizeMode.toFrameLayoutResizeMode()
+            }
+        )
+
+        // 手势层：**必须是独立的一层，而且必须排在控件下面**。
+        //
+        // 原先这段 pointerInput 挂在 AndroidView 上。加可拖进度条之后就出问题了：
+        // 同一次拖动会同时喂给「全屏快进」和「进度条拖拽」，两个都在跳，还互相打架。
+        //
+        // 现在靠 Compose 兄弟节点的派发顺序解决：Main 阶段**从最上层往下**派发，
+        // 所以控件先拿到事件；控件里的 clickable / 进度条会把 down 消费掉，
+        // 本层看到 `isConsumed` 就整段跳过。
+        // 顺带修掉一个老毛病：点播放键、点倍速键原本会**顺带把控件收起来**。
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
+                            // 控件已经接手的事件一律不碰。
+                            if (event.changes.any { it.isConsumed }) continue
                             val pointer = event.changes.firstOrNull() ?: break
                             val x = pointer.position.x
                             val y = pointer.position.y
@@ -336,48 +450,6 @@ fun PlayerScreen(
                         }
                     }
                 }
-                .then(
-                    Modifier.pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                event.changes.forEach { it.consume() }
-                            }
-                        }
-                    }
-                ),
-            factory = { ctx ->
-                // 用 AspectRatioFrameLayout 包住 SurfaceView，而不是把 SurfaceView 直接铺满。
-                //
-                // 为什么必须包一层：Media3 默认的 codec 缩放模式是 SCALE_TO_FIT，语义是
-                // 「缩放到填满 surface」—— surface 是什么比例，画面就被拉成什么比例，
-                // 跟视频自己的比例无关。所以 SurfaceView 一旦 MATCH_PARENT，在 20:9 的手机
-                // 上放 16:9 的片子就会被横向拉扁。
-                //
-                // RESIZE_MODE_FIT 则是「保持比例缩到能完整放进父容器」：宁可上下（或左右）
-                // 留黑边，也不裁掉画面边缘、也不变形。这就是「全屏但不裁剪」。
-                AspectRatioFrameLayout(ctx).apply {
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setBackgroundColor(android.graphics.Color.BLACK)
-                    val surfaceView = SurfaceView(ctx)
-                    addView(
-                        surfaceView,
-                        FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                    )
-                    exoPlayer.player.setVideoSurfaceView(surfaceView)
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-            },
-            update = { frame ->
-                // 比例未知时传 0，AspectRatioFrameLayout 会退化成「铺满父容器」。
-                frame.setAspectRatio(frameAspectRatio)
-            }
         )
 
         // 返回键跟随控件一起淡出：横屏看片时画面上不该常驻任何 UI。
@@ -496,6 +568,7 @@ fun PlayerScreen(
 
         AnimatedVisibility(
             visible = playerController.isControlsVisible &&
+                    !playerController.isLocked &&
                     playerController.gestureMode == GestureMode.NONE &&
                     playerController.playbackState != PlayerPlaybackState.COMPLETED,
             enter = fadeIn(),
@@ -503,31 +576,92 @@ fun PlayerScreen(
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             PlayerControls(
-                progress = progress,
+                // 拖动进度条期间显示手指所在的位置，而不是播放器还没跳过去的位置 ——
+                // 否则松手前进度条会「黏」在旧进度上，看起来像没拖动。
+                positionMs = if (playerController.isScrubbing) {
+                    playerController.scrubPosition
+                } else {
+                    playerController.currentPosition
+                },
+                bufferedMs = playerController.bufferedPosition,
+                durationMs = playerController.duration,
                 isPlaying = exoPlayer.isPlaying(),
+                speedLabel = formatPlaybackSpeed(playerController.playbackSpeed),
+                resizeLabel = playerController.resizeMode.label,
                 onTogglePlay = { exoPlayer.togglePlay() },
-                currentPosition = exoPlayer.getCurrentPosition(),
-                duration = exoPlayer.getDuration(),
-                onSeek = { exoPlayer.seekTo(it) }
+                onScrubStart = { x, width -> playerController.beginScrub(x, width) },
+                onScrubMove = { x, width -> playerController.updateScrub(x, width) },
+                onScrubEnd = { playerController.endScrub(exoPlayer) },
+                onCycleSpeed = { playerController.cyclePlaybackSpeed(exoPlayer) },
+                onCycleResize = { playerController.cycleResizeMode() },
+                onLock = { playerController.toggleLock(exoPlayer) }
             )
         }
 
         AnimatedVisibility(
             visible = playerController.isControlsVisible &&
+                    !playerController.isLocked &&
                     playerController.gestureMode == GestureMode.NONE &&
                     playerController.playbackState != PlayerPlaybackState.COMPLETED &&
-                    playerController.playbackState != PlayerPlaybackState.BUFFERING,
+                    playerController.playbackState != PlayerPlaybackState.BUFFERING &&
+                    // 双击浮层出现时让位：浮层是半透明黑底，压在白色播放键上会透出鬼影。
+                    playerController.seekFlashText.isEmpty(),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.Center)
         ) {
-            IconButton(onClick = { exoPlayer.togglePlay() }) {
+            // ⚠️ 必须显式给 IconButton 尺寸。M3 的 IconButton 内部是
+            // `size(IconButtonTokens.StateLayerSize)` = **40dp**，所以原先的
+            // `Modifier.fillMaxSize(0.4f)` 实际只画出 **16dp** 的图标 ——
+            // 在 2400px 宽的横屏上基本看不见。
+            IconButton(
+                onClick = { exoPlayer.togglePlay() },
+                modifier = Modifier.size(72.dp)
+            ) {
                 Icon(
                     imageVector = if (exoPlayer.isPlaying()) Icons.Default.Pause
                     else Icons.Default.PlayArrow,
-                    contentDescription = if (exoPlayer.isPlaying()) "Pause" else "Play",
+                    contentDescription = if (exoPlayer.isPlaying()) "暂停" else "播放",
                     tint = Color.White,
-                    modifier = Modifier.fillMaxSize(0.4f)
+                    modifier = Modifier.size(48.dp)
+                )
+            }
+        }
+
+        // 双击快进/快退的浮层。放在正中，和拖动快进的浮层同一个位置 ——
+        // 两种操作本来就是同一件事，位置一致用户才不会看花。
+        AnimatedVisibility(
+            visible = playerController.seekFlashText.isNotEmpty(),
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            SeekFlashOverlay(text = playerController.seekFlashText)
+        }
+
+        // 长按快放的提示。放在顶部，避免和画面正中的播放键、浮层打架。
+        AnimatedVisibility(
+            visible = playerController.isLongPressSpeedActive,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter)
+        ) {
+            LongPressSpeedBadge()
+        }
+
+        // 锁定时**只留**这一个解锁按钮，而且刻意常驻、不跟控件一起淡出 ——
+        // 跟控件走的话，锁屏后用户根本找不到解锁入口，只能退出去。
+        if (playerController.isLocked) {
+            IconButton(
+                onClick = { playerController.toggleLock(exoPlayer) },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LockOpen,
+                    contentDescription = "解锁",
+                    tint = Color.White
                 )
             }
         }
@@ -586,56 +720,231 @@ private fun VolumeBrightnessOverlay(value: Int, label: String) {
     }
 }
 
+/**
+ * 底部控制栏。**只有一行** —— 横屏看片时画面高度本来就紧张，
+ * 两行（进度条一行 + 按钮一行）会吃掉近 60dp，等于把画面顶上去。
+ *
+ * 从左到右：播放/暂停 · 当前时间 · 可拖进度条 · 总时长 · 倍速 · 画面比例 · 锁定。
+ *
+ * ⚠️ 倍速 / 比例这两个按钮用的是 [Text] + `clickable`，**不是** `TextButton`：
+ * `TextButton` 内部硬编码了 `ButtonDefaults.MinHeight = 40.dp`，会把整条栏撑高，
+ * 和「只有一行」的目标直接冲突（人机验证提示条上踩过同一个坑）。
+ */
 @Composable
 private fun PlayerControls(
-    progress: Float,
+    positionMs: Long,
+    bufferedMs: Long,
+    durationMs: Long,
     isPlaying: Boolean,
+    speedLabel: String,
+    resizeLabel: String,
     onTogglePlay: () -> Unit,
-    currentPosition: Long,
-    duration: Long,
-    onSeek: (Long) -> Unit
+    onScrubStart: (Float, Float) -> Unit,
+    onScrubMove: (Float, Float) -> Unit,
+    onScrubEnd: () -> Unit,
+    onCycleSpeed: () -> Unit,
+    onCycleResize: () -> Unit,
+    onLock: () -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = 0.6f))
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(3.dp),
-            color = Color(0xFFFF4081),
-            trackColor = Color.White.copy(alpha = 0.3f),
-        )
-        Spacer(Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = formatDuration(currentPosition),
-                color = Color.White,
-                fontSize = 12.sp
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onTogglePlay) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause
-                        else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Pause" else "Play",
-                        tint = Color.White
-                    )
-                }
-            }
-            Text(
-                text = formatDuration(duration),
-                color = Color.White,
-                fontSize = 12.sp
+        IconButton(onClick = onTogglePlay) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                contentDescription = if (isPlaying) "暂停" else "播放",
+                tint = Color.White
             )
         }
+
+        Text(
+            text = formatPlaybackTime(positionMs),
+            color = Color.White,
+            fontSize = 12.sp,
+            maxLines = 1,
+            softWrap = false
+        )
+
+        ScrubBar(
+            positionMs = positionMs,
+            bufferedMs = bufferedMs,
+            durationMs = durationMs,
+            onScrubStart = onScrubStart,
+            onScrubMove = onScrubMove,
+            onScrubEnd = onScrubEnd,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = formatPlaybackTime(durationMs),
+            color = Color.White,
+            fontSize = 12.sp,
+            maxLines = 1,
+            softWrap = false
+        )
+
+        ControlsChip(text = speedLabel, onClick = onCycleSpeed)
+        ControlsChip(text = resizeLabel, onClick = onCycleResize)
+
+        IconButton(onClick = onLock) {
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = "锁定",
+                tint = Color.White
+            )
+        }
+    }
+}
+
+/**
+ * 进度条：已缓存段 + 已播放段 + 可拖拽的圆点。
+ *
+ * 用 [Canvas] 手画而不是叠三个 `Box`：三段的圆角、圆点位置都要按比例算，
+ * 叠 `Box` 得靠 `fillMaxWidth(fraction)` 反复测宽，圆角还会因为「段太短」而算错。
+ *
+ * ⚠️ 触摸区高 24dp、可视条高 3dp。视觉细是为了不挡画面，但**触摸区不能跟着细**，
+ * 3dp 的条子在手指下根本按不住。
+ */
+@Composable
+private fun ScrubBar(
+    positionMs: Long,
+    bufferedMs: Long,
+    durationMs: Long,
+    onScrubStart: (Float, Float) -> Unit,
+    onScrubMove: (Float, Float) -> Unit,
+    onScrubEnd: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val progress = progressFraction(positionMs, durationMs)
+    // 已缓存不可能少于已播放，取 max 兜住「HLS 缓存位置偶尔落后于播放位置」的抖动。
+    val buffered = progressFraction(bufferedMs, durationMs).coerceAtLeast(progress)
+
+    Canvas(
+        modifier = modifier
+            .height(SCRUB_TOUCH_HEIGHT)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        // ⚠️ 不要求事件「未被消费」：全屏手势层是个铺满屏幕的兄弟节点，
+                        // 它可能先看到 down。这里必须无条件接住 —— 进度条拖不动比重复响应更糟。
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val width = size.width.toFloat()
+                        onScrubStart(down.position.x, width)
+                        // ⚠️ 立刻消费掉 down：否则下面的全屏手势层会把它当成
+                        // 「横向拖动快进」，一边拖进度条一边弹快进浮层。
+                        down.consume()
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            // ⚠️ 抬手事件**也必须消费**。
+                            //
+                            // 手势层是个铺满屏幕的兄弟节点，它只跳过「有任何 change 被消费」的事件。
+                            // 这里若只消费 MOVE、不消费 UP，那个 UP 就是「未被消费」的 ——
+                            // 手势层会把它当成一次单击，300ms 后调用 toggleControls() 把控件收起来。
+                            // 症状：**拖完进度条一松手，整条控制栏自己消失了**（实测复现）。
+                            change.consume()
+                            if (!change.pressed) break
+                            onScrubMove(change.position.x, width)
+                        }
+                        // 抬手 / 事件流中断都要收尾，否则 isScrubbing 会一直挂着，
+                        // 全屏手势从此全部失效（用户感觉是「播放器卡死了」）。
+                        onScrubEnd()
+                    }
+                }
+            }
+    ) {
+        val barHeight = SCRUB_BAR_HEIGHT.toPx()
+        val centerY = size.height / 2f
+        val radius = CornerRadius(barHeight / 2f)
+        val top = centerY - barHeight / 2f
+
+        drawRoundRect(
+            color = SCRUB_TRACK_COLOR,
+            topLeft = Offset(0f, top),
+            size = Size(size.width, barHeight),
+            cornerRadius = radius
+        )
+        if (buffered > 0f) {
+            drawRoundRect(
+                color = SCRUB_BUFFERED_COLOR,
+                topLeft = Offset(0f, top),
+                size = Size(size.width * buffered, barHeight),
+                cornerRadius = radius
+            )
+        }
+        if (progress > 0f) {
+            drawRoundRect(
+                color = SCRUB_PROGRESS_COLOR,
+                topLeft = Offset(0f, top),
+                size = Size(size.width * progress, barHeight),
+                cornerRadius = radius
+            )
+        }
+        drawCircle(
+            color = SCRUB_PROGRESS_COLOR,
+            radius = SCRUB_THUMB_RADIUS.toPx(),
+            center = Offset(size.width * progress, centerY)
+        )
+    }
+}
+
+/** 控制栏上的文字按钮（倍速 / 画面比例）。刻意不用 `TextButton`，见 [PlayerControls] 的注释。 */
+@Composable
+private fun ControlsChip(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        color = Color.White,
+        fontSize = 12.sp,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    )
+}
+
+/** 双击快进/快退的浮层。文案形如 `+10秒` / `-10秒`。 */
+@Composable
+private fun SeekFlashOverlay(text: String) {
+    Text(
+        text = text,
+        color = Color.White,
+        fontSize = 24.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+    )
+}
+
+/** 长按快放的提示徽标。放顶部，避开画面正中的播放键和浮层。 */
+@Composable
+private fun LongPressSpeedBadge() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.FastForward,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = "快放中 ${formatPlaybackSpeed(LONG_PRESS_SPEED)}",
+            color = Color.White,
+            fontSize = 14.sp
+        )
     }
 }
 
@@ -678,10 +987,45 @@ private fun Context.isAutoRotateEnabled(): Boolean = runCatching {
     Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION, 1) == 1
 }.getOrDefault(true)
 
-private fun formatDuration(millis: Long): String {
-    if (millis <= 0L) return "00:00"
-    val totalSeconds = millis / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%02d:%02d".format(minutes, seconds)
+/** 进度条的可视高度。细是为了不挡画面。 */
+private val SCRUB_BAR_HEIGHT = 3.dp
+
+/**
+ * 进度条的**触摸区**高度。
+ *
+ * ⚠️ 不能跟可视高度一样细 —— 3dp 的条子在手指下根本按不住。
+ * 24dp 是「不用瞄准也能拖到」和「不占太多画面」之间的折中。
+ */
+private val SCRUB_TOUCH_HEIGHT = 24.dp
+
+/** 进度条圆点的半径。比条子粗，让人一眼看出这里是可拖的。 */
+private val SCRUB_THUMB_RADIUS = 5.dp
+
+private val SCRUB_TRACK_COLOR = Color.White.copy(alpha = 0.3f)
+
+/**
+ * 已缓存段。
+ *
+ * 刻意比 [SCRUB_TRACK_COLOR] 亮、比 [SCRUB_PROGRESS_COLOR] 暗 ——
+ * 三段要一眼能分开，否则「缓冲到哪了」这个信息等于没给。
+ */
+private val SCRUB_BUFFERED_COLOR = Color.White.copy(alpha = 0.55f)
+
+private val SCRUB_PROGRESS_COLOR = Color(0xFFFF4081)
+
+/** 已播放 / 已缓存 占时长的比例。时长未知时一律 0（没有可换算的坐标系）。 */
+private fun progressFraction(valueMs: Long, durationMs: Long): Float =
+    if (durationMs > 0L) (valueMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+
+/**
+ * 把 [VideoResizeMode] 映射到 Media3 的 `RESIZE_MODE_*` 常量。
+ *
+ * ⚠️ 映射**必须**留在这里，不能让 `VideoResizePolicy` 去引用这几个常量：
+ * 它们带 `@UnstableApi`，引过去会让那个纯策略文件也得加 `@OptIn`、还没法跑 JVM 单测。
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+private fun VideoResizeMode.toFrameLayoutResizeMode(): Int = when (this) {
+    VideoResizeMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+    VideoResizeMode.ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+    VideoResizeMode.FILL -> AspectRatioFrameLayout.RESIZE_MODE_FILL
 }

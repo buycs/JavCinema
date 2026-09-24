@@ -69,7 +69,26 @@ class ExoPlayerImpl(context: Context) {
 
     fun getDuration(): Long = player.duration
 
+    /**
+     * 已经缓冲到的位置（毫秒）。
+     *
+     * 用在进度条上画「已缓存」那一段。HLS 是分片拉取的，这个值会**跳着**涨
+     * （一整个分片下完才前进），不是平滑爬升 —— 所以别拿它做「网速」之类的判断。
+     */
+    fun getBufferedPosition(): Long = player.bufferedPosition
+
     fun isPlaying(): Boolean = player.isPlaying
+
+    /**
+     * 设置播放倍速。传 1.0f 即恢复正常速度。
+     *
+     * ⚠️ 这是**有状态**的：ExoPlayer 会一直保持这个倍速，直到再次设置。
+     * 长按快放那种「临时加速」必须在松手时显式设回用户选的倍速，
+     * 不能指望它自己恢复。
+     */
+    fun setPlaybackSpeed(speed: Float) {
+        player.setPlaybackSpeed(speed)
+    }
 
     fun setVolume(volume: Float) {
         player.volume = volume
