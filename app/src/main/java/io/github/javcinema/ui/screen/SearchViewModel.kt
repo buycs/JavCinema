@@ -165,10 +165,9 @@ class SearchViewModel : ViewModel() {
     private suspend fun loadPage(page: Int) {
         try {
             val ds = JavCinema.getDataSource()
-            val isAvmoo = ds.name?.contains("AVMOO", ignoreCase = true) == true ||
-                ds.name == "骑兵" || ds.name == "步兵" || ds.name == "欧美"
-
-            val parsed: List<Movie> = if (isAvmoo && JavCinema.AVMOO_API_SERVICE != null) {
+            // ⚠️ 按 apiPath 判断，**不按数据源名字** —— 名字只是展示文案，改名会静默落到
+            // 已失效的 HTML 抓取器 → 全站「暂无数据」。见 isAvmooApiSource 的 KDoc。
+            val parsed: List<Movie> = if (isAvmooApiSource(ds.apiPath) && JavCinema.AVMOO_API_SERVICE != null) {
                 loadPageFromApi(page)
             } else {
                 loadPageFromHtml(page)
