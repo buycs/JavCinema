@@ -143,7 +143,7 @@ fun MissavPlayScreen(
      * 撞上人机验证：把站点页面交还给用户亲手过验证。
      *
      * 与 [fallbackToSite] 的关键区别是**还会自动收回来** —— 用户过完验证后
-     * `onPageFinished` 会发现已离开验证页，直接 [restartResolve] 从搜索页重走一遍解析，
+     * `onReceivedTitle` 会第一时间发现新页面已不是验证页，直接 [restartResolve] 从搜索页重走一遍解析，
      * 用户不用自己再搜一次、也不用再点「重试解析」。
      * 用户已经主动打开过站点页面（SITE）时不再抢占。
      */
@@ -278,6 +278,28 @@ fun MissavPlayScreen(
         webView?.loadUrl(searchUrl)
     }
 
+    /**
+     * 验证已过 —— 重走解析（带次数上限，防判据误判时空转）。
+     *
+     * 两个入口共用：`onReceivedTitle`（主力，新页面标题一解析出来就判，用户看不到搜索页），
+     * 以及 `onPageFinished`（兜底，覆盖标题没给出可用信号的情况）。
+     */
+    fun onChallengePassed() {
+        when (decideChallengeOutcome(passed = true, restarts = challengeRestarts)) {
+            MissavChallengeOutcome.RESTART -> {
+                challengeRestarts += 1
+                Log.i(TAG, "challenge: 验证已通过，重走解析（第 $challengeRestarts 次）")
+                restartResolve()
+            }
+            MissavChallengeOutcome.GIVE_UP -> {
+                Log.w(TAG, "challenge: 已重走 $challengeRestarts 次仍未拿到正常页面，回退站点")
+                fallbackToSite()
+            }
+            // passed = true 时不会走到这里。
+            MissavChallengeOutcome.WAIT -> Unit
+        }
+    }
+
     BackHandler {
         val current = webView
         when {
@@ -396,6 +418,29 @@ fun MissavPlayScreen(
                                 isUserGesture: Boolean,
                                 resultMsg: android.os.Message?
                             ): Boolean = false
+
+                            /**
+                             * 验证阶段**最早**能拿到「已经离开验证插页」信号的时机。
+                             *
+                             * 标题在 `<head>` 里，解析出来远早于 `onPageFinished`（后者要等
+                             * 全部子资源）—— 实测两者能差 **6 秒**，那 6 秒里用户看的是裸露的
+                             * 搜索结果页。这里一拿到新标题就判、就盖。
+                             *
+                             * ⚠️ 不能用 `onPageStarted` 代替：那里 `view.title` 还是**上一页**
+                             * 的标题；而只看 URL 也不行 —— Cloudflare 的插页就挂在搜索页自己的
+                             * URL 上（实测），URL 干净完全不代表验证已过。判据见 [shouldCoverOnTitle]。
+                             */
+                            override fun onReceivedTitle(view: WebView?, title: String?) {
+                                super.onReceivedTitle(view, title)
+                                if (phase != MissavPhase.CHALLENGE) return
+                                if (!shouldCoverOnTitle(view?.url, title)) return
+                                Log.i(TAG, "challenge: 新页面标题「$title」，立刻盖回遮罩")
+                                // 延后一拍再重走：在 WebView 自己的回调里直接 loadUrl
+                                // 会打断当前这次加载。
+                                schedule(0) {
+                                    if (phase == MissavPhase.CHALLENGE) onChallengePassed()
+                                }
+                            }
                         }
                         webViewClient = object : WebViewClient() {
                             /**
@@ -473,22 +518,14 @@ fun MissavPlayScreen(
                                 // 卡死：界面停在「正在解析播放地址…」，直到解析超时把用户甩回站点页面，
                                 // 而那时站点播放器往往已经自己播起来了 —— 表现为「验证完却跳去了网页」。
                                 if (phase == MissavPhase.CHALLENGE) {
-                                    val outcome = decideChallengeOutcome(
-                                        passed = isChallengePassed(url, view.title),
-                                        restarts = challengeRestarts
-                                    )
-                                    when (outcome) {
-                                        MissavChallengeOutcome.WAIT -> Unit
-                                        MissavChallengeOutcome.RESTART -> {
-                                            challengeRestarts += 1
-                                            Log.i(TAG, "challenge: 验证已通过，重走解析（第 $challengeRestarts 次）")
-                                            restartResolve()
-                                        }
-                                        MissavChallengeOutcome.GIVE_UP -> {
-                                            Log.w(TAG, "challenge: 已重走 $challengeRestarts 次仍在验证页，回退站点")
-                                            fallbackToSite()
-                                        }
+                                    // 兜底：`onReceivedTitle` 才是主力（早得多，见那里的注释）。
+                                    // 走到这里说明标题没给出可用信号（没有 <title> / 系统回传 URL），
+                                    // 只能等整页加载完再判。
+                                    if (isChallengePassed(url, view.title)) {
+                                        Log.i(TAG, "challenge: onPageFinished 兜底判出验证已过（$url）")
+                                        onChallengePassed()
                                     }
+                                    // 还在验证页上就继续等用户亲手过验证（WAIT）。
                                     return
                                 }
 

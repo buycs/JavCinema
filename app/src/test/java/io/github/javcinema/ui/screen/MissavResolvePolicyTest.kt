@@ -152,6 +152,88 @@ class MissavResolvePolicyTest {
         )
     }
 
+    // ── 验证一过就立刻盖回遮罩，别让搜索页裸露 ──────────────────────────────
+    // 实测（2026-09-24，ARSO-26210）：Cloudflare 放行后**先跳回搜索页**、搜索页立刻渲染出来，
+    // 而 onPageFinished 要等整页（含全部子资源）加载完 —— 中间隔着 6 秒，整段期间用户看到的
+    // 就是搜索结果页。所以要在 onReceivedTitle 里判：标题在 <head> 里，早得多。
+
+    /** 新页面标题正常 → 判定「验证已过」，立刻盖回遮罩。 */
+    @Test
+    fun coverOnTitleAcceptsCleanTitle() {
+        assertTrue(
+            shouldCoverOnTitle(
+                url = "https://missav.ws/en/search/arso-26210",
+                title = "Search result of arso-26210 - MissAV"
+            )
+        )
+    }
+
+    /**
+     * ⚠️ 回归守卫（真事故）：Cloudflare 的验证插页**就挂在搜索页自己的 URL 上** ——
+     * URL 里既没有 `__cf_chl` 也没有 `cdn-cgi/challenge`。曾经只看 URL 判「验证已过」，
+     * 结果点完验证、插页再次下发时连续误判 3 次，把重走预算白烧光后把用户甩到站点页面。
+     */
+    @Test
+    fun coverOnTitleRejectsChallengePageServedAtCleanUrl() {
+        val cleanUrl = "https://missav.ws/en/search/arso-26210"
+        assertFalse(shouldCoverOnTitle(cleanUrl, "请稍候…"))
+        assertFalse(shouldCoverOnTitle(cleanUrl, "正在进行安全验证"))
+        assertFalse(shouldCoverOnTitle(cleanUrl, "Just a moment..."))
+        assertFalse(shouldCoverOnTitle(cleanUrl, "missav.ws"))
+    }
+
+    /** 标题仍是验证页 → 不抢，继续等用户亲手过验证。 */
+    @Test
+    fun coverOnTitleStaysWhileTitleStillLooksLikeChallenge() {
+        assertFalse(
+            shouldCoverOnTitle("https://missav.ws/cdn-cgi/challenge-platform/h/b", "Just a moment...")
+        )
+    }
+
+    /**
+     * 页面没有 `<title>` 时系统会把 **URL 当标题**回传，甚至回传 null ——
+     * 那属于「不知道」，不能当成「已经过了」。失败方向只允许是「慢一点」
+     * （退回 onPageFinished 兜底），不能是「判错」。
+     */
+    @Test
+    fun coverOnTitleTreatsMissingTitleAsUnknown() {
+        val url = "https://missav.ws/en/search/arso-26210"
+        assertFalse(shouldCoverOnTitle(url, null))
+        assertFalse(shouldCoverOnTitle(url, ""))
+        assertFalse(shouldCoverOnTitle(url, "   "))
+        // 系统把 URL 当标题回传 —— 不是真标题
+        assertFalse(shouldCoverOnTitle(url, url))
+    }
+
+    /** 与 [isChallengePassed] 同源：这里的判据就是它加上「标题必须是真的」两条守卫。 */
+    @Test
+    fun coverOnTitleAgreesWithChallengePassed() {
+        val clean = shouldCoverOnTitle("https://missav.ws/en/search/x", "Search result of x")
+        assertTrue(clean)
+        assertTrue(isChallengePassed("https://missav.ws/en/search/x", "Search result of x"))
+    }
+
+    /**
+     * 两个入口（`onReceivedTitle` / `onPageFinished`）都收敛到同一套次数上限逻辑，
+     * 所以「立刻盖回」不会绕开预算 —— 判据一旦误判也不会无限重走。
+     */
+    @Test
+    fun bothCoverEntriesShareTheSameRestartBudget() {
+        // 第 1、2 次重走允许，第 3 次放弃。
+        assertEquals(
+            MissavChallengeOutcome.RESTART,
+            decideChallengeOutcome(passed = true, restarts = 0)
+        )
+        assertEquals(
+            MissavChallengeOutcome.RESTART,
+            decideChallengeOutcome(passed = true, restarts = 1)
+        )
+        assertEquals(
+            MissavChallengeOutcome.GIVE_UP,
+            decideChallengeOutcome(passed = true, restarts = 2)
+        )
+    }
+
     /** 验证通过就重走整个解析流程 —— 这是「首次验证后播放」与「再次播放」体验一致的关键。 */
     @Test
     fun passedChallengeRestartsResolve() {

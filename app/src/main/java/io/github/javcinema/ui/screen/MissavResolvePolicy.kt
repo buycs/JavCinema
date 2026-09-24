@@ -111,6 +111,32 @@ internal fun isChallengePassed(url: String?, title: String?): Boolean =
 /** 验证通过后最多自动重走几遍解析，防止「误判成已通过」时空转。 */
 internal const val MISSAV_CHALLENGE_MAX_RESTARTS = 2
 
+/**
+ * 人机验证阶段收到一次**新文档标题**时，是否意味着「验证已经过了」——
+ * 过了就该**立刻**把遮罩盖回去，而不是等页面加载完。
+ *
+ * **为什么不能等 `onPageFinished`**：Cloudflare 放行后会先跳回搜索页，搜索页**先渲染出来**，
+ * 而 `onPageFinished` 要等整页（含全部子资源）加载完 —— 这段时间随网速变化，
+ * 用户就一直盯着搜索结果页发呆，与「没触发人机验证」的体验不一致。
+ * 实测（2026-09-24，ARSO-26210）：从「验证已通过」日志到第一次 `resolve` 之间隔了
+ * **6 秒**，整段期间搜索页都是可见的。而标题在 `<head>` 里，解析出来得早得多。
+ *
+ * ⚠️ **判据不能只看 URL**（这是踩过的坑）：Cloudflare 的验证插页**就挂在搜索页自己的
+ * URL 上**（URL 里既没有 `__cf_chl` 也没有 `cdn-cgi/challenge`），所以「URL 干净」完全
+ * 不代表验证已过。实测只看 URL 会在「点完验证 → 插页再次下发」时连续误判，把重走预算
+ * 白烧光，最后把用户甩到站点页面。
+ *
+ * ⚠️ 额外要求标题是**真的标题**：`onReceivedTitle` 在页面没有 `<title>` 时可能回传 URL
+ * 甚至 null，那属于「不知道」，不能当成「已经过了」。这条守卫让失败方向只会是
+ * 「慢一点」（退回 `onPageFinished` 兜底），而不会「判错」。
+ */
+internal fun shouldCoverOnTitle(url: String?, title: String?): Boolean {
+    if (title.isNullOrBlank()) return false
+    // 页面没有 <title> 时系统会把 URL 当标题回传 —— 那不是标题，别拿它当证据。
+    if (title.equals(url, ignoreCase = true)) return false
+    return isChallengePassed(url, title)
+}
+
 /** 停在验证页时的下一步。 */
 internal enum class MissavChallengeOutcome {
     /** 还在验证页上 —— 继续等用户亲手过验证。 */
