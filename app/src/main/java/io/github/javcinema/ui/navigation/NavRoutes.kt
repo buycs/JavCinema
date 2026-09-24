@@ -116,20 +116,32 @@ object NavRoutes {
         "player?url=${encodePath(url)}&referer=${encodePath(referer)}"
 
     /**
-     * 注册为「全屏」的目的地：底部导航栏在这些页面上必须隐藏。
+     * **显示**底部导航栏的目的地 —— 只有这五个底部功能页。
      *
-     * 这些页面要么需要整块画面（详情页大图、取流页 WebView），要么是全屏横屏播放器 ——
-     * 底下挂一条导航栏既挡内容，横屏时还会被拉成奇怪的比例。
+     * 反过来用白名单而不是给「全屏页」登记黑名单，是因为后者的失败方式很难看：
+     * 新增一个子页忘了登记，底栏就会挂在一个本不该有底栏的页面上，而且
+     * `MainScreen` 的左右滑动还会继续生效 —— 用户看到的是「手势乱跑」，
+     * 而不是「少登记了一行」。
      *
-     * **新增沉浸式页面时必须在这里登记。** 播放页当初就是因为漏登记，
-     * 导致横屏播放时底部仍挂着导航栏（`MainScreen.hideBottomBar` 只判了前两个）。
+     * 历史事故：播放页当初漏登记，横屏播放时底部仍挂着导航栏。
+     * 现在换成白名单，新增子页天然就是对的。
      */
-    private val FULLSCREEN_ROUTES = listOf(MOVIE_DETAIL, MISSAV_PLAY, PLAYER)
-        .map { it.substringBefore("/{").substringBefore("?") }
+    private val BOTTOM_TAB_ROUTES = listOf(HOME, ACTRESSES, FAVOURITE, SEARCH, SETTINGS)
 
-    /** 当前路由是否属于 [FULLSCREEN_ROUTES]。route 为 null（导航图未就绪）时返回 false。 */
-    fun isFullscreenRoute(route: String?): Boolean {
-        val value = route ?: return false
-        return FULLSCREEN_ROUTES.any { value.startsWith(it) }
+    /**
+     * 当前路由是否显示底部导航栏（同时也决定是否响应「左右滑动切底栏」）。
+     *
+     * 其余一切路由（影片详情、过滤结果、女优详情、磁力结果、取流、播放…）都是
+     * 「从底栏跳出去」的页面：底栏隐藏，底栏的左右滑动/点击一律不响应。
+     * 那些页面自己的手势（顶部功能页的 `HorizontalPager`、返回手势）照常工作。
+     *
+     * route 为 null（导航图未就绪）时返回 `true` —— 启动瞬间宁可先显示，
+     * 也不要闪一下（`MainScreen` 此时会用「首页设置」的 tab 兜底）。
+     */
+    fun showsBottomBar(route: String?): Boolean {
+        val value = route.orEmpty()
+        // 导航图未就绪（null / 空串）时先显示 —— 启动瞬间宁可先画出来，也不要闪一下。
+        if (value.isEmpty()) return true
+        return BOTTOM_TAB_ROUTES.any { value.startsWith(it) }
     }
 }

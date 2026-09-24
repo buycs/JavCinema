@@ -77,8 +77,10 @@ fun MainScreen() {
     val currentDestination = navBackStackEntry?.destination
 
     val currentRoute = currentDestination?.route ?: bottomItems[0].matchRoute
-    // 规则集中在 NavRoutes.isFullscreenRoute，避免又漏掉某个沉浸式页面。
-    val hideBottomBar = NavRoutes.isFullscreenRoute(currentRoute)
+    // 规则集中在 NavRoutes.showsBottomBar：只有五个底部功能页显示底栏。
+    // 其余页面（详情 / 过滤结果 / 女优详情 / 磁力结果 / 取流 / 播放）底栏隐藏，
+    // 并且**不响应底栏的左右滑动** —— 否则手势会在这些页面上乱跑。
+    val hideBottomBar = !NavRoutes.showsBottomBar(currentRoute)
 
     // 导航图未就绪时（currentDestination 为 null），高亮回退到「首页设置」选中的 tab，
     // 否则以搜索为首页启动的瞬间会错误高亮「影片」。

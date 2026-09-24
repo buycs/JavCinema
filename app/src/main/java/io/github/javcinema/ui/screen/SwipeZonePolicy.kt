@@ -36,13 +36,14 @@ internal enum class SwipeDirection { NONE, PREV, NEXT }
  * 底部功能页里**没有**顶部功能页的那些路由。
  *
  * 有顶部功能页的（影片 / 女优 / 收藏）不在此列 —— 它们上半屏的滑动归自己的 `HorizontalPager`。
- * 其余路由（影片详情、影片列表、磁力、女优详情等子页）也**不在此列**：保持「放行给子级」的
- * 原有行为，不抢手势。
  *
  * ⚠️ **新增没有顶部功能页的底部功能页时，必须把它的路由加到这里。**
  * 否则上半屏的滑动会被放行给一个并不存在的 pager —— 表现为「上半屏划不动」，
- * 用户只会觉得手势坏了，而不会想到是漏登记。这与 `NavRoutes.FULLSCREEN_ROUTES`
- * （新增沉浸式页面必须登记）是同一种约定。
+ * 用户只会觉得手势坏了，而不会想到是漏登记。
+ *
+ * 注意这里只关心**底部功能页**：非底栏页面（详情 / 过滤结果 / 磁力结果…）根本不会
+ * 走到手势判断 —— `MainScreen` 在 `NavRoutes.showsBottomBar` 为 false 时直接不接手势，
+ * 让页面自己的 `HorizontalPager` 接管整屏。
  */
 private val BOTTOM_PAGES_WITHOUT_TOP_PAGES = listOf(NavRoutes.SEARCH, NavRoutes.SETTINGS)
 
@@ -55,7 +56,7 @@ internal fun swipeZoneOf(y: Float, height: Float, split: Float = SWIPE_ZONE_SPLI
  *
  * 只有底部功能页里的搜索 / 设置没有（见 [BOTTOM_PAGES_WITHOUT_TOP_PAGES]）；
  * 其余一律返回 `true` —— 拿不准时选择「不抢手势」，因为抢错的后果（顶部页翻不动）
- * 比不抢（上半屏划不动）更严重，而且详情 / 列表这类子页本来就是放行给子级的。
+ * 比不抢（上半屏划不动）更严重。
  */
 internal fun hasTopPages(route: String?): Boolean {
     val value = route ?: return true

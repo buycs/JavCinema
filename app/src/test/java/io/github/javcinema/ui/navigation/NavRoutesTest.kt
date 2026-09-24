@@ -175,45 +175,65 @@ class NavRoutesTest {
         assertEquals("影片为首页", NavRoutes.homePageLabel(NavRoutes.HOME))
     }
 
-    // --- 全屏路由（隐藏底部导航栏）---
+    // --- 底栏显示范围（也决定底栏左右滑动是否生效）---
 
     /**
-     * 回归：播放页当初漏登记，导致横屏播放时底部还挂着一条导航栏。
-     * 三个沉浸式页面一个都不能少。
+     * 只有五个底部功能页显示底栏。搜索页要两种路由写法都认出来 ——
+     * 少认一个，搜索页的底栏就会消失、用户被困住。
      */
     @Test
-    fun fullscreenRoute_coversEveryImmersivePage() {
-        assertTrue(NavRoutes.isFullscreenRoute("movie_detail/SSIS-001"))
-        assertTrue(NavRoutes.isFullscreenRoute("missav_play/SSIS-001"))
-        assertTrue(NavRoutes.isFullscreenRoute("player"))
-        // 实际导航用的是带 query 的完整路径，也要判成全屏
-        assertTrue(
-            NavRoutes.isFullscreenRoute(
-                NavRoutes.player("https://surrit.com/a/playlist.m3u8", "https://missav.ws/en/x")
-            )
-        )
-        // 带参数的目的地，前缀必须取自 route 模板本身而不是硬编码
-        assertTrue(NavRoutes.isFullscreenRoute(NavRoutes.movieDetail("SSIS-001", link = "https://a/b")))
-    }
-
-    @Test
-    fun fullscreenRoute_leavesBottomBarPagesAlone() {
-        // 底部栏自己的五个页面绝不能被误判成全屏，否则导航栏会消失、用户被困住。
+    fun bottomBar_showsOnEveryBottomTabPage() {
         listOf(
             NavRoutes.HOME,
             NavRoutes.ACTRESSES,
             NavRoutes.SEARCH,
             NavRoutes.SEARCH_ROUTE,
             NavRoutes.FAVOURITE,
-            NavRoutes.SETTINGS,
-            "actress_detail/123",
-            "movie_list/x/y",
-            "download/abc"
+            NavRoutes.SETTINGS
         ).forEach { route ->
-            assertFalse("route=$route", NavRoutes.isFullscreenRoute(route))
+            assertTrue("route=$route", NavRoutes.showsBottomBar(route))
         }
-        // 导航图未就绪时不能崩
-        assertFalse(NavRoutes.isFullscreenRoute(null))
-        assertFalse(NavRoutes.isFullscreenRoute(""))
+    }
+
+    /**
+     * 其余一律隐藏 —— 包括用户报过的两类页面（过滤结果 / 磁力结果）和女优详情。
+     *
+     * 用白名单的意义就在这：新增子页忘了登记也不会漏，天然就对。
+     */
+    @Test
+    fun bottomBar_hidesOnEverySubPage() {
+        listOf(
+            // 影片详情：用户指定的参考行为
+            NavRoutes.movieDetail("SSIS-001", link = "https://a/b"),
+            "movie_detail/SSIS-001",
+            // 过滤查询结果（类别 / 女优 / 制作商 / 导演 / 系列 / 厂牌）
+            "movie_list/%E6%89%8B%E6%B3%95/x",
+            NavRoutes.movieList("手法", "genre/1"),
+            // 女优详情
+            "actress_detail/123",
+            NavRoutes.actressDetail("123", name = "波多野結衣"),
+            // 磁力结果
+            "download/SSIS-001",
+            NavRoutes.download("SSIS-001"),
+            // 取流 / 播放
+            "missav_play/SSIS-001",
+            NavRoutes.player("https://surrit.com/a/playlist.m3u8", "https://missav.ws/en/x"),
+            "player"
+        ).forEach { route ->
+            assertFalse("route=$route", NavRoutes.showsBottomBar(route))
+        }
+    }
+
+    /**
+     * 导航图未就绪（route 为 null / 空串）时**先显示**底栏。
+     *
+     * 注意这与改造前相反（旧判据 `isFullscreenRoute(null) == false` 也返回「不隐藏」，
+     * 但那是「不是全屏页」，这里是「先当作底栏页」）。启动瞬间宁可先画出来，
+     * 也不要让底栏闪一下再出现。
+     */
+    @Test
+    fun bottomBar_staysVisibleBeforeNavGraphIsReady() {
+        assertTrue(NavRoutes.showsBottomBar(null))
+        assertTrue(NavRoutes.showsBottomBar(""))
     }
 }
