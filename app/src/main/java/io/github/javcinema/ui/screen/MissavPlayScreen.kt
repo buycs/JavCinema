@@ -17,6 +17,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +48,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -681,10 +684,20 @@ private fun MissavNotFoundOverlay(
  *
  * 刻意不做成整屏遮罩：验证要用户亲手点，站点页面必须保持可交互。
  *
- * ⚠️ **文案必须单行显示**：这条提示本身就矮，一旦在窄屏 / 大字号下折成两行，
- * 就会向下压住站点页面的验证框。所以既限制了 `maxLines = 1`（配 `softWrap = false`
- * 才是真正的单行 + 省略号），文案也刻意取短 —— 别把「通过后会自动继续播放」加回来，
- * 加了在 320dp 宽 + 大字号下必折行。
+ * ⚠️ **整条提示必须是「一行高」**：文案已经缩到一行（`maxLines = 1` + 短句），
+ * 但显示栏本身的高度**不能由按钮决定** —— M3 的 `TextButton` 内部硬编码了
+ * `ButtonDefaults.MinHeight = 40.dp`，用它当「跳过」会把整条 bar 撑到 68dp 左右，
+ * 一行字的提示配一条两行高的色带，既难看又向下多压住一截站点页面的验证框。
+ * 所以这里用 `Text` + `Modifier.clickable` 代替 `TextButton`，高度就只剩一行文字
+ * 加上下各 4dp 的内边距。实测（1080x2400 / 420dpi）：**178px → 84px，即 67.8dp → 32.0dp**。
+ * 点击区没变小 —— `Modifier.clickable` 会按 M3 的最小交互尺寸把触控区撑到 48x48dp
+ * （uiautomator dump 量到「跳过」节点 126x126px），比视觉上的 bar 还高。
+ * **别为了「按钮要够大」把它换回 `TextButton`** —— 想加大点击区就把 `horizontal`
+ * 内边距调宽，别往高度上加。
+ *
+ * 另外文案必须保持单行：一旦在窄屏 / 大字号下折成两行，就会向下压住站点页面的验证框。
+ * 所以既限制了 `maxLines = 1`（配 `softWrap = false` 才是真正的单行 + 省略号），
+ * 文案也刻意取短 —— 别把「通过后会自动继续播放」加回来，加了在 320dp 宽 + 大字号下必折行。
  */
 @Composable
 private fun MissavChallengeBanner(
@@ -695,7 +708,7 @@ private fun MissavChallengeBanner(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -708,9 +721,17 @@ private fun MissavChallengeBanner(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        TextButton(onClick = onSkip) {
-            Text("跳过", style = MaterialTheme.typography.labelLarge)
-        }
+        Text(
+            text = "跳过",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.small)
+                .clickable(role = Role.Button, onClick = onSkip)
+                .padding(horizontal = 10.dp, vertical = 2.dp)
+        )
     }
 }
 
