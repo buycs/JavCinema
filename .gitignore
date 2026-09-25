@@ -1,5 +1,6 @@
 *.iml
 .gradle
+/.kotlin
 /local.properties
 /.idea/workspace.xml
 /.idea/libraries
@@ -22,5 +23,6 @@ AGENTS.md
 API_DOCUMENTATION.md
 IMAGE_FLOW_PLAN.md
 MAGNET_SEARCH.md
+MAGNET_STREAMING_PLAN.md
 run.bat
 start_emu.bat

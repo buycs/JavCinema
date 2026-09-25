@@ -83,7 +83,7 @@ fun DownloadScreen(
                         copyText(context, magnetLink ?: "", "已复制磁力链接")
                         viewModel.dismissMagnet()
                     }, modifier = Modifier.weight(1f)) {
-                        Text("复制链接")
+                        Text("复制")
                     }
                     TextButton(onClick = { viewModel.dismissMagnet() }, modifier = Modifier.weight(1f)) {
                         Text("关闭")
