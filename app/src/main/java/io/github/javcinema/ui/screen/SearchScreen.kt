@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -288,7 +290,11 @@ fun SearchScreen(
                     }
                 }
 
-            when (uiState) {
+            // ⚠️ 先绑到局部变量再 when：`uiState` 是委托属性（`by ...collectAsState()`），
+            // 对委托属性做 `when` 时拿不到智能转换 —— 分支体内 `uiState.message` 编译不过。
+            // 绑成 val 之后才有真正的类型收窄。
+            val state = uiState
+            when (state) {
                 is SearchUiState.Idle -> {}
                 is SearchUiState.Loading -> {
                     if (movies.isEmpty() && actresses.isEmpty() && searchScope != SearchScope.FAVORITES) {
@@ -304,7 +310,31 @@ fun SearchScreen(
                         }
                     }
                 }
-                is SearchUiState.Error -> {}
+                // ⚠️ 这里必须有内容。原先是个空分支 `is SearchUiState.Error -> {}`：
+                // 接口出错（实测 502）时界面**全空白** —— 没有文案、没有重试按钮，
+                // 和「搜到了但真的没有结果」完全分不清，用户只能反复改关键词瞎试。
+                // 这是「把失败说成没有」家族的成员：**没有结果**和**没搜成**必须分开报。
+                is SearchUiState.Error -> {
+                    item(span = { GridItemSpan(gridColumns) }) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = state.message,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(onClick = { doSearch(query) }) {
+                                Text("重试")
+                            }
+                        }
+                    }
+                }
                 is SearchUiState.Success -> {
                     if (searchScope == SearchScope.MOVIES && movies.isEmpty() && looksLikeMovieCode(query)) {
                         item(span = { GridItemSpan(gridColumns) }) {
@@ -612,22 +642,40 @@ private fun HistoryChip(
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (managing) {
+            // ⚠️ 触摸区（34dp）必须比视觉圆圈（18dp）大，且 `clickable` 挂在**外圈**。
+            // 原实现把 `clickable` 直接挂在 18dp 的圆圈上：命中区 = 视觉尺寸 = 18dp
+            // （density 2.625 下只有 47px），用户「点 ×」实际是在 47px 见方里点，
+            // 偏一格就什么也没发生，看上去像「删除按钮点不动」。
+            // 这里把外圈撑到 34dp 承载触摸，内圈仍画 18dp 圆圈 —— 视觉尺寸零变化。
+            //
+            // ⚠️ `offset` 是**外圈**的偏移，不是圆圈的偏移，标定过两次别乱改：
+            //   · 外圈比内圈大 16dp，圆圈中心会自动往左下缩 (34-18)/2 = 8dp；
+            //   · 但 chip 本体带 `clip(RoundedCornerShape(16.dp))`，外圈越界会被裁掉 ——
+            //     试过 (28, -28) 想追求「× 完全在 chip 外」，结果 × 整个消失。
+            //   · 折中实测：(7, -7) 时图标中心落在 chip 右上角内侧约 11px，
+            //     与改动**前**（18dp 圆圈 + offset(5, -5)）的视觉位置几乎一致。
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 5.dp, y = (-5).dp)
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.error)
-                    .clickable { onDelete?.invoke() },
+                    .offset(x = 7.dp, y = (-7).dp)
+                    .size(34.dp)
+                    .clickable(onClick = { onDelete?.invoke() }),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "删除",
-                    tint = MaterialTheme.colorScheme.onError,
-                    modifier = Modifier.size(12.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "删除",
+                        tint = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
             }
         }
     }
