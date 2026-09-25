@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -69,6 +71,40 @@ private val bottomItems = listOf(
     BottomNavItem("收藏", Icons.Default.Favorite, NavRoutes.FAVOURITE),
     BottomNavItem("设置", Icons.Default.Settings, NavRoutes.SETTINGS)
 )
+
+/**
+ * 上半屏放行之后，把「没人接的横向拖动」在 `Final` 阶段吃掉，避免漏成行的点击。
+ *
+ * 命名上叫 swallow（吞掉）而不是 claim（抢下）：这里**不做任何事**，
+ * 只是让子级 `clickable` 在自己的 Final 检查里看到 `isConsumed` 而取消点击 ——
+ * 「上半屏滑动什么都不触发」仍是预期行为，见 [shouldSwallowUpperHalfDrag] 的说明。
+ *
+ * ⚠️ **必须用 `PointerEventPass.Final`**：只有这一趟是「父 → 子」的顺序里
+ * 子级 `clickable` 唯一还来得及看 `isConsumed` 的时机；换成 `Initial` 会把
+ * 顶部 pager 的翻页一起吞掉，换成 `Main` 则已经晚于子级的判定。
+ *
+ * ⚠️ 判据满足后要**一直消费到抬手**，不能只 consume 那一帧 —— 否则后续帧的位移
+ * 又会重新累积给子级，点击照样触发。
+ */
+private suspend fun AwaitPointerEventScope.swallowUpperHalfDrag(downId: PointerId, slop: Float) {
+    var dragX = 0f
+    var dragY = 0f
+    var swallowing = false
+    while (true) {
+        val event = awaitPointerEvent(PointerEventPass.Final)
+        val change = event.changes.firstOrNull { it.id == downId } ?: break
+        if (!change.pressed) break
+        if (!swallowing) {
+            val delta = change.positionChange()
+            dragX += delta.x
+            dragY += delta.y
+            // 纵向先越过阈值 → 是列表滚动，交还给子级，别掺和。
+            if (abs(dragY) > slop && abs(dragY) >= abs(dragX)) break
+            swallowing = shouldSwallowUpperHalfDrag(dragX = dragX, dragY = dragY, slop = slop)
+        }
+        if (swallowing) change.consume()
+    }
+}
 
 @Composable
 fun MainScreen() {
@@ -129,14 +165,16 @@ fun MainScreen() {
                             requireUnconsumed = false,
                             pass = PointerEventPass.Initial
                         )
-                        // 上半屏的滑动归页面自己的顶部功能页，这里直接放行给子级。
-                        // 页面若没有顶部功能页（搜索 / 设置），放行就等于没反应 —— 这是有意的，
-                        // 别为了「让上半屏也能划」再加特判（见 SwipeZonePolicy 的说明）。
+                        // 上半屏的滑动归页面自己的顶部功能页。页面若没有顶部功能页（搜索 / 设置），
+                        // 这次拖动就没有接收者 —— 而 Compose 的 clickable 不因位移取消，
+                        // 于是会漏成「按下点所在那一行」的点击。这里不抢（顶部 pager 优先级更高），
+                        // 但要**兜底把这类拖动吃掉**，见下面 FINAL 段。
                         val zone = swipeZoneOf(
                             y = down.position.y,
                             height = size.height.toFloat()
                         )
                         if (zone != SwipeZone.LOWER) {
+                            swallowUpperHalfDrag(down.id, slop)
                             continue
                         }
                         var dragX = 0f

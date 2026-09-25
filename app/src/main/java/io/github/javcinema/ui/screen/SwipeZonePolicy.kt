@@ -1,5 +1,7 @@
 package io.github.javcinema.ui.screen
 
+import kotlin.math.abs
+
 /**
  * 主界面「按屏幕上下半区分配左右滑动」的手势策略。
  *
@@ -68,3 +70,26 @@ internal fun swipeTargetIndex(current: Int, direction: SwipeDirection, count: In
         SwipeDirection.NEXT -> if (current < count - 1) current + 1 else null
     }
 }
+
+/**
+ * 上半屏放行之后，这次拖动**该不该被兜底消费掉**。
+ *
+ * 背景：上半屏交给页面自己的顶部 `HorizontalPager`（见 `swipeZoneOf`）。但搜索 / 设置页
+ * **没有**顶部功能页，`MainScreen` 又主动放行，于是这次横向拖动**没有任何接收者**。
+ * 而 Compose 的 `clickable` / `combinedClickable` 只判「DOWN 落在节点内」+「UP 时未超长按阈值」，
+ * **全程不看移动距离** —— 拖动就这么漏到了「按下点所在的那一行」的点击上（实测复现）。
+ *
+ * 修法是让 `MainScreen` 在上半屏的 `PointerEventPass.Final` 阶段把这类拖动**吃掉但不做任何事**：
+ * 行的 `clickable` 在自己的 Final 检查里看到 `isConsumed`，就会取消这次点击。
+ *
+ * ⚠️ **判据必须与下半屏翻页一致**（横向越 slop 且明显大于纵向），不能「一有位移就消费」：
+ * 否则「按下时手指抖 2px」的正常点击也会被吃掉，变成整片区域点不动。
+ *
+ * ⚠️ **只在 Final 阶段用这个判据。** Initial 阶段消费会把顶部 pager 的翻页一起吞掉。
+ *
+ * @param dragX 累计横向位移（带符号）。
+ * @param dragY 累计纵向位移（带符号，只比较绝对值）。
+ * @param slop 触摸阈值，通常取 `viewConfiguration.touchSlop`。
+ */
+internal fun shouldSwallowUpperHalfDrag(dragX: Float, dragY: Float, slop: Float): Boolean =
+    slop > 0f && abs(dragX) > slop && abs(dragX) > abs(dragY)

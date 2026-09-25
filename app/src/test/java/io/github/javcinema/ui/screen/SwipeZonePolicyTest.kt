@@ -136,4 +136,52 @@ class SwipeZonePolicyTest {
         // 下半屏照旧归底栏 —— 与页面有没有顶部功能页无关
         assertEquals(SwipeZone.LOWER, swipeZoneOf(y = 1800f, height = height))
     }
+
+    // ---------- 上半屏兜底消费：拖出去的横滑不能变成点击 ----------
+    // 背景：上半屏放行后，没有顶部功能页的页面（搜索 / 设置）没有任何接收者。
+    // Compose 的 clickable 只判「DOWN 在不在节点内」+「UP 超没超长按阈值」，**不看位移**，
+    // 于是横滑会漏成「按下点所在那一行」的点击（实测复现）。
+    // 修法是在 Final 阶段把这类拖动 consume 掉。下面的判据就是「什么样的位移算拖动」。
+
+    private val slop = 18f // Android 默认 touchSlop 约 8dp × density
+
+    /** 横向拖过阈值、且明显大于纵向 → 是横滑，该吃掉。 */
+    @Test
+    fun swallowHorizontalDragBeyondSlop() {
+        assertEquals(true, shouldSwallowUpperHalfDrag(dragX = -120f, dragY = 4f, slop = slop))
+        assertEquals(true, shouldSwallowUpperHalfDrag(dragX = 120f, dragY = -4f, slop = slop))
+    }
+
+    /**
+     * ⚠️ 关键回归守卫：手指抖一下不算横滑。
+     * 「一有位移就消费」会把正常点击也吃掉 —— 表现为整片区域点不动。
+     */
+    @Test
+    fun tinyJitterStillCountsAsClick() {
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = 3f, dragY = 1f, slop = slop))
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = 0f, dragY = 0f, slop = slop))
+        // 正好等于阈值不消费，避免边界死区里点不动
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = slop, dragY = 0f, slop = slop))
+    }
+
+    /** 纵向为主的拖动是列表滚动，不能抢（交给子级）。 */
+    @Test
+    fun verticalDragIsLeftToTheList() {
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = 20f, dragY = 200f, slop = slop))
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = -30f, dragY = -150f, slop = slop))
+    }
+
+    /** 斜向但横向占优 → 仍算横滑。 */
+    @Test
+    fun diagonalWithHorizontalDominanceSwallows() {
+        assertEquals(true, shouldSwallowUpperHalfDrag(dragX = 100f, dragY = 40f, slop = slop))
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = 40f, dragY = 100f, slop = slop))
+    }
+
+    /** 阈值退化成 0（尺寸还没量出来）时不消费，避免把一切点击都吃掉。 */
+    @Test
+    fun nonPositiveSlopNeverSwallows() {
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = 500f, dragY = 0f, slop = 0f))
+        assertEquals(false, shouldSwallowUpperHalfDrag(dragX = -500f, dragY = 0f, slop = -1f))
+    }
 }
