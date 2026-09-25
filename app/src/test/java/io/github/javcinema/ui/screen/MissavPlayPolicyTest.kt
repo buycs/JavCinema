@@ -21,6 +21,54 @@ class MissavPlayPolicyTest {
         assertFalse(isMissavPlayUrl("https://missav.ws/en/pppe-437", "PPPE-443"))
     }
 
+    /**
+     * 回归：无码番号在站点上必然挂片商前缀。真实数据（2026-09-25，番号 `092326_01`，
+     * 从设备的搜索页 dump 里取到的链接）是 `https://missav.ws/en/musume-092326_01`，
+     * 旧的「slug == 番号 / 番号- 开头」判据认不出它，候选数 0 →
+     * 站点明明有这部片却报「资源库还未收录，播放失败」。
+     */
+    @Test
+    fun playUrlMatchesUncensoredMakerPrefix() {
+        assertTrue(isMissavPlayUrl("https://missav.ws/en/musume-092326_01", "092326_01"))
+        assertTrue(isMissavPlayUrl("https://missav.ws/dv203/1pondo-091924_797", "091924_797"))
+        assertTrue(
+            isMissavPlayUrl(
+                "https://missav.ws/en/musume-092326_01-chinese-subtitle",
+                "092326_01"
+            )
+        )
+        // 前后不能再接字母或数字：番号是一段，不是子串
+        assertFalse(isMissavPlayUrl("https://missav.ws/en/musume-092326_011", "092326_01"))
+        assertFalse(isMissavPlayUrl("https://missav.ws/en/musume-1092326_01", "092326_01"))
+        assertFalse(isMissavPlayUrl("https://missav.ws/en/carib-091924_798", "091924_797"))
+    }
+
+    /** 整页解析也要认得出带片商前缀的无码卡片，并且优先挑「番号本体」那条。 */
+    @Test
+    fun parsesUncensoredCardWithMakerPrefix() {
+        val html = """
+            <html><body>
+            <h1>Search result of 092326_01 - MissAV</h1>
+            <a href="https://missav.ws/en/musume-092326_01">
+              <img alt="I tried breastfeeding play"/>
+              MUSUME-092326_01 I tried breastfeeding play 1:00:37
+            </a>
+            <a href="https://missav.ws/en/musume-092326_01-chinese-subtitle">
+              MUSUME-092326_01 Chinese subtitle 1:00:37
+            </a>
+            <a href="https://missav.ws/en/musume-092326_99">unrelated</a>
+            </body></html>
+        """.trimIndent()
+        val results = parseMissavSearchResults(html, "092326_01")
+        assertEquals(2, results.size)
+        val best = selectBestMissavResult(results, "092326_01")
+        assertEquals("https://missav.ws/en/musume-092326_01", best?.url)
+        assertEquals(
+            MissavResolveAction.PLAY,
+            decideSearchOutcome(html, "092326_01", attempt = 1).action
+        )
+    }
+
     @Test
     fun parseSearchResultsFromHtml() {
         val html = """

@@ -183,11 +183,35 @@ internal fun isMissavPlayUrl(url: String, code: String): Boolean {
     if ("/search/" in path || "/actresses" in path || "/genres" in path || "/makers" in path) {
         return false
     }
-    val slug = urlSlug(path).orEmpty()
-    if (slug.isEmpty() || slug == "en" || slug == needle) {
-        return slug == needle
+    val slug = urlSlug(path) ?: return false
+    return slugMatchesCode(slug, needle)
+}
+
+/**
+ * 番号是否作为**完整一段**出现在 slug 里（前后不能再贴字母或数字）。
+ *
+ * 为什么不能只比「slug == 番号」和「番号- 开头」：**无码番号在站点上必然挂着片商前缀**。
+ * 实测（2026-09-25，番号 `092326_01`，站点搜索页 dump 出来的播放链接是
+ * `https://missav.ws/en/musume-092326_01`）—— 旧判据下这条候选直接被丢，
+ * 候选数 0 就成了「资源库还未收录，播放失败」，而结果卡片就在用户眼前；
+ * 顺带也让 `onPageFinished` 认不出这是播放页，回退站点后再也接管不回来。
+ * 骑兵能播、步兵全军覆没，差别就在这一个前缀上。
+ *
+ * 收紧的方式是**按分隔符成段**比对，而不是放宽成子串：
+ * `092326_01` 命中 `musume-092326_01`、`musume-092326_01-chinese-subtitle`，
+ * 但 `879` 不会命中 `ssni-8791`（后面贴了数字），`pppe-443` 也不会命中 `pppe-437`。
+ */
+private fun slugMatchesCode(slug: String, needle: String): Boolean {
+    var from = 0
+    while (true) {
+        val at = slug.indexOf(needle, from)
+        if (at < 0) return false
+        val after = at + needle.length
+        val leftOk = at == 0 || !slug[at - 1].isLetterOrDigit()
+        val rightOk = after == slug.length || !slug[after].isLetterOrDigit()
+        if (leftOk && rightOk) return true
+        from = at + 1
     }
-    return slug == needle || slug.startsWith("$needle-")
 }
 
 /** URL 路径的最后一段（slug），统一小写；取不到或为空返回 null。 */
@@ -200,10 +224,10 @@ private fun urlSlug(path: String?): String? =
  * 从搜索结果里挑一条用于自动接管。
  *
  * **无码优先**：同一部片站点常同时挂「无码流出」变体和原版，多个候选时优先播无码。
- * 无码候选内部仍先取 slug 精确命中（番号本体）、再退站点排序第一条；
- * 没有无码候选时才回到「精确命中 → 站点排序第一条」。
+ * 无码候选内部仍先取「就是番号本体」的那条、再退站点排序第一条；
+ * 没有无码候选时才回到同样的顺序。
  *
- * 能走到这里的候选都已通过 [isMissavPlayUrl] 校验（slug 要么等于番号，要么以「番号-」开头），
+ * 能走到这里的候选都已通过 [isMissavPlayUrl] 校验（番号在 slug 里成段出现），
  * 所以候选之间只差版本，不会串到别的番号。
  */
 internal fun selectBestMissavResult(
@@ -213,12 +237,15 @@ internal fun selectBestMissavResult(
     if (results.isEmpty()) return null
     val needle = normalizeMissavCode(code)
     if (needle.isEmpty()) return results.first()
-    fun exactHit(list: List<MissavSearchResult>) = list.firstOrNull { missavSlug(it.url) == needle }
-    val uncensored = results.filter { it.uncensored }
-    if (uncensored.isNotEmpty()) {
-        return exactHit(uncensored) ?: uncensored.first()
+    fun pick(list: List<MissavSearchResult>): MissavSearchResult {
+        // 骑兵的 slug 就是番号本体；无码必然带片商前缀（见 [slugMatchesCode]），
+        // 所以本体那条退化成「尾巴是番号」，避免在有原版可选时选中挂了版本后缀的变体。
+        val bare = list.firstOrNull { missavSlug(it.url) == needle }
+            ?: list.firstOrNull { missavSlug(it.url)?.endsWith(needle) == true }
+        return bare ?: list.first()
     }
-    return exactHit(results) ?: results.first()
+    val uncensored = results.filter { it.uncensored }
+    return pick(if (uncensored.isNotEmpty()) uncensored else results)
 }
 
 /**
