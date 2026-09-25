@@ -731,7 +731,11 @@ private fun MovieDetailContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            // ⚠️ 这里的底部留白不要调大：外层 Column 已经挂了 `navigationBarsPadding()`，
+            // 它会为系统手势条让出一整块空间（本机 420dpi 下约 26dp），两者是**线性叠加**的。
+            // 曾经是 40dp，叠加后滚到底会有约 66dp 的纯白，视觉上像「内容没铺满」。
+            // 16dp 只用来让最后一行卡片与下方留一点呼吸感，避开手势条的活交给上面那层 padding。
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
