@@ -161,7 +161,12 @@ fun MovieDetailScreen(
                         code = d.code ?: movieCode
                         title = d.title
                         link = d.id ?: movieCode
-                        coverUrl = defaultCover ?: d.coverUrl
+                        coverUrl = favoriteCoverUrl(
+                            thumbnailUrl = thumbnailUrl,
+                            registeredSmallCoverUrl = movieLink
+                                ?.let { JavCinema.imageUrlsRegistry[it]?.posterSmall },
+                            detailCoverUrl = d.coverUrl
+                        )
                         date = d.headers.find { it.name == "发行日期" }?.value
                         dataSourceName = JavCinema.getDataSource()?.name
                     }
