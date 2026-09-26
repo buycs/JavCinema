@@ -11,9 +11,13 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,6 +44,7 @@ import io.github.javcinema.ui.components.ScrollToTopEffect
 import io.github.javcinema.ui.components.SwipeBackContainer
 import io.github.javcinema.ui.navigation.NavRoutes
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MovieListScreen(
     navController: NavController,
@@ -175,12 +180,37 @@ fun MovieListScreen(
                 }
             }
         } else {
+            // verticalScroll 不是笔误：报错/空白页没有可滚动内容时，下拉手势根本不会
+            // 分派给 PullToRefreshBox 的嵌套滚动连接，用户就刷不动了。
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
                 contentAlignment = Alignment.Center
             ) {
                 statePlaceholder()
             }
+        }
+    }
+
+    // 手动下拉要自己记一趟：只看 uiState 的话，空列表重载会先进 Loading，
+    // 而那时列表还是空 —— 按「有内容才转」的判定，指示器会刚拉出来就收起。
+    var manualRefresh by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState) {
+        if (uiState !is MovieListUiState.Loading) manualRefresh = false
+    }
+
+    val refreshableContent = @Composable {
+        PullToRefreshBox(
+            isRefreshing = manualRefresh,
+            // 自动加载仍用居中占位，所以这里不把 uiState is Loading 并进 isRefreshing。
+            onRefresh = {
+                manualRefresh = true
+                viewModel.refresh()
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            listContent()
         }
     }
 
@@ -189,11 +219,11 @@ fun MovieListScreen(
             onBack = { navController.popBackStack() },
             modifier = Modifier.fillMaxSize()
         ) {
-            listContent()
+            refreshableContent()
         }
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
-            listContent()
+            refreshableContent()
         }
     }
 

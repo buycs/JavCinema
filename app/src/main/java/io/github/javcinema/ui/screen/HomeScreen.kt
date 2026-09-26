@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -103,16 +105,30 @@ fun HomeScreen(
             }
     }
 
+    // 手动下拉单独记一趟：空列表/报错页重拉时列表仍然是空的，只看 uiState 的话
+    // 「有内容才转圈」的判定会让指示器刚拉出来就缩回去。
+    var manualRefresh by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState) {
+        if (uiState !is HomeUiState.Loading) manualRefresh = false
+    }
+
     PullToRefreshBox(
-        isRefreshing = uiState is HomeUiState.Loading && movies.isNotEmpty(),
-        onRefresh = { viewModel.refresh() },
+        isRefreshing = manualRefresh || (uiState is HomeUiState.Loading && movies.isNotEmpty()),
+        onRefresh = {
+            manualRefresh = true
+            viewModel.refresh()
+        },
         modifier = Modifier.fillMaxSize()
     ) {
+        // 三个占位分支都要挂 verticalScroll：它们是 fillMaxSize 的普通 Box，盖在空网格上面，
+        // 自身不可滚动就等于不往下派发嵌套滚动，报错/空白页下拉刷新会完全没有响应。
         when (uiState) {
             is HomeUiState.Loading -> {
                 if (movies.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -122,7 +138,9 @@ fun HomeScreen(
             is HomeUiState.Error -> {
                 if (movies.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -138,7 +156,9 @@ fun HomeScreen(
             is HomeUiState.Success -> {
                 if (movies.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState()),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(text = "暂无数据")
