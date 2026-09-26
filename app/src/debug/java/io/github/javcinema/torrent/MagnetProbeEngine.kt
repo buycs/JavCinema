@@ -31,11 +31,14 @@ import java.util.Locale
 internal data class ProbeSample(val label: String, val magnet: String)
 
 /**
- * M0 样本：全部从应用自己的磁力搜索里取（BTSEARCH 源），不是网上随便找的热门种子 ——
- * 要回答的问题是「这个 App 递给第三方播放器的那些磁力，本机 P2P 能不能喂得动」。
+ * 站内样本：全部从应用自己的磁力搜索里取（BTSEARCH 源），不是网上随便找的热门种子 ——
+ * 要回答的问题是「这个 App 递给播放器的那些磁力，本机 P2P 能不能喂得动」。
  *
- * 第二轮（10 条）：上一轮只有 3 条，不足以下结论。这里刻意混编 ——
- * 5 条近期新盘（2026-09 抓取）+ 5 条老番号/中文字幕盘，用来量真实命中率。
+ * ⚠️ **M0 那一轮的结论已作废**：当时测到的是 Clash TUN 的机房出口 IP，
+ * 机房 IP 被 tracker / 对端拉黑是常态，所以 `seeds=0` 不能推出「JAV 磁力无种」。
+ * 这批样本本身仍可复用，但**解读结果前先记录出口 IP 与 `firewalled` 状态**。
+ *
+ * 10 条混编：5 条近期新盘 + 5 条老番号/中文字幕盘，用来量真实命中率。
  * label 里的年份是番号发布年代，不是抓取时间。
  */
 internal val M0_SAMPLES = listOf(
@@ -53,8 +56,12 @@ internal val M0_SAMPLES = listOf(
 
 /**
  * 对照组：Ubuntu 官方 `.torrent` 现算的 info-hash，全球 swarm、种子充足。
- * 它的作用是「环境自检」—— 它跑不出速率，就说明当前出口/引擎/网络在骗人，
- * 本轮 JAV 样本的 NO-GO 一律不能归因给资源。上一轮就是缺了这一步。
+ *
+ * ⚠️ 它只适合做**「能不能连上 swarm 并拿到 metadata」**的环境自检 ——
+ * ISO 里没有视频文件，`MagnetStream.selectMainFile()` 会正确抛 `NoVideoFile`，
+ * **所以它验证不了「能播」**。要验完整播放链路，用有视频的公共种子
+ * （如 Sintel `magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10`），
+ * 或者直接用 [M0_SAMPLES] 里的站内样本。
  */
 internal val M0_CONTROL = ProbeSample(
     "对照 Ubuntu 24.04.3 desktop ISO",
@@ -62,8 +69,11 @@ internal val M0_CONTROL = ProbeSample(
 )
 
 /**
- * 公共 tracker。应用里 MagnetLink.create() 把 `tr=` 截掉了（M1 要修），
- * 所以验证时必须自己补一份，否则只剩 DHT，测出来的到达率会假性偏低。
+ * 公共 tracker 兜底。
+ *
+ * ⚠️ `MagnetLink.create()` 从 2026-09-26 起**保留完整磁力串**（原来在第一个 `&` 处截断，
+ * 把 `tr=` 全丢了），站点自带的 tracker 现在能正常传进来。这里补一份是为了给
+ * **手写 / 裸 info-hash** 的样本（见 [M0_SAMPLES]）兜底 —— 否则只剩 DHT，到达率会假性偏低。
  */
 private val PUBLIC_TRACKERS = listOf(
     "udp://tracker.opentrackr.org:1337/announce",

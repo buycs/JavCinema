@@ -29,8 +29,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * M0 磁力在线播放可行性验证页。只在 debug 包里存在（`src/debug`），
+ * 引擎级诊断页（只在 debug 包里，`src/debug`）。
  * 用 `adb shell am start -n io.github.javcinema/.torrent.MagnetProbeActivity` 直接拉起。
+ *
+ * 与 [MagnetRunActivity] 的分工：这里只碰 `SessionManager`、**不经过 ExoPlayer**，
+ * 用来批量跑样本量「引擎能不能连上 swarm、速率够不够」；那边跑的是完整生产链路。
+ * 排查「播不了」时先跑这边，能把「引擎问题」和「播放器问题」切开。
  */
 class MagnetProbeActivity : ComponentActivity() {
 
