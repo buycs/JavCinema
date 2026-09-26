@@ -40,15 +40,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import io.github.javcinema.data.model.MagnetFile
 import io.github.javcinema.ui.components.AppTopTabRow
 import io.github.javcinema.ui.components.TopBarSelectedContentColor
 import io.github.javcinema.ui.components.TopBarUnselectedContentColor
+import io.github.javcinema.ui.navigation.NavRoutes
 import io.github.javcinema.util.copyText
 import kotlinx.coroutines.launch
 
 @Composable
 fun DownloadScreen(
+    navController: NavController,
     keyword: String,
     viewModel: DownloadViewModel = viewModel()
 ) {
@@ -79,6 +82,16 @@ fun DownloadScreen(
             text = { Text(magnetLink ?: "", style = MaterialTheme.typography.bodySmall) },
             confirmButton = {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    TextButton(onClick = {
+                        val link = magnetLink ?: ""
+                        viewModel.dismissMagnet()
+                        if (link.isNotBlank()) {
+                            // 交给应用内的磁力播放：ExoPlayer + 本地 BT 引擎，不跳第三方。
+                            navController.navigate(NavRoutes.player(link))
+                        }
+                    }, modifier = Modifier.weight(1f)) {
+                        Text("播放")
+                    }
                     TextButton(onClick = {
                         copyText(context, magnetLink ?: "", "已复制磁力链接")
                         viewModel.dismissMagnet()

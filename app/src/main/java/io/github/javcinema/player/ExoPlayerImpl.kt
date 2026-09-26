@@ -4,11 +4,12 @@ import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import io.github.javcinema.torrent.MagnetPlayback
+import io.github.javcinema.torrent.MagnetUnavailable
 
 // ⚠️ 注意这里用的是 androidx.annotation.OptIn，**不是** kotlin.OptIn。
 // Media3 的 UnstableApi 是 AndroidX 的 lint 注解（没有 @RequiresOptIn 元注解），
@@ -20,11 +21,24 @@ class ExoPlayerImpl(context: Context) {
 
     val player: ExoPlayer = createPlayer(context)
 
+    /** 当前磁力播放后端；非磁力为 null。BT 任务的生命周期跟着它，不跟 DataSource。 */
+    private var magnetPlayback: MagnetPlayback? = null
+
+    /**
+     * 磁力播不了的原因（`NoMetadata`/`Stalled`/…），供播放页出准确提示。
+     * 只在 [prepare] 之后、且 URL 是磁力时有意义。
+     */
+    val magnetFailure: MagnetUnavailable? get() = magnetPlayback?.failure
+
     private fun createPlayer(context: Context): ExoPlayer {
         return ExoPlayer.Builder(context).build()
     }
 
     fun prepare(context: Context, url: String, headers: Map<String, String> = emptyMap()) {
+        // 一次只允许一条磁力在跑：上一条必须先从 BT 会话里摘掉，否则两条抢带宽，
+        // 而且会话的 active_limit=1 会把新任务直接排队饿死。
+        releaseMagnet()
+
         val userAgent = "JavCinema/${android.os.Build.VERSION.SDK_INT}"
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
@@ -34,16 +48,27 @@ class ExoPlayerImpl(context: Context) {
             httpDataSourceFactory.setDefaultRequestProperties(headers)
         }
 
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
-
         val mediaItem = MediaItem.fromUri(url)
 
-        if (url.contains(".m3u8")) {
-            val hlsMediaSource = HlsMediaSource.Factory(httpDataSourceFactory)
-                .createMediaSource(mediaItem)
-            player.setMediaSource(hlsMediaSource)
-        } else {
-            player.setMediaItem(mediaItem)
+        when {
+            url.startsWith("magnet:") -> {
+                val playback = MagnetPlayback(context, url)
+                magnetPlayback = playback
+                val magnetSource = ProgressiveMediaSource.Factory(playback)
+                    .createMediaSource(mediaItem)
+                player.setMediaSource(magnetSource)
+            }
+            url.contains(".m3u8") -> {
+                val hlsMediaSource = HlsMediaSource.Factory(httpDataSourceFactory)
+                    .createMediaSource(mediaItem)
+                player.setMediaSource(hlsMediaSource)
+            }
+            else -> {
+                // 走 ExoPlayer 自带的默认 DataSource（内部会自己拼 http scheme），
+                // 和改造前的 `setMediaItem` 完全一致 —— 这里不要换成 ProgressiveMediaSource，
+                // 否则会绕过 DefaultMediaSourceFactory 对 file:///content:// 和 DASH 的自动判定。
+                player.setMediaItem(mediaItem)
+            }
         }
         player.prepare()
         player.playWhenReady = true
@@ -96,5 +121,17 @@ class ExoPlayerImpl(context: Context) {
 
     fun release() {
         player.release()
+        releaseMagnet()
+    }
+
+    /**
+     * 摘掉 BT 任务并删掉落盘缓存。
+     *
+     * ⚠️ 必须在 `player.release()` 之后调：磁力起播时加载线程可能正阻塞在等分片，
+     * [MagnetPlayback.release] 先置 `released` 让等待循环立刻退出。
+     */
+    private fun releaseMagnet() {
+        magnetPlayback?.release()
+        magnetPlayback = null
     }
 }

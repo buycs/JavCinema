@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    只参与 debug 合并：M0 磁力可行性验证页。
+    exported=true 是为了能用 adb am start 直接拉起来跑样本，release 包里不存在这个 Activity。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".torrent.MagnetProbeActivity"
+            android:exported="true"
+            android:label="磁力可行性验证"
+            android:theme="@style/AppTheme" />
+        <activity
+            android:name=".torrent.MagnetRunActivity"
+            android:exported="true"
+            android:label="磁力在线播冒烟"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+    </application>
+</manifest>

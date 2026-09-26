@@ -137,7 +137,7 @@ fun JavCinemaNavHost(
             arguments = listOf(navArgument("keyword") { type = NavType.StringType })
         ) { backStackEntry ->
             val keyword = backStackEntry.arguments?.getString("keyword") ?: ""
-            DownloadScreen(keyword = keyword)
+            DownloadScreen(navController = navController, keyword = keyword)
         }
 
         composable(

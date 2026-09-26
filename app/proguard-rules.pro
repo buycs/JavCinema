@@ -55,3 +55,9 @@
 
 # Kotlin coroutines
 -dontwarn kotlinx.coroutines.**
+
+# libtorrent4j：SWIG 生成的绑定。native 侧（libtorrent4j.so）按**类名+成员名**反查 Java
+# （告警回调、swigDirector 虚表、getCPtr 等），一旦改名/裁剪就是运行期 UnsatisfiedLinkError
+# 或静默收不到回调，而且只在 release 包里出现，极难查。整个包原样保留。
+-keep class org.libtorrent4j.** { *; }
+-dontwarn org.libtorrent4j.**

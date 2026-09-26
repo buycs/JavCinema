@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -66,6 +67,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -94,6 +96,16 @@ fun PlayerScreen(
     val context = LocalContext.current
     val exoPlayer = remember { ExoPlayerImpl(context) }
     val playerController = remember { SimpleVideoPlayer(context) }
+
+    /**
+     * 磁力源走本地 BT 引擎，失败原因和「网络不通」完全不是一回事，得单独出话术。
+     *
+     * 这里只在组合期算一次：本页的 `url` 由导航参数决定，进入后不会再变。
+     */
+    val isMagnet = url.startsWith("magnet:")
+
+    /** 磁力播不了的中文原因，由 [Player.Listener.onPlayerError] 填入；重试时清空。 */
+    var magnetHint by remember { mutableStateOf<String?>(null) }
 
     // 退出分两步走：按返回 → 先把方向还回去 → 等窗口真的转回竖屏 → 再 pop。
     // 反过来（先 pop 再转）上一页会在横屏窗口里被渲染约 0.7s，看起来就是画面撕裂。
@@ -210,6 +222,7 @@ fun PlayerScreen(
 
     LaunchedEffect(url) {
         if (url.isNotBlank()) {
+            magnetHint = null
             exoPlayer.prepare(context, url, streamHeaders())
         }
     }
@@ -275,6 +288,9 @@ fun PlayerScreen(
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 playerController.playbackState = PlayerPlaybackState.ERROR
+                if (isMagnet) {
+                    magnetHint = exoPlayer.magnetFailure?.message ?: "磁力在线播放失败"
+                }
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -482,7 +498,7 @@ fun PlayerScreen(
                     modifier = Modifier.align(Alignment.Center).size(48.dp)
                 )
                 Text(
-                    text = "加载中...",
+                    text = if (isMagnet) "正在连做种者取流…" else "加载中...",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp,
                     modifier = Modifier.align(Alignment.Center).padding(top = 56.dp)
@@ -503,9 +519,11 @@ fun PlayerScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "加载失败，点击重试",
+                        text = magnetHint ?: "加载失败，点击重试",
                         color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 320.dp)
                     )
                 }
             }

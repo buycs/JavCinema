@@ -101,6 +101,15 @@ dependencies {
     // 注意：media3-session 曾在这里，但全项目没有任何 MediaSession / MediaController 用法，
     // 属于上游遗留，已删除。以后要做后台播放 / 通知栏控制再加回来。
 
+    // 磁力在线播放的 BT 引擎（io.github.javcinema.torrent）。
+    // Android 产物是「jar 里装 lib/<abi>/libtorrent4j.so」而非 AAR，AGP 按 ABI 分包打进去。
+    // 只有主源集用到它（PlayerScreen 的 magnet: 分支），别改成 debugImplementation ——
+    // release 包一旦缺 libtorrent4j.so，播磁力会在 System.loadLibrary 直接崩。
+    implementation 'org.libtorrent4j:libtorrent4j:2.1.0-39'
+    implementation 'org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-39'
+    implementation 'org.libtorrent4j:libtorrent4j-android-arm:2.1.0-39'
+    implementation 'org.libtorrent4j:libtorrent4j-android-x86_64:2.1.0-39'
+
     // Lifecycle
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7'
