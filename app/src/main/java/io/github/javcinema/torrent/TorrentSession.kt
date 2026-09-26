@@ -401,15 +401,16 @@ class MagnetStream(
     fun availableBytesAt(position: Long, wanted: Int): Long {
         val h = handle ?: return 0L
         if (mainFileBytes <= 0) return 0L
+        val fileEnd = mainFileOffset + mainFileBytes
         val globalStart = mainFileOffset + position
-        if (globalStart >= mainFileOffset + mainFileBytes) return 0L
+        if (globalStart >= fileEnd) return 0L
         var piece = (globalStart / pieceBytes).toInt()
         var available = 0L
         while (piece <= lastPiece && available < wanted) {
             if (!runCatching { h.havePiece(piece) }.getOrDefault(false)) break
-            val pieceEnd = min((piece.toLong() + 1) * pieceBytes, mainFileOffset + mainFileBytes)
-            val from = max(globalStart + available, piece.toLong() * pieceBytes)
-            available += (pieceEnd - from).coerceAtLeast(0L)
+            // 换算走纯函数（见 MagnetStreamPolicy），**别内联回来** —— 内联了就没法单测，
+            // 而这里的三重钳制（片首/片尾/文件尾）正是最容易算错的地方。
+            available += pieceContribution(globalStart + available, piece, pieceBytes, fileEnd)
             piece++
         }
         noteFrontier(piece)

@@ -116,7 +116,11 @@ class MagnetDataSource(private val owner: MagnetPlayback) : DataSource {
             owner.terminalFailure?.let { throw MagnetPlaybackException(it) }
             val onDisk = (raf.length() - position).coerceAtLeast(0L)
             val available = min(s.availableBytesAt(position, wanted), onDisk)
-            if (available > 0) return available.coerceAtMost(wanted.toLong()).toInt()
+            if (available > 0) {
+                // 真的读出数据了：之前若记过停滞，说明已经自愈。
+                owner.clearRecoverableFailure()
+                return available.coerceAtMost(wanted.toLong()).toInt()
+            }
             if (s.stalled()) {
                 throw fail(MagnetUnavailable.Stalled(
                     "下载停滞，在线播不了（做种者 ${s.seeds()}、连接 ${s.peers()}）"
@@ -205,6 +209,8 @@ class MagnetPlayback(
             sleepQuietly(STARTUP_POLL_INTERVAL_MS)
         }
         s.flushPendingWrites()
+        // 起播成功 = 之前的停滞已自愈，把那条可恢复的失败记录清掉。
+        clearRecoverableFailure()
         return s
     }
 
@@ -213,6 +219,17 @@ class MagnetPlayback(
     internal fun recordFailure(reason: MagnetUnavailable) {
         // 只记第一个原因：后面的「停滞」多半是同一个病根的并发症，最早的诊断最有用。
         if (failure == null) failure = reason
+    }
+
+    /**
+     * 有了实际进展（读出数据 / 起播成功）之后，清掉**可恢复**的失败记录。
+     *
+     * 判据在 [shouldClearFailureOnProgress]：只清 `Stalled`（带宽抖动，会自愈），
+     * 终态原因保留。不清的话，「播成功」的场景里 `magnetFailure` 仍带着失败原因，
+     * 诊断时会被误导 —— 那属于「把成功说成失败」。
+     */
+    internal fun clearRecoverableFailure() {
+        if (shouldClearFailureOnProgress(failure)) failure = null
     }
 
     /** 摘掉 BT 任务并删掉落盘缓存；可重复调用。 */
